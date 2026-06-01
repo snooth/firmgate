@@ -1,0 +1,53 @@
+{% extends "intranet_base.html" %}
+{% block title %}{{ portal_shell_name }} — CRM{% endblock %}
+
+{% block intranet_body %}
+{% set crm_emb = '?embed=1' if request.args.get('embed') == '1' else '' %}
+{% set crm_nav_active = 'pipeline' %}
+<div class="nc-crm2" id="nc-crm-root">
+  {% include "_intranet_crm_sidebar.html" %}
+
+  <main class="nc-crm2-main" aria-label="CRM content">
+    <div class="nc-crm2-head">
+      <div>
+        <div class="nc-crm2-h1">Pipeline</div>
+        <div class="nc-crm2-hsub">Track and manage your leads and deals across the sales pipeline.</div>
+      </div>
+      <div class="nc-crm2-head-actions">
+        <button type="button" class="nc-crm2-dd">
+          <span>All pipelines</span>
+          <span aria-hidden="true">▾</span>
+        </button>
+        <button type="button" class="nc-crm2-dd">
+          <span>Filters</span>
+          <span aria-hidden="true">▾</span>
+        </button>
+        {% if crm_can_create %}<button type="button" class="nc-btn nc-btn-primary" data-crm-open="/intranet/crm/leads/new">＋ New</button>{% endif %}
+      </div>
+    </div>
+
+    {% include "_intranet_crm_kpis_empty.html" %}
+
+    {% include "_intranet_crm_pipeline_empty.html" %}
+
+    {% include "_intranet_crm_bottom_empty.html" %}
+    {% include "_intranet_crm_new_lead_drawer.html" %}
+  </main>
+</div>
+
+{% include "_intranet_crm_coming_soon_dialog.html" %}
+
+<div id="crm-viewer" class="nc-viewer-shell" hidden aria-label="CRM viewer">
+  <div class="nc-viewer-topbar">
+    <div class="nc-viewer-topbar-title" id="crm-title">CRM</div>
+    <button type="button" class="nc-viewer-close" id="crm-close" aria-label="Close CRM viewer">&times;</button>
+  </div>
+  <iframe id="crm-frame" class="nc-viewer-frame" title="CRM viewer" loading="lazy"></iframe>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script src="{{ url_for('static', filename='crm.js') }}?v=8"></script>
+{% endblock %}
+

@@ -1,0 +1,135 @@
+{% extends "intranet_base.html" %}
+
+{% block title %}{{ portal_shell_name }} — Security Officer{% endblock %}
+
+{% block intranet_body %}
+<div class="nc-so" id="security-officer-root">
+  <header class="nc-so-head">
+    <div>
+      <h1 class="nc-so-h1">Security Officer</h1>
+      <p class="nc-so-sub">Training completion overview for users who can access Security Training materials.</p>
+    </div>
+    <div class="nc-so-head-actions">
+      <button type="button" class="nc-so-print-btn" id="so-print-report">Print Report</button>
+      <div class="nc-so-chip" id="so-as-at" aria-live="polite">Loading…</div>
+    </div>
+  </header>
+
+  <section class="nc-so-kpis" aria-label="Training completion metrics" id="so-kpis">
+    <article class="nc-so-card">
+      <div class="nc-so-card-title">Users in scope</div>
+      <div class="nc-so-card-val" data-so-kpi="users">—</div>
+      <div class="nc-so-card-meta" data-so-kpi="users-meta">With training access</div>
+    </article>
+    <article class="nc-so-card nc-so-card--ok">
+      <div class="nc-so-card-title">Fully completed</div>
+      <div class="nc-so-card-val" data-so-kpi="complete">—</div>
+      <div class="nc-so-card-meta" data-so-kpi="complete-meta">All modules done</div>
+    </article>
+    <article class="nc-so-card nc-so-card--warn">
+      <div class="nc-so-card-title">In progress</div>
+      <div class="nc-so-card-val" data-so-kpi="progress">—</div>
+      <div class="nc-so-card-meta" data-so-kpi="progress-meta">Started, not finished</div>
+    </article>
+    <article class="nc-so-card nc-so-card--muted">
+      <div class="nc-so-card-title">Not started</div>
+      <div class="nc-so-card-val" data-so-kpi="not-started">—</div>
+      <div class="nc-so-card-meta" data-so-kpi="not-started-meta">No completions yet</div>
+    </article>
+    <article class="nc-so-card">
+      <div class="nc-so-card-title">Completion rate</div>
+      <div class="nc-so-card-val" data-so-kpi="rate">—</div>
+      <div class="nc-so-card-meta" data-so-kpi="rate-meta"><span data-so-kpi="modules">0</span> training modules</div>
+    </article>
+  </section>
+
+  <section class="nc-so-panel" aria-label="User completion list">
+    <div class="nc-so-panel-head">
+      <div>
+        <h2 class="nc-so-panel-title">User progress</h2>
+        <p class="nc-so-panel-sub">Filter by name or status. Click a row to open that user’s training view.</p>
+      </div>
+      <label class="nc-so-search">
+        <span class="nc-so-sr-only">Search users</span>
+        <input type="search" id="so-search" placeholder="Search name or email…" autocomplete="off">
+      </label>
+      <select id="so-status-filter" class="nc-so-select" aria-label="Filter by status">
+        <option value="">All statuses</option>
+        <option value="complete">Fully completed</option>
+        <option value="in_progress">In progress</option>
+        <option value="not_started">Not started</option>
+      </select>
+    </div>
+    <div class="nc-so-tablewrap">
+      <table class="nc-so-table" id="so-users-table">
+        <thead>
+          <tr>
+            <th scope="col">User</th>
+            <th scope="col">Status</th>
+            <th scope="col">Progress</th>
+            <th scope="col"></th>
+          </tr>
+        </thead>
+        <tbody id="so-users-body">
+          <tr><td colspan="4" class="nc-so-empty">Loading…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>
+
+<style>
+  .nc-so { width: 100%; max-width: none; margin: 0; }
+  .nc-so-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; margin-bottom: 1rem; flex-wrap: wrap; }
+  .nc-so-h1 { margin: 0; font-size: 1.55rem; letter-spacing: -.02em; }
+  .nc-so-sub { margin: .35rem 0 0; color: rgba(15,23,42,.55); font-weight: 650; max-width: 42rem; line-height: 1.45; }
+  .nc-so-head-actions { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; }
+  .nc-so-print-btn {
+    border: 1px solid rgba(76,110,245,.45); border-radius: 999px; padding: .45rem .85rem;
+    background: rgba(76,110,245,.92); color: #fff; font: inherit; font-weight: 800; cursor: pointer;
+  }
+  .nc-so-print-btn:hover:not(:disabled) { filter: brightness(1.05); }
+  .nc-so-print-btn:disabled { opacity: .65; cursor: wait; }
+  .nc-so-chip { display: inline-flex; align-items: center; padding: .45rem .65rem; border: 1px solid rgba(148,163,184,.25); border-radius: 999px; background: rgba(255,255,255,.72); font-weight: 800; color: rgba(15,23,42,.72); }
+  .nc-so-kpis { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: .85rem; margin-bottom: 1rem; }
+  .nc-so-card { background: rgba(255,255,255,.72); border: 1px solid rgba(148,163,184,.25); border-radius: 16px; padding: .85rem .9rem; }
+  .nc-so-card--ok .nc-so-card-val { color: rgba(22,163,74,.95); }
+  .nc-so-card--warn .nc-so-card-val { color: rgba(217,119,6,.95); }
+  .nc-so-card--muted .nc-so-card-val { color: rgba(100,116,139,.95); }
+  .nc-so-card-title { font-weight: 900; color: rgba(15,23,42,.78); font-size: .95rem; }
+  .nc-so-card-val { margin-top: .25rem; font-size: 1.55rem; font-weight: 950; letter-spacing: -.02em; }
+  .nc-so-card-meta { margin-top: .1rem; color: rgba(15,23,42,.55); font-weight: 700; font-size: .88rem; }
+  .nc-so-panel { background: rgba(255,255,255,.72); border: 1px solid rgba(148,163,184,.25); border-radius: 16px; overflow: hidden; }
+  .nc-so-panel-head { display: flex; align-items: flex-end; justify-content: space-between; gap: .75rem; flex-wrap: wrap; padding: .85rem .9rem; border-bottom: 1px solid rgba(148,163,184,.18); }
+  .nc-so-panel-title { margin: 0; font-weight: 950; letter-spacing: -.02em; font-size: 1.05rem; }
+  .nc-so-panel-sub { margin: .2rem 0 0; font-size: .85rem; font-weight: 650; color: rgba(15,23,42,.55); }
+  .nc-so-search input, .nc-so-select {
+    border: 1px solid rgba(148,163,184,.35); border-radius: 10px; padding: .45rem .55rem; font: inherit; font-weight: 700;
+    background: #fff; min-width: 11rem;
+  }
+  .nc-so-search input { min-width: 14rem; }
+  .nc-so-tablewrap { overflow: auto; }
+  .nc-so-table { width: 100%; border-collapse: collapse; font-size: .92rem; }
+  .nc-so-table th, .nc-so-table td { padding: .65rem .9rem; text-align: left; border-bottom: 1px solid rgba(148,163,184,.15); }
+  .nc-so-table th { font-weight: 900; color: rgba(15,23,42,.65); background: rgba(248,250,252,.8); }
+  .nc-so-table tbody tr:hover { background: rgba(14,165,233,.04); }
+  .nc-so-empty { text-align: center; color: rgba(15,23,42,.5); font-weight: 700; padding: 1.5rem !important; }
+  .nc-so-user-name { font-weight: 900; }
+  .nc-so-user-email { display: block; font-size: .82rem; font-weight: 650; color: rgba(15,23,42,.5); margin-top: .1rem; }
+  .nc-so-badge {
+    display: inline-flex; align-items: center; padding: .2rem .5rem; border-radius: 999px; font-weight: 800; font-size: .78rem;
+  }
+  .nc-so-badge--complete { background: rgba(34,197,94,.15); color: rgba(22,101,52,.95); }
+  .nc-so-badge--in_progress { background: rgba(251,191,36,.2); color: rgba(146,64,14,.95); }
+  .nc-so-badge--not_started { background: rgba(148,163,184,.2); color: rgba(51,65,85,.95); }
+  .nc-so-bar { height: 8px; border-radius: 999px; background: rgba(148,163,184,.2); overflow: hidden; min-width: 120px; }
+  .nc-so-bar > span { display: block; height: 100%; background: rgba(37,99,235,.85); border-radius: inherit; }
+  .nc-so-link { font-weight: 900; color: rgba(14,165,233,.95); text-decoration: none; white-space: nowrap; }
+  .nc-so-link:hover { text-decoration: underline; }
+  .nc-so-sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); border: 0; }
+  @media (max-width: 1100px) { .nc-so-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 640px) { .nc-so-kpis { grid-template-columns: 1fr; } }
+</style>
+
+<script src="{{ url_for('static', filename='security_officer.js') }}?v=2" defer></script>
+{% endblock %}

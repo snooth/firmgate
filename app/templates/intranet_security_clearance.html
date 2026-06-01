@@ -1,0 +1,2619 @@
+{% extends "intranet_base.html" %}
+{% block title %}{{ portal_shell_name }} — Security Clearances{% endblock %}
+
+{% block intranet_body %}
+<script>
+  window.SC2_AGENT_REQUEST_FROM_OPTIONS = {{ (agent_request_from_options or []) | tojson }};
+  window.SC2_CLEARANCE_LEVEL_OPTIONS = {{ (clearance_level_options or []) | tojson }};
+</script>
+<script type="application/json" id="sc2-permissions">{{ {"write": security_can_write|default(false), "delete": security_can_delete|default(false)} | tojson }}</script>
+<script type="application/json" id="sc2-initial-records">[]</script>
+<script type="application/json" id="sc2-server-meta">{{ {"count": security_clearance_server_count|default((security_clearance_records or [])|length), "storage": "sql+settings"} | tojson }}</script>
+<script src="{{ url_for('static', filename='vendor/xlsx.full.min.js') }}"></script>
+
+<div class="nc-sc2">
+  {% if security_clearance_server_count|default(0) == 0 and security_can_write %}
+  <div class="nc-sc2-alert" id="sc2-empty-alert" role="status">
+    <strong>No clearance records on this server.</strong>
+    Use <em>Import</em> with your <code>.xlsx</code> file (first row must include a <strong>CSID</strong> column),
+    or copy a backup from another environment (see below).
+    {% if security_clearance_diag and (security_clearance_diag.settings_backup_count or security_clearance_diag.snapshot_rows) %}
+    <br>Backups found: {{ security_clearance_diag.settings_backup_count }} in settings,
+    {{ security_clearance_diag.snapshot_rows }} in JSON file — click <strong>Repair storage</strong>.
+    {% endif %}
+    {% if security_is_admin and security_clearance_diag %}
+    <br><span class="nc-sc2-diag">DB: {{ security_clearance_diag.database_path }}</span>
+    {% endif %}
+  </div>
+  {% endif %}
+  <div class="nc-sc2-head">
+    <div class="nc-sc2-head-left">
+      <h1 class="nc-sc2-title">Security Clearances</h1>
+      <p class="nc-sc2-sub">View and manage all resources and their security clearance details. <span id="sc2-server-count-hint" class="nc-sc2-server-hint"></span></p>
+    </div>
+    <div class="nc-sc2-head-actions">
+      <button type="button" class="nc-btn nc-btn-secondary nc-sc2-btn" id="sc2-export">
+        <span class="nc-sc2-ic" aria-hidden="true">⇩</span><span>Export</span>
+      </button>
+      {% if security_can_write %}
+      <button type="button" class="nc-btn nc-btn-secondary nc-sc2-btn" id="sc2-import">
+        <span class="nc-sc2-ic" aria-hidden="true">⇪</span><span>Import</span>
+      </button>
+      <input type="file" id="sc2-import-file" accept=".xls,.xlsx,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>
+      <button type="button" class="nc-btn nc-btn-secondary nc-sc2-btn" id="sc2-repair" hidden title="Reload from server backup (admin)">
+        <span>Repair storage</span>
+      </button>
+      {% endif %}
+      <button type="button" class="nc-btn nc-btn-secondary nc-sc2-btn" id="sc2-filters-btn" aria-expanded="false" aria-controls="sc2-filters">
+        <span class="nc-sc2-ic" aria-hidden="true">⎇</span><span>Filters</span>
+      </button>
+      {% if security_can_write %}
+      <button type="button" class="nc-btn nc-btn-primary nc-sc2-btn" id="sc2-add">
+        <span class="nc-sc2-ic" aria-hidden="true">＋</span><span>Add record</span>
+      </button>
+      {% endif %}
+    </div>
+  </div>
+
+  <section class="nc-sc2-kpis" aria-label="Security clearance summary">
+    <div class="nc-sc2-kpi">
+      <div class="nc-sc2-kpi-ic is-blue" aria-hidden="true">⌁</div>
+      <div class="nc-sc2-kpi-meta">
+        <div class="nc-sc2-kpi-label">Total records</div>
+        <div class="nc-sc2-kpi-value" id="sc2-kpi-total">0</div>
+        <div class="nc-sc2-kpi-sub" id="sc2-kpi-total-sub">—</div>
+      </div>
+    </div>
+    <div class="nc-sc2-kpi">
+      <div class="nc-sc2-kpi-ic is-green" aria-hidden="true">⌂</div>
+      <div class="nc-sc2-kpi-meta">
+        <div class="nc-sc2-kpi-label">Active clearances</div>
+        <div class="nc-sc2-kpi-value" id="sc2-kpi-active">0</div>
+        <div class="nc-sc2-kpi-sub" id="sc2-kpi-active-sub">—</div>
+      </div>
+    </div>
+    <div class="nc-sc2-kpi">
+      <div class="nc-sc2-kpi-ic is-amber" aria-hidden="true">◷</div>
+      <div class="nc-sc2-kpi-meta">
+        <div class="nc-sc2-kpi-label">Expiring within 90 days</div>
+        <div class="nc-sc2-kpi-value" id="sc2-kpi-exp90">0</div>
+        <div class="nc-sc2-kpi-sub" id="sc2-kpi-exp90-sub">—</div>
+      </div>
+    </div>
+    <div class="nc-sc2-kpi">
+      <div class="nc-sc2-kpi-ic is-red" aria-hidden="true">!</div>
+      <div class="nc-sc2-kpi-meta">
+        <div class="nc-sc2-kpi-label">Expired clearances</div>
+        <div class="nc-sc2-kpi-value" id="sc2-kpi-expired">0</div>
+        <div class="nc-sc2-kpi-sub" id="sc2-kpi-expired-sub">—</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="nc-sc2-tablecard" aria-label="Security clearance list">
+    <div class="nc-sc2-tabletools">
+      <div class="nc-sc2-search">
+        <span class="nc-sc2-search-ic" aria-hidden="true">⌕</span>
+        <input class="nc-sc2-search-input" id="sc2-q" type="search" placeholder="Search by name, CSID, clearance level..." aria-label="Search">
+      </div>
+      <button type="button" class="nc-btn nc-btn-secondary nc-sc2-btn nc-sc2-columns-edit" id="sc2-columns-edit">Edit columns</button>
+    </div>
+
+    <div class="nc-sc2-bulk" id="sc2-bulk" hidden aria-label="Bulk actions">
+      <span class="nc-sc2-bulk-count" id="sc2-bulk-count">0 selected</span>
+      <button type="button" class="nc-btn nc-btn-secondary nc-sc2-btn" id="sc2-bulk-report">
+        <span class="nc-sc2-ic" aria-hidden="true">⇩</span><span>Download report</span>
+      </button>
+      {% if security_can_delete %}
+      <button type="button" class="nc-btn nc-btn-secondary nc-sc2-btn nc-sc2-bulk-delete" id="sc2-bulk-delete">
+        <span>Delete selected</span>
+      </button>
+      {% endif %}
+    </div>
+
+    <div class="nc-sc2-filters" id="sc2-filters" hidden aria-label="Filters">
+      <div class="nc-sc2-filters-head">
+        <div class="nc-sc2-filters-title">Filters</div>
+        <div class="nc-sc2-filters-actions">
+          <button type="button" class="nc-btn nc-btn-secondary nc-sc2-btn" id="sc2-clear-filters">Clear</button>
+        </div>
+      </div>
+      <div class="nc-sc2-filters-grid" id="sc2-filters-grid"></div>
+    </div>
+
+    <div class="nc-sc2-tablewrap">
+      <table class="nc-sc2-table" aria-label="Security clearances">
+        <thead>
+          <tr id="sc2-head-row"></tr>
+        </thead>
+        <tbody id="sc2-body"></tbody>
+      </table>
+    </div>
+
+    <div class="nc-sc2-foot">
+      <div class="nc-sc2-foot-left">
+        <span id="sc2-foot-left">Showing 0 to 0 of 0 records</span>
+        <label class="nc-sc2-perpage" aria-label="Rows per page">
+          <span class="nc-sc2-perpage-muted">Show</span>
+          <select id="sc2-perpage" class="nc-sc2-perpage-select" aria-label="Rows per page">
+            <option value="10">10</option>
+            <option value="25">25</option>
+            <option value="50">50</option>
+            <option value="100">100</option>
+          </select>
+          <span class="nc-sc2-perpage-muted">per page</span>
+        </label>
+      </div>
+      <div class="nc-sc2-pager" role="navigation" aria-label="Pages">
+        <button class="nc-sc2-pagebtn" id="sc2-prev" type="button" aria-label="Previous page" title="Previous page (P)">‹</button>
+        <div class="nc-sc2-pages" id="sc2-pages"></div>
+        <button class="nc-sc2-pagebtn" id="sc2-next" type="button" aria-label="Next page" title="Next page (R)">›</button>
+        <div class="nc-sc2-goto">
+          <span class="nc-sc2-goto-label">Go to</span>
+          <input class="nc-sc2-goto-input" id="sc2-goto" inputmode="numeric" pattern="[0-9]*" placeholder="Page" aria-label="Go to page">
+          <button class="nc-sc2-pagebtn" id="sc2-goto-btn" aria-label="Go">Go</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="nc-viewer-shell nc-sc2-addshell" id="sc2-addshell" hidden aria-label="Add security clearance record">
+    <div class="nc-viewer-topbar">
+      <div class="nc-viewer-topbar-title" id="sc2-add-title">Add security clearance</div>
+      <button type="button" class="nc-viewer-close" id="sc2-add-close" aria-label="Close add record">&times;</button>
+    </div>
+    <div class="nc-sc2-addbody">
+      <form class="nc-sc2-form" id="sc2-add-form">
+        <div class="nc-sc2-addlayout">
+          <div class="nc-sc2-addleft">
+            <div class="nc-sc2-formgrid">
+              <label class="nc-sc2-filter">
+                <span class="nc-sc2-filter-label">CSID</span>
+                <input class="nc-sc2-filter-input" name="csid" id="sc2-csid" required placeholder="CS123456">
+                <div class="nc-sc2-fielderr" id="sc2-csid-err" hidden>This CSID already exists.</div>
+              </label>
+              <label class="nc-sc2-filter">
+                <span class="nc-sc2-filter-label">Given name</span>
+                <input class="nc-sc2-filter-input" name="given" required placeholder="John">
+              </label>
+              <label class="nc-sc2-filter">
+                <span class="nc-sc2-filter-label">Family name</span>
+                <input class="nc-sc2-filter-input" name="family" required placeholder="Smith">
+              </label>
+
+              <label class="nc-sc2-filter">
+                <span class="nc-sc2-filter-label">Agent/Request from</span>
+                <select class="nc-sc2-filter-input" name="agent_request_from" id="sc2-agent-request-from" required></select>
+              </label>
+              <label class="nc-sc2-filter">
+                <span class="nc-sc2-filter-label">Clearance level</span>
+                <select class="nc-sc2-filter-input" name="level" id="sc2-level" required></select>
+              </label>
+              <label class="nc-sc2-filter">
+                <span class="nc-sc2-filter-label">Date of birth</span>
+                <input class="nc-sc2-filter-input" name="dob" type="date" required>
+              </label>
+
+              <label class="nc-sc2-filter">
+                <span class="nc-sc2-filter-label">Email address</span>
+                <input class="nc-sc2-filter-input" name="email" type="email" required placeholder="name@company.com">
+              </label>
+              <label class="nc-sc2-filter">
+                <span class="nc-sc2-filter-label">Phone number</span>
+                <input class="nc-sc2-filter-input" name="phone" type="tel" required placeholder="+61 ...">
+              </label>
+              <label class="nc-sc2-filter">
+                <span class="nc-sc2-filter-label">Revalidation date</span>
+                <input class="nc-sc2-filter-input" name="revalidation" type="date" required>
+              </label>
+
+              <label class="nc-sc2-filter">
+                <span class="nc-sc2-filter-label">Expiry date</span>
+                <input class="nc-sc2-filter-input" name="expiry" type="date" required>
+              </label>
+              <label class="nc-sc2-filter">
+                <span class="nc-sc2-filter-label">Status</span>
+                <select class="nc-sc2-filter-input" name="status" required>
+                  <option value="Active" selected>Active</option>
+                  <option value="Expiring soon">Expiring soon</option>
+                  <option value="Expired">Expired</option>
+                  <option value="Deactivated">Deactivated</option>
+                </select>
+              </label>
+              <label class="nc-sc2-filter">
+                <span class="nc-sc2-filter-label" id="sc2-grant-date-label">Security Clearance Grant Date</span>
+                <input class="nc-sc2-filter-input" name="grant_date" id="sc2-grant-date" type="date">
+              </label>
+
+              <label class="nc-sc2-filter nc-sc2-span3">
+                <span class="nc-sc2-filter-label">Signed application forms (PDF)</span>
+                <div class="nc-sc2-upload-input">
+                  <input class="nc-sc2-filter-input" id="sc2-pdf-input" type="file" accept="application/pdf" multiple>
+                  <div class="nc-sc2-upload-hint" id="sc2-pdf-hint">Add one or more PDF files. Save the record to keep them on this profile.</div>
+                  <ul class="nc-sc2-pdf-list" id="sc2-pdf-list" role="list" hidden></ul>
+                </div>
+              </label>
+            </div>
+
+            <div class="nc-sc2-formactions">
+              <div class="nc-sc2-formactions-left">
+                <button type="button" class="nc-btn nc-btn-secondary" id="sc2-archive">Archive</button>
+                <button type="button" class="nc-btn nc-btn-danger" id="sc2-delete">Delete</button>
+              </div>
+              <div class="nc-sc2-formactions-right">
+                <button type="button" class="nc-btn nc-btn-secondary" id="sc2-add-cancel">Cancel</button>
+                <button type="submit" class="nc-btn nc-btn-primary" id="sc2-add-save">Save record</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="nc-sc2-addright">
+            <div class="nc-sc2-chat" aria-label="Security clearance notes">
+              <div class="nc-sc2-chat-head">
+                <div class="nc-sc2-chat-title">Notes</div>
+                <div class="nc-sc2-chat-meta" id="sc2-chat-meta">Posting as {{ current_user.full_name or current_user.username or 'Member' }}</div>
+              </div>
+              <div class="nc-sc2-chat-list" id="sc2-notes-list" aria-live="polite"></div>
+              <div class="nc-sc2-chat-compose" id="sc2-note-compose-row">
+                <div class="nc-sc2-chat-compose-main">
+                  <div class="nc-sc2-chat-pending" id="sc2-note-pending" hidden aria-label="Attachments to include with next post"></div>
+                  <textarea class="nc-sc2-chat-textarea" id="sc2-note-text" rows="3" placeholder="Write a note… Drag files here or paste a screenshot. Post when ready." disabled></textarea>
+                </div>
+                <button type="button" class="nc-btn nc-btn-primary" id="sc2-note-send" disabled>Post</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <dialog class="nc-sc2-cols-dialog" id="sc2-columns-dialog" aria-labelledby="sc2-columns-title">
+    <div class="nc-sc2-cols-card">
+      <header class="nc-sc2-cols-head">
+        <h2 class="nc-sc2-cols-title" id="sc2-columns-title">Security clearance columns</h2>
+        <button type="button" class="nc-sc2-cols-x" id="sc2-columns-close" aria-label="Close">&times;</button>
+      </header>
+      <p class="nc-sc2-cols-lead">Choose which columns appear in the table and set their order. Your choices are saved in this browser.</p>
+      <ul class="nc-sc2-cols-list" id="sc2-columns-editor" role="list"></ul>
+      <footer class="nc-sc2-cols-foot">
+        <button type="button" class="nc-sc2-cols-reset" id="sc2-columns-reset">Reset to default</button>
+        <div class="nc-sc2-cols-foot-actions">
+          <button type="button" class="nc-sc2-cols-cancel" id="sc2-columns-cancel">Cancel</button>
+          <button type="button" class="nc-sc2-cols-save" id="sc2-columns-save">Save</button>
+        </div>
+      </footer>
+    </div>
+  </dialog>
+
+  <div id="sc2-img-viewer" class="nc-viewer-shell" hidden aria-label="Image viewer">
+    <div class="nc-viewer-topbar">
+      <div class="nc-viewer-topbar-title" id="sc2-img-title">Image</div>
+      <button type="button" class="nc-viewer-close" id="sc2-img-close" aria-label="Close image viewer">&times;</button>
+    </div>
+    <div class="nc-sc2-img-viewer-body">
+      <img id="sc2-img-el" class="nc-sc2-img-viewer-img" alt="Full image">
+    </div>
+  </div>
+</div>
+
+<script>
+  (async function () {
+    const SC2_PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
+    const SC2_PAGE_SIZE_STORAGE_KEY = "nc.sc2.pageSize.v1";
+    const SC2_DEFAULT_PAGE_SIZE = 10;
+
+    function loadPageSize() {
+      try {
+        const saved = Number(window.localStorage.getItem(SC2_PAGE_SIZE_STORAGE_KEY) || String(SC2_DEFAULT_PAGE_SIZE));
+        return SC2_PAGE_SIZE_OPTIONS.includes(saved) ? saved : SC2_DEFAULT_PAGE_SIZE;
+      } catch (_) {
+        return SC2_DEFAULT_PAGE_SIZE;
+      }
+    }
+
+    function savePageSize(n) {
+      try {
+        window.localStorage.setItem(SC2_PAGE_SIZE_STORAGE_KEY, String(n));
+      } catch (_) {}
+    }
+
+    let pageSize = loadPageSize();
+    const $body = document.getElementById("sc2-body");
+    const $foot = document.getElementById("sc2-foot-left");
+    const $perpage = document.getElementById("sc2-perpage");
+    const $pages = document.getElementById("sc2-pages");
+    const $prev = document.getElementById("sc2-prev");
+    const $next = document.getElementById("sc2-next");
+    const $goto = document.getElementById("sc2-goto");
+    const $gotoBtn = document.getElementById("sc2-goto-btn");
+    const $q = document.getElementById("sc2-q");
+    const $bulk = document.getElementById("sc2-bulk");
+    const $bulkCount = document.getElementById("sc2-bulk-count");
+    const $bulkReport = document.getElementById("sc2-bulk-report");
+    const $bulkDelete = document.getElementById("sc2-bulk-delete");
+    const $tablewrap = document.querySelector(".nc-sc2-tablewrap");
+    const $export = document.getElementById("sc2-export");
+    const $importBtn = document.getElementById("sc2-import");
+    const $importFile = document.getElementById("sc2-import-file");
+    const $repairBtn = document.getElementById("sc2-repair");
+    const $filtersBtn = document.getElementById("sc2-filters-btn");
+    const $filters = document.getElementById("sc2-filters");
+    const $filtersGrid = document.getElementById("sc2-filters-grid");
+    const $clearFilters = document.getElementById("sc2-clear-filters");
+    const $addBtn = document.getElementById("sc2-add");
+    const $addShell = document.getElementById("sc2-addshell");
+    const $addTitle = document.getElementById("sc2-add-title");
+    const $addClose = document.getElementById("sc2-add-close");
+    const $addCancel = document.getElementById("sc2-add-cancel");
+    const $addForm = document.getElementById("sc2-add-form");
+    const $csidInput = document.getElementById("sc2-csid");
+    const $csidErr = document.getElementById("sc2-csid-err");
+    const $pdfInput = document.getElementById("sc2-pdf-input");
+    const $pdfHint = document.getElementById("sc2-pdf-hint");
+    const $pdfList = document.getElementById("sc2-pdf-list");
+    const $agentFrom = document.getElementById("sc2-agent-request-from");
+    const $level = document.getElementById("sc2-level");
+    const $notesList = document.getElementById("sc2-notes-list");
+    const $noteText = document.getElementById("sc2-note-text");
+    const $noteSend = document.getElementById("sc2-note-send");
+    const $chatMeta = document.getElementById("sc2-chat-meta");
+    const $noteComposeRow = document.getElementById("sc2-note-compose-row");
+    const $notePending = document.getElementById("sc2-note-pending");
+    const $imgViewer = document.getElementById("sc2-img-viewer");
+    const $imgEl = document.getElementById("sc2-img-el");
+    const $imgClose = document.getElementById("sc2-img-close");
+    const $archive = document.getElementById("sc2-archive");
+    const $delete = document.getElementById("sc2-delete");
+    const $kpiTotal = document.getElementById("sc2-kpi-total");
+    const $kpiTotalSub = document.getElementById("sc2-kpi-total-sub");
+    const $kpiActive = document.getElementById("sc2-kpi-active");
+    const $kpiActiveSub = document.getElementById("sc2-kpi-active-sub");
+    const $kpiExp90 = document.getElementById("sc2-kpi-exp90");
+    const $kpiExp90Sub = document.getElementById("sc2-kpi-exp90-sub");
+    const $kpiExpired = document.getElementById("sc2-kpi-expired");
+    const $kpiExpiredSub = document.getElementById("sc2-kpi-expired-sub");
+    const SC2_CURRENT_USER = "{{ (current_user.full_name or current_user.username or 'Member') | e }}";
+
+    let SC2_CAN_WRITE = true;
+    let SC2_CAN_DELETE = true;
+    try {
+      const pel = document.getElementById("sc2-permissions");
+      if (pel) {
+        const p = JSON.parse(pel.textContent || "{}");
+        SC2_CAN_WRITE = !!p.write;
+        SC2_CAN_DELETE = !!p.delete;
+      }
+    } catch (_) {}
+
+    function applySc2FieldLocks() {
+      if (!$addForm) return;
+      const rw = SC2_CAN_WRITE;
+      $addForm.querySelectorAll("input,select,textarea").forEach((el) => {
+        el.disabled = !rw;
+      });
+      $addForm.querySelectorAll("button").forEach((el) => {
+        const id = el.id || "";
+        if (id === "sc2-add-close" || id === "sc2-add-cancel") return;
+        if (id === "sc2-archive") {
+          el.hidden = !rw;
+          el.disabled = !rw;
+          return;
+        }
+        if (id === "sc2-delete") {
+          const hide = !rw || !SC2_CAN_DELETE;
+          el.hidden = hide;
+          el.disabled = hide;
+          return;
+        }
+        el.disabled = !rw;
+      });
+      if ($noteText) {
+        if (!rw) $noteText.disabled = true;
+        else $noteText.disabled = formMode === "create";
+      }
+      if ($noteSend) {
+        if (!rw) $noteSend.disabled = true;
+        else $noteSend.disabled = formMode === "create";
+      }
+      applyGrantDateStaleStyle();
+    }
+
+    const GRANT_STALE_MS = 90 * 24 * 60 * 60 * 1000;
+
+    function grantDateIsStale(iso) {
+      const v = String(iso || "").trim();
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return false;
+      const grantMs = new Date(v + "T00:00:00Z").getTime();
+      if (!Number.isFinite(grantMs)) return false;
+      const now = new Date();
+      const startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+      return startToday - grantMs >= GRANT_STALE_MS;
+    }
+
+    function applyGrantDateStaleStyle() {
+      const el = document.getElementById("sc2-grant-date");
+      const label = document.getElementById("sc2-grant-date-label");
+      if (!el) return;
+      const stale = grantDateIsStale(el.value);
+      el.classList.toggle("is-grant-stale", stale);
+      if (label) label.classList.toggle("is-grant-stale", stale);
+    }
+
+    if (!$body || !$foot || !$pages || !$prev || !$next) return;
+
+    const STORAGE_KEY = "sc2.records.v1";
+    const SC2_PENDING_MAX_BYTES = 1_500_000;
+    const SC2_PENDING_MAX_TOTAL_BYTES = 4_500_000;
+    const SC2_PENDING_MAX_FILES = 20;
+    const SC2_PDF_MAX_FILES = 20;
+    const SC2_PDF_MAX_BYTES = 2_500_000;
+    const SC2_PDF_MAX_TOTAL_BYTES = 12_000_000;
+
+    const MONTHS = { jan: "01", feb: "02", mar: "03", apr: "04", may: "05", jun: "06", jul: "07", aug: "08", sep: "09", oct: "10", nov: "11", dec: "12" };
+    function toIsoDate(v) {
+      const s = String(v || "").trim();
+      if (!s) return "";
+      if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s; // already ISO (from <input type="date">)
+      const m = s.match(/^(\d{2})-([A-Za-z]{3})-(\d{4})$/);
+      if (m) {
+        const dd = m[1];
+        const mm = MONTHS[String(m[2] || "").toLowerCase()] || "";
+        const yy = m[3];
+        return mm ? `${yy}-${mm}-${dd}` : "";
+      }
+      const t = Date.parse(s);
+      if (!Number.isFinite(t)) return "";
+      try {
+        return new Date(t).toISOString().slice(0, 10);
+      } catch {
+        return "";
+      }
+    }
+
+    function normalizeSignedPdfs(r) {
+      const out = [];
+      if (Array.isArray(r.signed_pdfs)) {
+        for (const a of r.signed_pdfs.slice(0, SC2_PDF_MAX_FILES)) {
+          if (!a || typeof a !== "object") continue;
+          const name = String(a.name || "").trim();
+          const data = String(a.data || "");
+          if (!name) continue;
+          out.push({
+            id: String(a.id || `${Date.now()}-${Math.random().toString(16).slice(2)}`),
+            name: name.slice(0, 240),
+            mime: String(a.mime || "application/pdf").slice(0, 120),
+            data,
+          });
+        }
+      }
+      const legacy = String(r.signed_pdf_name || "").trim();
+      if (!out.length && legacy) {
+        out.push({
+          id: "legacy-name-only",
+          name: legacy.slice(0, 240),
+          mime: "application/pdf",
+          data: "",
+        });
+      }
+      return out;
+    }
+
+    function signedPdfsTotalBytes(list) {
+      return (list || []).reduce((sum, a) => sum + (String(a.data || "").length), 0);
+    }
+
+    function getSignedPdfsList() {
+      if (activeRecord) {
+        if (!Array.isArray(activeRecord.signed_pdfs)) {
+          activeRecord.signed_pdfs = normalizeSignedPdfs(activeRecord);
+        }
+        return activeRecord.signed_pdfs;
+      }
+      return draftSignedPdfs;
+    }
+
+    function renderSignedPdfList() {
+      if (!$pdfList) return;
+      const list = getSignedPdfsList();
+      const canEdit = SC2_CAN_WRITE;
+      if (!list.length) {
+        $pdfList.hidden = true;
+        $pdfList.innerHTML = "";
+        if ($pdfHint) {
+          $pdfHint.textContent = canEdit
+            ? "Add one or more PDF files. Save the record to keep them on this profile."
+            : "No signed application forms uploaded.";
+        }
+        return;
+      }
+      $pdfList.hidden = false;
+      if ($pdfHint) {
+        $pdfHint.textContent = canEdit
+          ? `${list.length} file${list.length === 1 ? "" : "s"} on this profile. Add more below or remove before saving.`
+          : `${list.length} file${list.length === 1 ? "" : "s"} on this profile.`;
+      }
+      $pdfList.innerHTML = list
+        .map((a) => {
+          const hasData = String(a.data || "").startsWith("data:");
+          const dl = hasData
+            ? `<a class="nc-sc2-pdf-dl" href="${escAttr(a.data)}" download="${escAttr(a.name)}" target="_blank" rel="noopener noreferrer">Download</a>`
+            : `<span class="nc-sc2-pdf-dl is-disabled" title="Re-upload to enable download">No file data</span>`;
+          const rm = canEdit
+            ? `<button type="button" class="nc-sc2-pdf-rm" data-pdf-id="${escAttr(a.id)}" aria-label="Remove ${escAttr(a.name)}">Remove</button>`
+            : "";
+          return `<li class="nc-sc2-pdf-item" role="listitem">
+            <span class="nc-sc2-pdf-ic" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                <path d="M14 2v6h6"/>
+              </svg>
+            </span>
+            <div class="nc-sc2-pdf-item-main">
+              <div class="nc-sc2-pdf-item-name">${esc(a.name)}</div>
+              <div class="nc-sc2-pdf-item-meta">${hasData ? "Stored on profile" : "Filename only (re-upload to download)"}</div>
+            </div>
+            ${dl}
+            ${rm}
+          </li>`;
+        })
+        .join("");
+    }
+
+    function removeSignedPdf(id) {
+      const k = String(id || "");
+      const list = getSignedPdfsList();
+      const idx = list.findIndex((a) => String(a.id) === k);
+      if (idx < 0) return;
+      list.splice(idx, 1);
+      renderSignedPdfList();
+    }
+
+    function addSignedPdfFromFile(file) {
+      if (!file || !SC2_CAN_WRITE) return;
+      const list = getSignedPdfsList();
+      if (list.length >= SC2_PDF_MAX_FILES) {
+        alert(`You can attach at most ${SC2_PDF_MAX_FILES} PDF files per profile.`);
+        return;
+      }
+      const size = Number(file.size) || 0;
+      if (size > SC2_PDF_MAX_BYTES) {
+        alert(`Each PDF must be under ${Math.round(SC2_PDF_MAX_BYTES / 1e6)}MB.`);
+        return;
+      }
+      if (signedPdfsTotalBytes(list) + size * 1.4 > SC2_PDF_MAX_TOTAL_BYTES) {
+        alert("Total PDF storage for this profile is too large. Remove a file or use a smaller PDF.");
+        return;
+      }
+      const mime = String(file.type || "application/pdf");
+      const ext = String(file.name || "").toLowerCase();
+      if (mime && mime !== "application/pdf" && !ext.endsWith(".pdf")) {
+        alert("Only PDF files can be attached here.");
+        return;
+      }
+      const fr = new FileReader();
+      fr.onload = () => {
+        try {
+          const data = String(fr.result || "");
+          if (!data.startsWith("data:")) throw new Error("bad data");
+          list.push({
+            id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+            name: String(file.name || "document.pdf").slice(0, 240),
+            mime: mime || "application/pdf",
+            data,
+          });
+          renderSignedPdfList();
+        } catch {
+          alert("Could not read that PDF.");
+        }
+      };
+      fr.onerror = () => alert("Could not read that PDF.");
+      fr.readAsDataURL(file);
+    }
+
+    function normalizeRecords(j) {
+      if (!Array.isArray(j)) return [];
+      const out = [];
+      const seen = new Set();
+      for (const r of j.slice(0, 5000)) {
+        if (!r || typeof r !== "object") continue;
+        const csid = String(r.csid || "").trim();
+        if (!csid) continue;
+        const k = csid.toUpperCase();
+        if (seen.has(k)) continue;
+        seen.add(k);
+        out.push({
+          created_at: Number(r.created_at || 0) || Date.now(),
+          csid,
+          given: String(r.given || ""),
+          family: String(r.family || ""),
+          agent_request_from: String(r.agent_request_from || ""),
+          level: String(r.level || ""),
+          dob: String(r.dob || ""),
+          email: String(r.email || ""),
+          phone: String(r.phone || ""),
+          signed_pdfs: normalizeSignedPdfs(r),
+          revalidation: toIsoDate(r.revalidation),
+          grant_date: toIsoDate(r.grant_date),
+          expiry: toIsoDate(r.expiry),
+          status: String(r.status || "Active"),
+          archived: !!r.archived,
+          notes: Array.isArray(r.notes) ? r.notes.slice(0, 500) : [],
+        });
+      }
+      return out;
+    }
+
+    function loadRecordsLocal() {
+      try {
+        const raw = window.localStorage.getItem(STORAGE_KEY);
+        if (!raw) return null;
+        return normalizeRecords(JSON.parse(raw));
+      } catch {
+        return null;
+      }
+    }
+
+    let sc2SaveTimer = null;
+    let sc2SaveInFlight = false;
+
+    function normCsid(s) {
+      return String(s || "").trim().toUpperCase();
+    }
+
+    function loadServerMetaFromPage() {
+      try {
+        const el = document.getElementById("sc2-server-meta");
+        if (!el) return { count: 0, storage: "sql" };
+        return JSON.parse(el.textContent || "{}");
+      } catch {
+        return { count: 0, storage: "sql" };
+      }
+    }
+
+    function updateServerCountHint(meta, apiCount) {
+      const el = document.getElementById("sc2-server-count-hint");
+      if (!el) return;
+      const n = Number(apiCount != null ? apiCount : meta?.count ?? 0);
+      if ($repairBtn) $repairBtn.hidden = n > 0;
+      if (n > 0) {
+        el.textContent = `(${n} stored on server)`;
+        el.hidden = false;
+      } else {
+        el.textContent = "(0 stored on server — use Import, or Repair storage if you imported already)";
+        el.hidden = false;
+      }
+    }
+
+    function loadInitialRecordsFromPage() {
+      try {
+        const el = document.getElementById("sc2-initial-records");
+        if (!el) return [];
+        return normalizeRecords(JSON.parse(el.textContent || "[]"));
+      } catch {
+        return [];
+      }
+    }
+
+    function mergeRecordsByCsid(...lists) {
+      const map = new Map();
+      for (const list of lists) {
+        for (const r of list) {
+          const k = normCsid(r.csid);
+          if (!k) continue;
+          const prev = map.get(k);
+          if (!prev || (Number(r.created_at) || 0) >= (Number(prev.created_at) || 0)) {
+            map.set(k, r);
+          }
+        }
+      }
+      return Array.from(map.values());
+    }
+
+    function recordsNeedUpload(serverList, mergedList) {
+      if (mergedList.length !== serverList.length) return true;
+      const serverIds = new Set(serverList.map((r) => normCsid(r.csid)));
+      return mergedList.some((r) => !serverIds.has(normCsid(r.csid)));
+    }
+
+    function stripHeavyAttachmentData(rows) {
+      return rows.map((r) => {
+        const copy = { ...r };
+        if (Array.isArray(copy.signed_pdfs)) {
+          copy.signed_pdfs = copy.signed_pdfs.map((a) => {
+            const data = String(a.data || "");
+            if (data.length > 120000) {
+              return { id: a.id, name: a.name, mime: a.mime, data: "" };
+            }
+            return a;
+          });
+        }
+        if (Array.isArray(copy.notes)) {
+          copy.notes = copy.notes.map((n) => {
+            const note = { ...n };
+            if (Array.isArray(note.attachments)) {
+              note.attachments = note.attachments.map((a) => {
+                const data = String(a.data || "");
+                if (data.length > 120000) {
+                  return { name: a.name, mime: a.mime, data: "" };
+                }
+                return a;
+              });
+            }
+            return note;
+          });
+        }
+        return copy;
+      });
+    }
+
+    function buildRecordsSaveBody(rows) {
+      const maxBytes = 6_000_000;
+      let body = JSON.stringify({ records: rows });
+      if (body.length <= maxBytes) {
+        return { body, stripped: false };
+      }
+      body = JSON.stringify({ records: stripHeavyAttachmentData(rows) });
+      return { body, stripped: true };
+    }
+
+    function cacheRecordsLocally() {
+      try {
+        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(DATA));
+      } catch {
+        /* ignore */
+      }
+    }
+
+    async function pushRecordsToServer() {
+      if (!SC2_CAN_WRITE) return false;
+      if (sc2SaveInFlight) return false;
+      if (!DATA.length) {
+        console.warn("Security clearance save skipped: refusing to push an empty record set.");
+        return false;
+      }
+      sc2SaveInFlight = true;
+      try {
+        const { body, stripped } = buildRecordsSaveBody(DATA);
+        const r = await fetch("/intranet/api/security-clearance/records", {
+          method: "PUT",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json" },
+          body,
+        });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok) {
+          const msg = j.error || `Save failed (${r.status})`;
+          console.warn("Security clearance save failed:", msg);
+          if (r.status === 413 || r.status === 400) {
+            window.alert(
+              `Could not save security clearance records to the server.\n\n${msg}\n\nYour list is still shown from this browser, but other users may not see it until save succeeds. Use Administration → Security clearance to export/restore a backup.`
+            );
+          }
+          return false;
+        }
+        if (stripped) {
+          console.info("Security clearance save sent without large embedded files; server kept existing file data.");
+        }
+        if (Array.isArray(j.records)) {
+          DATA = normalizeRecords(j.records);
+          cacheRecordsLocally();
+        }
+        return true;
+      } catch (e) {
+        console.warn("Security clearance save failed:", e);
+        window.alert("Could not reach the server to save security clearance records. Check your connection and try again.");
+        return false;
+      } finally {
+        sc2SaveInFlight = false;
+      }
+    }
+
+    async function pushRecordsToServerImmediate() {
+      if (sc2SaveTimer) {
+        clearTimeout(sc2SaveTimer);
+        sc2SaveTimer = null;
+      }
+      await pushRecordsToServer();
+    }
+
+    function cancelPendingSave() {
+      if (sc2SaveTimer) {
+        clearTimeout(sc2SaveTimer);
+        sc2SaveTimer = null;
+      }
+    }
+
+    function saveRecords() {
+      cacheRecordsLocally();
+      if (!SC2_CAN_WRITE) return;
+      if (!DATA.length) return;
+      cancelPendingSave();
+      sc2SaveTimer = setTimeout(() => {
+        sc2SaveTimer = null;
+        pushRecordsToServer();
+      }, 400);
+    }
+
+    function pickLargestRecordSet(...lists) {
+      let best = [];
+      for (const list of lists) {
+        if (Array.isArray(list) && list.length > best.length) {
+          best = list;
+        }
+      }
+      return best;
+    }
+
+    async function reloadRecordsFromServer() {
+      const r = await fetch("/intranet/api/security-clearance/records", { credentials: "same-origin" });
+      if (!r.ok) return false;
+      const j = await r.json().catch(() => ({}));
+      const rows = normalizeRecords(j.records);
+      DATA = rows.length ? rows : loadInitialRecordsFromPage();
+      cacheRecordsLocally();
+      updateServerCountHint(loadServerMetaFromPage(), DATA.length || Number(j.count ?? 0));
+      update();
+      return DATA.length > 0;
+    }
+
+    async function bootstrapRecords() {
+      const pageMeta = loadServerMetaFromPage();
+      let apiRows = [];
+      let apiCount = 0;
+      let apiOk = false;
+
+      try {
+        const r = await fetch("/intranet/api/security-clearance/records", { credentials: "same-origin" });
+        if (r.ok) {
+          const j = await r.json();
+          apiOk = true;
+          apiCount = Number(j.count ?? j.loaded ?? 0);
+          apiRows = normalizeRecords(j.records || []);
+        } else {
+          console.warn("Security clearance records API:", r.status);
+        }
+      } catch (e) {
+        console.warn("Security clearance records API failed:", e);
+      }
+
+      const serverCount = apiOk
+        ? apiCount
+        : Math.max(apiCount, Number(pageMeta.count ?? 0));
+
+      if (serverCount <= 0) {
+        try {
+          window.localStorage.removeItem(STORAGE_KEY);
+        } catch {
+          /* ignore */
+        }
+        DATA = [];
+        updateServerCountHint(pageMeta, 0);
+        return;
+      }
+
+      if (apiOk && apiRows.length > 0) {
+        DATA = apiRows;
+        cacheRecordsLocally();
+        updateServerCountHint(pageMeta, serverCount);
+        return;
+      }
+
+      if (apiOk && serverCount > 0 && apiRows.length === 0) {
+        console.error(
+          "Clearance API returned",
+          serverCount,
+          "record(s) but the browser could not load them. Hard-refresh (Cmd+Shift+R)."
+        );
+      } else if (!apiOk && Number(pageMeta.count ?? 0) > 0) {
+        console.error(
+          "Clearance API failed but server reports",
+          pageMeta.count,
+          "record(s). Restart the Flask app after code updates."
+        );
+      }
+
+      const localRows = loadRecordsLocal() || [];
+      if (localRows.length > 0 && serverCount > 0) {
+        console.warn(
+          "Server reports",
+          serverCount,
+          "clearance record(s) but API returned",
+          apiRows.length,
+          "— showing browser cache until reload succeeds."
+        );
+        DATA = localRows;
+        updateServerCountHint(pageMeta, serverCount);
+        return;
+      }
+
+      DATA = [];
+      updateServerCountHint(pageMeta, serverCount > 0 && apiRows.length === 0 ? 0 : serverCount);
+    }
+
+    function excelSerialToIso(n) {
+      const v = Number(n);
+      if (!Number.isFinite(v) || v <= 0) return "";
+      // Excel serial date -> JS date (days since 1899-12-30)
+      const ms = Math.round((v - 25569) * 86400 * 1000);
+      try {
+        return new Date(ms).toISOString().slice(0, 10);
+      } catch {
+        return "";
+      }
+    }
+
+    function parseAnyDateToIso(v) {
+      if (v == null) return "";
+      if (v instanceof Date && !Number.isNaN(v.getTime())) {
+        try {
+          return v.toISOString().slice(0, 10);
+        } catch {
+          return "";
+        }
+      }
+      if (typeof v === "number") return excelSerialToIso(v);
+      const s = String(v || "").trim();
+      if (!s) return "";
+      if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+      // Try our existing helper (handles DD-Mon-YYYY etc.)
+      const iso = toIsoDate(s);
+      if (iso) return iso;
+      const t = Date.parse(s);
+      if (!Number.isFinite(t)) return "";
+      try {
+        return new Date(t).toISOString().slice(0, 10);
+      } catch {
+        return "";
+      }
+    }
+
+    function normalizeClearanceLevel(raw) {
+      const s = String(raw || "").trim();
+      if (!s) return "";
+      const opts = window.SC2_CLEARANCE_LEVEL_OPTIONS || [];
+      const hit = opts.find((o) => String(o).toLowerCase() === s.toLowerCase());
+      if (hit) return hit;
+      const up = s.toUpperCase();
+      if (up === "BASELINE") return "Baseline";
+      if (up === "NV1") return "NV1";
+      if (up === "NV2") return "NV2";
+      if (up === "PV") return "PV";
+      return s;
+    }
+
+    function deriveClearanceStatus(expiryIso, explicitStatus) {
+      const explicit = String(explicitStatus || "").trim();
+      if (explicit) return explicit;
+      const v = String(expiryIso || "").trim();
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return "Active";
+      const expMs = new Date(v + "T00:00:00Z").getTime();
+      if (!Number.isFinite(expMs)) return "Active";
+      const now = new Date();
+      const startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+      const ninetyMs = 90 * 24 * 60 * 60 * 1000;
+      if (expMs < startToday) return "Expired";
+      if (expMs <= startToday + ninetyMs) return "Expiring soon";
+      return "Active";
+    }
+
+    function rowFromSpreadsheet(raw) {
+      let csid = String(
+        pick(raw, [
+          "csid",
+          "cs id",
+          "cs_id",
+          "cs id.",
+          "csid.",
+          "personnel id",
+          "personnel number",
+          "employee id",
+          "employee number",
+          "clearance id",
+        ]) || ""
+      ).trim();
+      if (/^\d+(\.0+)?$/.test(csid)) csid = String(parseInt(csid, 10));
+      if (!csid) return null;
+      const revalidation = parseAnyDateToIso(
+        pick(raw, ["revalidation date", "revalidation", "revalidation_date", "re-validation date"])
+      );
+      const grant_date = parseAnyDateToIso(
+        pick(raw, [
+          "security clearance grant date",
+          "clearance grant date",
+          "grant date",
+          "grant_date",
+          "clearance granted",
+        ])
+      );
+      const expiry = parseAnyDateToIso(
+        pick(raw, ["expiry date", "expiry", "expiry_date", "expiration date", "expiration", "expire date"])
+      );
+      const level = normalizeClearanceLevel(
+        pick(raw, ["clearance level", "level", "clearance", "clearance_level"])
+      );
+      const explicitStatus = String(pick(raw, ["status"]) || "").trim();
+      return {
+        csid,
+        given: String(pick(raw, ["given name", "given", "first name", "firstname", "first"]) || "").trim(),
+        family: String(
+          pick(raw, ["family name", "family", "last name", "lastname", "surname", "last"]) || ""
+        ).trim(),
+        agent_request_from: String(
+          pick(raw, ["agent/request from", "agent request from", "agent", "request from", "agent_request_from"]) ||
+            ""
+        ).trim(),
+        level,
+        revalidation,
+        grant_date,
+        expiry,
+        status: deriveClearanceStatus(expiry, explicitStatus),
+      };
+    }
+
+    function pick(row, keys) {
+      const lower = {};
+      Object.keys(row || {}).forEach((k) => (lower[String(k).trim().toLowerCase()] = row[k]));
+      for (const k of keys) {
+        const v = lower[String(k).toLowerCase()];
+        if (v != null && String(v).trim() !== "") return v;
+      }
+      return "";
+    }
+
+    let DATA = [];
+    try {
+      await bootstrapRecords();
+    } catch (e) {
+      console.error("Security clearance bootstrap failed:", e);
+      const pageRows = loadInitialRecordsFromPage();
+      if (pageRows.length) DATA = pageRows;
+    } finally {
+      const meta = loadServerMetaFromPage();
+      if (meta.count <= 0 && $repairBtn) $repairBtn.hidden = false;
+      else if ($repairBtn) $repairBtn.hidden = true;
+    }
+    // Drop legacy demo rows from older builds.
+    const SC2_LEGACY_DEMO_CSIDS = new Set(["CS343536", "CS313233"]);
+    {
+      const pruned = DATA.filter(
+        (r) => !SC2_LEGACY_DEMO_CSIDS.has(String(r.csid || "").trim().toUpperCase())
+      );
+      if (pruned.length !== DATA.length) {
+        DATA = pruned;
+        if (DATA.length) cacheRecordsLocally();
+      }
+    }
+
+    let page = 1;
+    let sortKey = ""; // default: created desc
+    let sortDir = "desc";
+    let query = "";
+    const selectedCsids = new Set();
+    let activeRecord = null;
+    let formMode = "create";
+
+    const SC2_COLUMN_CATALOG = [
+      { key: "csid", label: "CSID" },
+      { key: "given", label: "Given name" },
+      { key: "family", label: "Family name" },
+      { key: "agent_request_from", label: "Agent/Request from" },
+      { key: "level", label: "Clearance level" },
+      { key: "revalidation", label: "Revalidation date" },
+      { key: "grant_date", label: "Security Clearance Grant Date" },
+      { key: "expiry", label: "Expiry date" },
+      { key: "status", label: "Status" },
+      { key: "created_at", label: "Date created" },
+      { key: "days_from_creation", label: "Days from creation" },
+    ];
+    const SC2_DEFAULT_LIST_COLUMNS = [
+      "csid",
+      "given",
+      "family",
+      "agent_request_from",
+      "level",
+      "revalidation",
+      "expiry",
+      "status",
+      "created_at",
+      "days_from_creation",
+    ];
+    const SC2_COLS_STORAGE_KEY = "nc.sc2.listColumns.v1";
+    const SC2_CATALOG_KEYS = new Set(SC2_COLUMN_CATALOG.map((c) => c.key));
+    const SC2_CATALOG_BY_KEY = Object.fromEntries(SC2_COLUMN_CATALOG.map((c) => [c.key, c]));
+
+    function loadListColumns() {
+      try {
+        const raw = window.localStorage.getItem(SC2_COLS_STORAGE_KEY);
+        if (!raw) return SC2_DEFAULT_LIST_COLUMNS.slice();
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed)) return SC2_DEFAULT_LIST_COLUMNS.slice();
+        const out = parsed.map((k) => String(k)).filter((k) => SC2_CATALOG_KEYS.has(k));
+        return out.length ? out : SC2_DEFAULT_LIST_COLUMNS.slice();
+      } catch (_) {
+        return SC2_DEFAULT_LIST_COLUMNS.slice();
+      }
+    }
+
+    function saveListColumns(keys) {
+      try {
+        window.localStorage.setItem(SC2_COLS_STORAGE_KEY, JSON.stringify(keys));
+      } catch (_) {}
+    }
+
+    let listColumns = loadListColumns();
+    let columnEditorDraft = null;
+
+    function parseIsoDate(s) {
+      const v = String(s || "").trim();
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return NaN;
+      return new Date(v + "T00:00:00Z").getTime();
+    }
+
+    function ensureSortKeyValid() {
+      if (!sortKey) return;
+      if (!listColumns.includes(sortKey)) {
+        sortKey = listColumns[0] || "created_at";
+        sortDir = "asc";
+      }
+    }
+
+    function renderTableHeader() {
+      const tr = document.getElementById("sc2-head-row");
+      if (!tr) return;
+      if (!listColumns.length) listColumns = SC2_DEFAULT_LIST_COLUMNS.slice();
+      let html = `<th class="col-check"><input type="checkbox" id="sc2-select-all" aria-label="Select all records in this list"></th>`;
+      for (const key of listColumns) {
+        const def = SC2_CATALOG_BY_KEY[key];
+        if (!def) continue;
+        html += `<th><button type="button" class="nc-sc2-th" data-key="${escAttr(key)}" aria-sort="none">${esc(def.label)} <span class="nc-sc2-sort" aria-hidden="true">↕</span></button></th>`;
+      }
+      html += `<th class="col-edit">Edit</th>`;
+      tr.innerHTML = html;
+    }
+
+    function renderTableCell(key, r, arch) {
+      const days = daysFromCreated(r.created_at);
+      const daysCell = days >= 90 ? `<span class="nc-sc2-status is-red">Expired</span>` : String(days);
+      switch (key) {
+        case "csid":
+          return `<td class="mono"><button type="button" class="nc-sc2-link" data-action="open" data-csid="${escAttr(r.csid)}">${esc(r.csid)}</button></td>`;
+        case "given":
+          return `<td>${esc(r.given)}</td>`;
+        case "family":
+          return `<td>${esc(r.family)}</td>`;
+        case "agent_request_from":
+          return `<td>${esc(r.agent_request_from)}</td>`;
+        case "level":
+          return `<td><span class="nc-sc2-pill ${pillClass(r.level)}">${esc(r.level)}</span></td>`;
+        case "revalidation":
+          return `<td>${esc(fmtDate(r.revalidation))}</td>`;
+        case "grant_date": {
+          const stale = grantDateIsStale(r.grant_date);
+          return `<td class="${stale ? "nc-sc2-grant-stale-cell" : ""}">${esc(fmtDate(r.grant_date))}</td>`;
+        }
+        case "expiry":
+          return `<td>${esc(fmtDate(r.expiry))}</td>`;
+        case "status":
+          return `<td><span class="nc-sc2-status ${statusClass(r.status, arch)}">${arch ? "Archived" : esc(r.status)}</span></td>`;
+        case "created_at":
+          return `<td>${fmtCreated(r.created_at)}</td>`;
+        case "days_from_creation":
+          return `<td>${daysCell}</td>`;
+        default:
+          return `<td></td>`;
+      }
+    }
+
+    function exportCellValue(key, r) {
+      const arch = !!r.archived;
+      switch (key) {
+        case "csid":
+          return r.csid;
+        case "given":
+          return r.given;
+        case "family":
+          return r.family;
+        case "agent_request_from":
+          return r.agent_request_from;
+        case "level":
+          return r.level;
+        case "revalidation":
+          return fmtDate(r.revalidation);
+        case "grant_date":
+          return fmtDate(r.grant_date);
+        case "expiry":
+          return fmtDate(r.expiry);
+        case "status":
+          return arch ? "Archived" : r.status;
+        case "created_at":
+          return fmtCreated(r.created_at);
+        case "days_from_creation": {
+          const days = daysFromCreated(r.created_at);
+          return days >= 90 ? "Expired" : String(days);
+        }
+        default:
+          return "";
+      }
+    }
+
+    function buildColumnEditorDraft() {
+      const visible = new Set(listColumns);
+      const ordered = listColumns.slice();
+      SC2_COLUMN_CATALOG.forEach((c) => {
+        if (!visible.has(c.key)) ordered.push(c.key);
+      });
+      return ordered.map((key) => ({ key, show: visible.has(key) }));
+    }
+
+    function renderColumnEditor() {
+      const ul = document.getElementById("sc2-columns-editor");
+      if (!ul || !columnEditorDraft) return;
+      ul.innerHTML = "";
+      columnEditorDraft.forEach((row, idx) => {
+        const def = SC2_CATALOG_BY_KEY[row.key];
+        const li = document.createElement("li");
+        li.className = "nc-sc2-cols-row";
+        li.setAttribute("role", "listitem");
+        const up = document.createElement("button");
+        up.type = "button";
+        up.className = "nc-sc2-cols-move";
+        up.textContent = "↑";
+        up.disabled = idx === 0;
+        up.setAttribute("aria-label", "Move up");
+        const down = document.createElement("button");
+        down.type = "button";
+        down.className = "nc-sc2-cols-move";
+        down.textContent = "↓";
+        down.disabled = idx === columnEditorDraft.length - 1;
+        down.setAttribute("aria-label", "Move down");
+        const cb = document.createElement("input");
+        cb.type = "checkbox";
+        cb.checked = !!row.show;
+        cb.setAttribute("aria-label", `Show ${def ? def.label : row.key}`);
+        cb.addEventListener("change", () => {
+          row.show = cb.checked;
+        });
+        const span = document.createElement("span");
+        span.textContent = def ? def.label : row.key;
+        up.addEventListener("click", () => {
+          if (idx <= 0) return;
+          const prev = columnEditorDraft[idx - 1];
+          columnEditorDraft[idx - 1] = row;
+          columnEditorDraft[idx] = prev;
+          renderColumnEditor();
+        });
+        down.addEventListener("click", () => {
+          if (idx >= columnEditorDraft.length - 1) return;
+          const next = columnEditorDraft[idx + 1];
+          columnEditorDraft[idx + 1] = row;
+          columnEditorDraft[idx] = next;
+          renderColumnEditor();
+        });
+        li.appendChild(cb);
+        li.appendChild(span);
+        li.appendChild(up);
+        li.appendChild(down);
+        ul.appendChild(li);
+      });
+    }
+
+    function openColumnEditor() {
+      const dlg = document.getElementById("sc2-columns-dialog");
+      if (!dlg) return;
+      columnEditorDraft = buildColumnEditorDraft();
+      renderColumnEditor();
+      if (typeof dlg.showModal === "function") dlg.showModal();
+    }
+
+    function closeColumnEditor() {
+      const dlg = document.getElementById("sc2-columns-dialog");
+      columnEditorDraft = null;
+      if (dlg) {
+        try {
+          dlg.close();
+        } catch (_) {}
+      }
+    }
+
+    function applyColumnEditor(save) {
+      if (!save || !columnEditorDraft) {
+        closeColumnEditor();
+        return;
+      }
+      const next = columnEditorDraft.filter((r) => r.show).map((r) => r.key);
+      if (!next.length) {
+        window.alert("Select at least one column to display.");
+        return;
+      }
+      listColumns = next;
+      saveListColumns(listColumns);
+      ensureSortKeyValid();
+      closeColumnEditor();
+      renderTableHeader();
+      update();
+    }
+
+    function wireColumnEditor() {
+      document.getElementById("sc2-columns-edit")?.addEventListener("click", () => openColumnEditor());
+      document.getElementById("sc2-columns-close")?.addEventListener("click", () => closeColumnEditor());
+      document.getElementById("sc2-columns-cancel")?.addEventListener("click", () => closeColumnEditor());
+      document.getElementById("sc2-columns-save")?.addEventListener("click", () => applyColumnEditor(true));
+      document.getElementById("sc2-columns-reset")?.addEventListener("click", () => {
+        const vis = new Set(SC2_DEFAULT_LIST_COLUMNS);
+        const ordered = SC2_DEFAULT_LIST_COLUMNS.slice();
+        SC2_COLUMN_CATALOG.forEach((c) => {
+          if (!vis.has(c.key)) ordered.push(c.key);
+        });
+        columnEditorDraft = ordered.map((key) => ({ key, show: vis.has(key) }));
+        renderColumnEditor();
+      });
+      const dlg = document.getElementById("sc2-columns-dialog");
+      if (dlg) {
+        dlg.addEventListener("cancel", (e) => {
+          e.preventDefault();
+          closeColumnEditor();
+        });
+        dlg.addEventListener("click", (e) => {
+          if (e.target === dlg) closeColumnEditor();
+        });
+      }
+    }
+
+    function wireTableSort() {
+      const thead = document.querySelector(".nc-sc2-table thead");
+      if (!thead || thead.dataset.sc2SortWired) return;
+      thead.dataset.sc2SortWired = "1";
+      thead.addEventListener("click", (e) => {
+        const b = e.target && e.target.closest ? e.target.closest(".nc-sc2-th") : null;
+        if (!b || !thead.contains(b)) return;
+        const k = b.getAttribute("data-key") || "";
+        if (!k) return;
+        if (sortKey === k) sortDir = sortDir === "asc" ? "desc" : "asc";
+        else {
+          sortKey = k;
+          sortDir = "asc";
+        }
+        page = 1;
+        update();
+      });
+    }
+
+    /** @type {Array<{ id: string; name: string; mime: string; data: string }>} */
+    let draftSignedPdfs = [];
+    /** @type {Array<{ id: string; name: string; mime: string; dataUrl: string; size: number }>} */
+    let pendingAttachments = [];
+
+    function escAttr(s) {
+      return String(s ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;")
+        .replace(/</g, "&lt;");
+    }
+
+    function pendingTotalBytes() {
+      return pendingAttachments.reduce((a, x) => a + (Number(x.size) || 0), 0);
+    }
+
+    function clearPendingAttachments() {
+      pendingAttachments = [];
+      renderPendingAttachments();
+    }
+
+    function removePendingAttachment(id) {
+      const k = String(id || "");
+      pendingAttachments = pendingAttachments.filter((x) => x.id !== k);
+      renderPendingAttachments();
+    }
+
+    function renderPendingAttachments() {
+      if (!$notePending) return;
+      if (!pendingAttachments.length) {
+        $notePending.hidden = true;
+        $notePending.innerHTML = "";
+        return;
+      }
+      $notePending.hidden = false;
+      $notePending.innerHTML = pendingAttachments
+        .map((a) => {
+          const isImg = String(a.mime || "").startsWith("image/");
+          const x = `<button type="button" class="nc-sc2-chat-pending-x" data-pend-id="${escAttr(a.id)}" aria-label="Remove attachment">&times;</button>`;
+          if (isImg) {
+            return `<div class="nc-sc2-chat-pending-item nc-sc2-chat-pending-item--img">${x}<img src="${escAttr(a.dataUrl)}" alt=""></div>`;
+          }
+          return `<div class="nc-sc2-chat-pending-item nc-sc2-chat-pending-item--file">${x}<span class="nc-sc2-chat-pending-fn">${esc(a.name)}</span><span class="nc-sc2-chat-pending-meta">${esc(a.mime || "file")}</span></div>`;
+        })
+        .join("");
+    }
+
+    if ($notePending) {
+      $notePending.addEventListener("click", (e) => {
+        const t = e.target;
+        if (!(t instanceof HTMLElement)) return;
+        const b = t.closest("[data-pend-id]");
+        if (!b || !b.classList.contains("nc-sc2-chat-pending-x")) return;
+        removePendingAttachment(b.getAttribute("data-pend-id") || "");
+      });
+      $notePending.addEventListener(
+        "error",
+        (e) => {
+          const img = e.target;
+          if (!(img instanceof HTMLImageElement)) return;
+          const wrap = img.closest(".nc-sc2-chat-pending-item");
+          const btn = wrap && wrap.querySelector("[data-pend-id]");
+          const id = btn && btn.getAttribute("data-pend-id");
+          if (id) removePendingAttachment(id);
+          alert("Could not preview that image. Try a smaller file.");
+        },
+        true
+      );
+    }
+
+    function addPendingFromFile(file) {
+      if (!file || !activeRecord) return;
+      if (pendingAttachments.length >= SC2_PENDING_MAX_FILES) {
+        alert(`You can add at most ${SC2_PENDING_MAX_FILES} files per note. Post first, then add more.`);
+        return;
+      }
+      const size = Number(file.size) || 0;
+      if (size > SC2_PENDING_MAX_BYTES) {
+        alert(`Each file must be under ${Math.round(SC2_PENDING_MAX_BYTES / 1e6)}MB for notes storage.`);
+        return;
+      }
+      if (pendingTotalBytes() + size > SC2_PENDING_MAX_TOTAL_BYTES) {
+        alert("Total attachments for this note are too large. Post or remove some files first.");
+        return;
+      }
+      const fr = new FileReader();
+      fr.onload = () => {
+        try {
+          const dataUrl = String(fr.result || "");
+          if (!dataUrl.startsWith("data:")) throw new Error("bad data");
+          pendingAttachments.push({
+            id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+            name: String(file.name || "attachment"),
+            mime: String(file.type || "application/octet-stream"),
+            dataUrl,
+            size,
+          });
+          renderPendingAttachments();
+        } catch {
+          alert("Could not read that file.");
+        }
+      };
+      fr.onerror = () => alert("Could not read that file.");
+      fr.readAsDataURL(file);
+    }
+
+    function openImageViewer(dataUrl) {
+      if (!$imgViewer || !$imgEl) return;
+      try { if (window.ncSyncViewerOffsets) window.ncSyncViewerOffsets(); } catch {}
+      $imgEl.src = String(dataUrl || "");
+      $imgViewer.hidden = false;
+    }
+
+    function closeImageViewer() {
+      if (!$imgViewer || !$imgEl) return;
+      $imgViewer.hidden = true;
+      $imgEl.removeAttribute("src");
+    }
+
+    if ($imgClose) $imgClose.addEventListener("click", closeImageViewer);
+
+    const filters = { csid: "", given: "", family: "", agent_request_from: "", level: "", status: "" };
+    const FILTER_DEFS = [
+      { key: "csid", label: "CSID", kind: "text", placeholder: "e.g. CS123456" },
+      { key: "given", label: "Given name", kind: "text", placeholder: "e.g. John" },
+      { key: "family", label: "Family name", kind: "text", placeholder: "e.g. Smith" },
+      { key: "agent_request_from", label: "Agent/Request from", kind: "select", options: ["", ...(window.SC2_AGENT_REQUEST_FROM_OPTIONS || [])] },
+      { key: "level", label: "Clearance level", kind: "select", options: ["", ...(window.SC2_CLEARANCE_LEVEL_OPTIONS || [])] },
+      { key: "status", label: "Status", kind: "select", options: ["", "Active", "Expiring soon", "Expired", "Deactivated"] },
+    ];
+
+    function esc(s) {
+      return String(s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    }
+
+    function fmtCreated(ts) {
+      const t = Number(ts || 0);
+      if (!t) return "";
+      const dt = new Date(t);
+      const dd = String(dt.getDate()).padStart(2, "0");
+      const mon = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][dt.getMonth()];
+      const yy = dt.getFullYear();
+      return `${dd}-${mon}-${yy}`;
+    }
+
+    function fmtDate(iso) {
+      const s = String(iso || "").trim();
+      if (!s) return "";
+      // Prefer ISO yyyy-mm-dd because it sorts well and is what <input type="date"> expects.
+      if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+        const dt = new Date(s + "T00:00:00Z");
+        if (isNaN(dt.getTime())) return "";
+        const dd = String(dt.getUTCDate()).padStart(2, "0");
+        const mon = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][dt.getUTCMonth()];
+        const yy = dt.getUTCFullYear();
+        return `${dd}-${mon}-${yy}`;
+      }
+      // Back-compat if any older values slipped through.
+      const dt = new Date(s);
+      if (isNaN(dt.getTime())) return "";
+      const dd = String(dt.getUTCDate()).padStart(2, "0");
+      const mon = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][dt.getUTCMonth()];
+      const yy = dt.getUTCFullYear();
+      return `${dd}-${mon}-${yy}`;
+    }
+
+    function statusClass(s, archived) {
+      if (archived) return "is-gray";
+      const v = String(s || "").toLowerCase();
+      if (v.includes("deactivated")) return "is-gray";
+      if (v.includes("expired")) return "is-red";
+      if (v.includes("expiring")) return "is-amber";
+      return "is-green";
+    }
+
+    function syncKpis() {
+      // Match "number of clearance members" = non-archived records.
+      const rows = DATA.filter((r) => !r.archived);
+      const total = rows.length;
+      const pct = (n) => (total ? ((n / total) * 100).toFixed(1) : "0.0");
+
+      const today = new Date();
+      const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+      const ninetyDaysMs = 90 * 24 * 60 * 60 * 1000;
+      const nowMs = startOfToday.getTime();
+
+      const parseIso = (s) => {
+        const v = String(s || "").trim();
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return NaN;
+        return new Date(v + "T00:00:00Z").getTime();
+      };
+
+      let active = 0;
+      let expired = 0;
+      let exp90 = 0;
+      for (const r of rows) {
+        const st = String(r.status || "").toLowerCase();
+        const expMs = parseIso(r.expiry);
+        const isExpiredByDate = Number.isFinite(expMs) ? expMs < nowMs : false;
+        const isExpired = st.includes("expired") || isExpiredByDate;
+        if (isExpired) expired += 1;
+        else active += 1;
+        if (Number.isFinite(expMs) && expMs >= nowMs && expMs <= nowMs + ninetyDaysMs) exp90 += 1;
+      }
+
+      if ($kpiTotal) $kpiTotal.textContent = total.toLocaleString();
+      if ($kpiActive) $kpiActive.textContent = active.toLocaleString();
+      if ($kpiExp90) $kpiExp90.textContent = exp90.toLocaleString();
+      if ($kpiExpired) $kpiExpired.textContent = expired.toLocaleString();
+
+      if ($kpiTotalSub) $kpiTotalSub.textContent = total ? "All current members" : "—";
+      if ($kpiActiveSub) $kpiActiveSub.textContent = total ? `${pct(active)}% of total` : "—";
+      if ($kpiExp90Sub) $kpiExp90Sub.textContent = total ? `${pct(exp90)}%` : "—";
+      if ($kpiExpiredSub) $kpiExpiredSub.textContent = total ? `${pct(expired)}%` : "—";
+    }
+
+    function pillClass(level) {
+      const v = String(level || "").toUpperCase();
+      if (v === "NV1") return "is-green";
+      if (v === "NV2") return "is-blue";
+      return "is-gray";
+    }
+
+    function renderFilters() {
+      if (!$filtersGrid) return;
+      $filtersGrid.innerHTML = FILTER_DEFS.map((f) => {
+        const id = `sc2-f-${f.key}`;
+        if (f.kind === "select") {
+          const opts = (f.options || []).map((o) => `<option value="${esc(o)}">${o || "All"}</option>`).join("");
+          return `<label class="nc-sc2-filter"><span class="nc-sc2-filter-label">${f.label}</span><select class="nc-sc2-filter-input" id="${id}" data-filter="${f.key}">${opts}</select></label>`;
+        }
+        const ph = f.placeholder ? ` placeholder="${esc(f.placeholder)}"` : "";
+        return `<label class="nc-sc2-filter"><span class="nc-sc2-filter-label">${f.label}</span><input class="nc-sc2-filter-input" id="${id}" data-filter="${f.key}" type="text"${ph}></label>`;
+      }).join("");
+    }
+
+    function filtered() {
+      const q = String(query || "").trim().toLowerCase();
+      return DATA.filter((r) => {
+        const hay = `${r.csid} ${r.given} ${r.family} ${r.agent_request_from} ${r.level} ${r.status}`.toLowerCase();
+        if (q && !hay.includes(q)) return false;
+        if (filters.csid && !String(r.csid || "").toLowerCase().includes(filters.csid.toLowerCase())) return false;
+        if (filters.given && !String(r.given || "").toLowerCase().includes(filters.given.toLowerCase())) return false;
+        if (filters.family && !String(r.family || "").toLowerCase().includes(filters.family.toLowerCase())) return false;
+        if (filters.agent_request_from && String(r.agent_request_from || "") !== filters.agent_request_from) return false;
+        if (filters.level && String(r.level || "") !== filters.level) return false;
+        if (filters.status && String(r.status || "") !== filters.status) return false;
+        return true;
+      });
+    }
+
+    function cmp(a, b) {
+      if (!sortKey) return (Number(b.created_at || 0) - Number(a.created_at || 0));
+      const dir = sortDir === "desc" ? -1 : 1;
+      if (sortKey === "days_from_creation") {
+        const days = (r) => {
+          const ca = Number(r && r.created_at ? r.created_at : 0) || 0;
+          if (!ca) return 0;
+          const ms = Date.now() - ca;
+          return Math.max(0, Math.floor(ms / (24 * 60 * 60 * 1000)));
+        };
+        return (days(a) - days(b)) * dir;
+      }
+      if (sortKey === "created_at") {
+        return (Number(a.created_at || 0) - Number(b.created_at || 0)) * dir;
+      }
+      if (sortKey === "revalidation" || sortKey === "expiry" || sortKey === "grant_date") {
+        const aMs = parseIsoDate(a[sortKey]);
+        const bMs = parseIsoDate(b[sortKey]);
+        return ((aMs || 0) - (bMs || 0)) * dir;
+      }
+      const ka = a[sortKey];
+      const kb = b[sortKey];
+      return String(ka || "").localeCompare(String(kb || ""), undefined, { sensitivity: "base", numeric: true }) * dir;
+    }
+
+    function daysFromCreated(ts) {
+      const ca = Number(ts || 0) || 0;
+      if (!ca) return 0;
+      const ms = Date.now() - ca;
+      return Math.max(0, Math.floor(ms / (24 * 60 * 60 * 1000)));
+    }
+
+    function getFilteredSortedRows() {
+      return filtered().sort(cmp);
+    }
+
+    function pruneSelection() {
+      const valid = new Set(DATA.map((r) => normCsid(r.csid)));
+      for (const k of selectedCsids) {
+        if (!valid.has(k)) selectedCsids.delete(k);
+      }
+    }
+
+    function getSelectedRecords() {
+      return DATA.filter((r) => selectedCsids.has(normCsid(r.csid)));
+    }
+
+    function selectAllFiltered(on) {
+      const rows = getFilteredSortedRows();
+      for (const r of rows) {
+        const k = normCsid(r.csid);
+        if (on) selectedCsids.add(k);
+        else selectedCsids.delete(k);
+      }
+      update();
+    }
+
+    function syncSelectionUi() {
+      pruneSelection();
+      const rows = getFilteredSortedRows();
+      const n = selectedCsids.size;
+      if ($bulk) $bulk.hidden = n <= 0;
+      if ($bulkCount) {
+        $bulkCount.textContent =
+          n === 1 ? "1 record selected" : `${n.toLocaleString()} records selected`;
+      }
+      const $selectAll = document.getElementById("sc2-select-all");
+      if ($selectAll) {
+        const filteredSelected = rows.filter((r) => selectedCsids.has(normCsid(r.csid))).length;
+        $selectAll.checked = rows.length > 0 && filteredSelected === rows.length;
+        $selectAll.indeterminate = filteredSelected > 0 && filteredSelected < rows.length;
+      }
+    }
+
+    function renderRows(rows) {
+      if (!listColumns.length) listColumns = SC2_DEFAULT_LIST_COLUMNS.slice();
+      const editLabel = SC2_CAN_WRITE ? "Edit" : "View";
+      $body.innerHTML = rows
+        .map((r) => {
+          const arch = !!r.archived;
+          const key = normCsid(r.csid);
+          const checked = selectedCsids.has(key) ? " checked" : "";
+          const cells = listColumns.map((keyCol) => renderTableCell(keyCol, r, arch)).join("");
+          const editCell = `<td class="col-edit"><button type="button" class="nc-sc2-link nc-sc2-edit-btn" data-action="open" data-csid="${escAttr(r.csid)}" aria-label="${escAttr(`${editLabel} ${r.csid}`)}">${esc(editLabel)}</button></td>`;
+          return `<tr class="${arch ? "is-archived" : ""}" data-csid="${escAttr(r.csid)}">
+          <td class="col-check"><input type="checkbox" class="sc2-row-check" aria-label="Select ${esc(r.csid)}"${checked}></td>
+          ${cells}
+          ${editCell}
+        </tr>`;
+        })
+        .join("");
+    }
+
+    function renderPager(totalPages) {
+      const windowSize = 3;
+      const parts = [];
+      const addPage = (p) => parts.push({ kind: "page", p });
+      const addEll = () => parts.push({ kind: "ell" });
+      addPage(1);
+      const start = Math.max(2, page - windowSize);
+      const end = Math.min(totalPages - 1, page + windowSize);
+      if (start > 2) addEll();
+      for (let p = start; p <= end; p++) addPage(p);
+      if (end < totalPages - 1) addEll();
+      if (totalPages > 1) addPage(totalPages);
+      $pages.innerHTML = parts.map((it) => {
+        if (it.kind === "ell") return `<span class="nc-sc2-ellipsis">…</span>`;
+        const active = it.p === page;
+        return `<button class="nc-sc2-page ${active ? "is-active" : ""}" data-page="${it.p}" ${active ? 'aria-current="page"' : ""}>${it.p}</button>`;
+      }).join("");
+    }
+
+    function syncSortUi() {
+      document.querySelectorAll(".nc-sc2-th").forEach((b) => {
+        const k = b.getAttribute("data-key") || "";
+        if (!sortKey || k !== sortKey) {
+          b.setAttribute("aria-sort", "none");
+          b.classList.remove("is-sorted");
+          b.classList.remove("is-desc");
+          return;
+        }
+        b.classList.add("is-sorted");
+        b.classList.toggle("is-desc", sortDir === "desc");
+        b.setAttribute("aria-sort", sortDir === "desc" ? "descending" : "ascending");
+      });
+    }
+
+    function update() {
+      ensureSortKeyValid();
+      const rows = filtered().sort(cmp);
+      const totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
+      page = Math.max(1, Math.min(page, totalPages));
+      const startIdx = (page - 1) * pageSize;
+      const endIdx = Math.min(rows.length, startIdx + pageSize);
+      renderRows(rows.slice(startIdx, endIdx));
+      renderPager(totalPages);
+      syncSortUi();
+      $prev.disabled = page <= 1;
+      $next.disabled = page >= totalPages;
+      const showingFrom = rows.length ? startIdx + 1 : 0;
+      const showingTo = rows.length ? endIdx : 0;
+      $foot.textContent = `Showing ${showingFrom} to ${showingTo} of ${rows.length.toLocaleString()} records`;
+      syncKpis();
+      syncSelectionUi();
+    }
+
+    function wireTableSelection() {
+      if (!$tablewrap || $tablewrap.dataset.sc2SelectWired) return;
+      $tablewrap.dataset.sc2SelectWired = "1";
+      $tablewrap.addEventListener("change", (e) => {
+        const t = e.target;
+        if (!(t instanceof HTMLInputElement) || t.type !== "checkbox") return;
+        if (t.id === "sc2-select-all") {
+          selectAllFiltered(!!t.checked);
+          return;
+        }
+        if (!t.classList.contains("sc2-row-check")) return;
+        const tr = t.closest("tr");
+        const csid = tr?.getAttribute("data-csid") || "";
+        const key = normCsid(csid);
+        if (t.checked) selectedCsids.add(key);
+        else selectedCsids.delete(key);
+        syncSelectionUi();
+      });
+    }
+
+    function ensureSelectOptions(select, opts) {
+      if (!select) return;
+      const cur = select.value || "";
+      select.innerHTML = opts.map((s) => `<option value="${esc(s)}">${esc(s)}</option>`).join("");
+      if (cur) select.value = cur;
+    }
+
+    function syncViewerTopOffset() {
+      try {
+        const bodyEl = document.querySelector(".nc-intranet-body");
+        if (!bodyEl) return;
+        const r = bodyEl.getBoundingClientRect();
+        const top = Math.round(r.top || 0);
+        if (top > 0) document.documentElement.style.setProperty("--nc-viewer-top", `${top}px`);
+      } catch {}
+    }
+
+    const HISTORY_KEY = "sc2";
+    function overlayState() {
+      try {
+        const st = history.state && typeof history.state === "object" ? history.state : null;
+        return st && st[HISTORY_KEY] ? st[HISTORY_KEY] : null;
+      } catch { return null; }
+    }
+    function pushOverlayState(next) {
+      try {
+        const base = history.state && typeof history.state === "object" ? history.state : {};
+        history.pushState({ ...base, [HISTORY_KEY]: next }, "", window.location.href);
+      } catch {}
+    }
+    function setAddOpen(open) {
+      if (!$addShell) return;
+      if (open) {
+        try {
+          if (window.ncSyncViewerOffsets) window.ncSyncViewerOffsets();
+          else syncViewerTopOffset();
+        } catch (_) {}
+        try {
+          window.requestAnimationFrame(function () {
+            try {
+              if (window.ncSyncViewerOffsets) window.ncSyncViewerOffsets();
+              else syncViewerTopOffset();
+            } catch (_) {}
+          });
+        } catch (_) {}
+        $addShell.hidden = false;
+        document.body.style.overflow = "hidden";
+        if ($addTitle) $addTitle.textContent = formMode === "edit" ? "View/Edit security clearance" : "Add security clearance";
+        if ($pdfInput) $pdfInput.value = "";
+        renderSignedPdfList();
+        if ($csidErr) $csidErr.hidden = true;
+        if (formMode === "create") {
+          if ($notesList) $notesList.innerHTML = `<div class="nc-sc2-chat-bubble">Save the record to start posting notes.</div>`;
+          if ($noteText) {
+            $noteText.value = "";
+            $noteText.disabled = true;
+          }
+          if ($noteSend) $noteSend.disabled = true;
+          if ($chatMeta) $chatMeta.textContent = `Posting as ${SC2_CURRENT_USER}`;
+          clearPendingAttachments();
+        }
+        applySc2FieldLocks();
+        return;
+      }
+      $addShell.hidden = true;
+      document.body.style.overflow = "";
+      activeRecord = null;
+      formMode = "create";
+      draftSignedPdfs = [];
+      clearPendingAttachments();
+    }
+    function closeProfile(popHistory = true) {
+      setAddOpen(false);
+      if (popHistory && overlayState()) history.back();
+    }
+
+    function openEditFor(rec) {
+      formMode = "edit";
+      activeRecord = rec;
+      ensureSelectOptions($agentFrom, window.SC2_AGENT_REQUEST_FROM_OPTIONS || []);
+      ensureSelectOptions($level, window.SC2_CLEARANCE_LEVEL_OPTIONS || []);
+      setAddOpen(true);
+      pushOverlayState({ mode: "edit", csid: String(rec.csid || "") });
+      const setVal = (n, v) => { const el = $addForm.querySelector(`[name="${n}"]`); if (el) el.value = String(v || ""); };
+      setVal("csid", rec.csid);
+      setVal("given", rec.given);
+      setVal("family", rec.family);
+      setVal("agent_request_from", rec.agent_request_from || "");
+      setVal("level", rec.level || "");
+      setVal("dob", rec.dob || "");
+      setVal("email", rec.email || "");
+      setVal("phone", rec.phone || "");
+      setVal("revalidation", rec.revalidation || "");
+      setVal("grant_date", rec.grant_date || "");
+      setVal("expiry", rec.expiry || "");
+      applyGrantDateStaleStyle();
+      setVal("status", rec.status || "Active");
+      if ($pdfInput) $pdfInput.value = "";
+      renderSignedPdfList();
+      if ($noteText) $noteText.disabled = false;
+      if ($noteSend) $noteSend.disabled = false;
+      if ($chatMeta) $chatMeta.textContent = `Posting about ${rec.csid} as ${SC2_CURRENT_USER}`;
+      clearPendingAttachments();
+      renderNotes();
+      applySc2FieldLocks();
+    }
+
+    function fmtDate(d) {
+      const dt = new Date(d);
+      if (isNaN(dt.getTime())) return "";
+      const dd = String(dt.getUTCDate()).padStart(2, "0");
+      const mon = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][dt.getUTCMonth()];
+      const yy = dt.getUTCFullYear();
+      return `${dd}-${mon}-${yy}`;
+    }
+
+    function noteAttachmentsList(n) {
+      const mods = Array.isArray(n && n.attachments) ? n.attachments : [];
+      if (mods.length) {
+        return mods
+          .map((a) => {
+            const data = String((a && a.data) || "");
+            const name = String((a && a.name) || "attachment");
+            const mime = String((a && a.mime) || "");
+            if (!data) return null;
+            return { data, name, mime };
+          })
+          .filter(Boolean);
+      }
+      const legacy = n && n.image_data ? String(n.image_data) : "";
+      if (!legacy) return [];
+      const nm = String(n.image_name || "pasted-image");
+      const mimeGuess = legacy.startsWith("data:image/") ? "image/*" : "";
+      return [{ data: legacy, name: nm, mime: mimeGuess }];
+    }
+
+    function renderNoteAttachmentsBubbleHtml(attList) {
+      if (!attList.length) return "";
+      return attList
+        .map((a) => {
+          const isImg = String(a.mime || "").startsWith("image/") || String(a.data).startsWith("data:image/");
+          if (isImg) {
+            return `<div class="nc-sc2-chat-imgwrap"><img class="nc-sc2-chat-img" data-fullimg="1" alt="" src="${escAttr(a.data)}"></div>`;
+          }
+          const safeName = esc(a.name || "attachment");
+          return `<div class="nc-sc2-chat-filewrap"><a class="nc-sc2-chat-filelink" href="${escAttr(a.data)}" download="${escAttr(a.name || "attachment")}" target="_blank" rel="noopener noreferrer">${safeName}</a></div>`;
+        })
+        .join("");
+    }
+
+    function renderNotes() {
+      if (!$notesList) return;
+      if (!activeRecord) { $notesList.innerHTML = `<div class="nc-sc2-chat-bubble">Save the record to start posting notes.</div>`; return; }
+      const notes = Array.isArray(activeRecord.notes) ? activeRecord.notes : [];
+      if (!notes.length) { $notesList.innerHTML = `<div class="nc-sc2-chat-bubble">No notes yet.</div>`; return; }
+      $notesList.innerHTML = notes.map((n) => {
+        const by = esc(n.by || "");
+        const at = n.at ? new Date(n.at).toLocaleString() : "";
+        const text = esc(n.text || "");
+        const attHtml = renderNoteAttachmentsBubbleHtml(noteAttachmentsList(n));
+        const isMe = !n.isSystem && String(n.by || "") === SC2_CURRENT_USER;
+        return `<div class="nc-sc2-chat-bubble ${isMe ? "is-me" : ""}">
+          <div><span class="nc-sc2-chat-by">${by}</span><span class="nc-sc2-chat-at">${esc(at)}</span></div>
+          ${text ? `<div class="nc-sc2-chat-text">${text}</div>` : ``}
+          ${attHtml}
+        </div>`;
+      }).join("");
+      $notesList.scrollTop = $notesList.scrollHeight;
+    }
+
+    $pages.addEventListener("click", (e) => {
+      const t = e.target;
+      if (!(t instanceof HTMLElement)) return;
+      const p = Number(t.getAttribute("data-page") || "");
+      if (!p) return;
+      page = p;
+      update();
+    });
+
+    function sc2TypingTarget(e) {
+      const t = e.target;
+      if (!(t instanceof HTMLElement)) return false;
+      if (t.isContentEditable) return true;
+      const tag = t.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return true;
+      if (t.closest("dialog[open]")) return true;
+      return false;
+    }
+
+    function sc2OverlayBlocksShortcuts() {
+      if ($addShell && !$addShell.hidden) return true;
+      if ($imgViewer && !$imgViewer.hidden) return true;
+      const colsDlg = document.getElementById("sc2-columns-dialog");
+      if (colsDlg && colsDlg.open) return true;
+      return false;
+    }
+
+    function goPrevPage() {
+      if (!$prev || $prev.disabled) return;
+      page = Math.max(1, page - 1);
+      update();
+    }
+
+    function goNextPage() {
+      if (!$next || $next.disabled) return;
+      page = page + 1;
+      update();
+    }
+
+    function wireSc2PagerAndKeys() {
+      const foot = document.querySelector(".nc-sc2-foot");
+      if (foot && !foot.dataset.sc2FootWired) {
+        foot.dataset.sc2FootWired = "1";
+        foot.addEventListener("click", (e) => {
+          const t = e.target;
+          if (!(t instanceof HTMLElement)) return;
+          if (t.closest("#sc2-prev")) {
+            goPrevPage();
+            return;
+          }
+          if (t.closest("#sc2-next")) {
+            goNextPage();
+            return;
+          }
+          if (t.closest("#sc2-goto-btn")) {
+            const n = Number(String($goto?.value || "").trim());
+            if (!n) return;
+            page = n;
+            update();
+          }
+        });
+      }
+
+      function onSc2Keydown(e) {
+        if (!document.getElementById("sc2-body")) return;
+        if (e.key === "Escape" && $imgViewer && !$imgViewer.hidden) {
+          closeImageViewer();
+          return;
+        }
+        if (sc2TypingTarget(e) || sc2OverlayBlocksShortcuts()) return;
+        const k = e.key;
+        if (k === "p" || k === "P") {
+          e.preventDefault();
+          goPrevPage();
+          return;
+        }
+        if (k === "r" || k === "R") {
+          e.preventDefault();
+          goNextPage();
+          return;
+        }
+        if (k === "ArrowLeft") {
+          e.preventDefault();
+          goPrevPage();
+          return;
+        }
+        if (k === "ArrowRight") {
+          e.preventDefault();
+          goNextPage();
+        }
+      }
+
+      window.addEventListener("keydown", onSc2Keydown);
+      function teardownSc2Keys() {
+        window.removeEventListener("keydown", onSc2Keydown);
+        document.removeEventListener("turbo:before-render", teardownSc2Keys);
+      }
+      document.addEventListener("turbo:before-render", teardownSc2Keys);
+    }
+
+    wireSc2PagerAndKeys();
+    if ($goto) $goto.addEventListener("keydown", (e) => { if (e.key === "Enter") $gotoBtn.click(); });
+    if ($q) $q.addEventListener("input", () => { query = $q.value || ""; page = 1; update(); });
+
+    function setFiltersOpen(open) {
+      if (!$filters || !$filtersBtn) return;
+      if (open) {
+        renderFilters();
+        $filters.hidden = false;
+        $filtersBtn.setAttribute("aria-expanded", "true");
+        $filtersBtn.classList.add("is-active");
+        FILTER_DEFS.forEach((f) => {
+          const el = document.getElementById(`sc2-f-${f.key}`);
+          if (el) el.value = filters[f.key] || "";
+        });
+        return;
+      }
+      $filters.hidden = true;
+      $filtersBtn.setAttribute("aria-expanded", "false");
+      $filtersBtn.classList.remove("is-active");
+    }
+
+    if ($filtersBtn) $filtersBtn.addEventListener("click", () => setFiltersOpen($filters.hidden));
+    if ($filtersGrid) $filtersGrid.addEventListener("input", (e) => {
+      const t = e.target;
+      if (!(t instanceof HTMLInputElement) && !(t instanceof HTMLSelectElement)) return;
+      const k = t.getAttribute("data-filter");
+      if (!k) return;
+      filters[k] = t.value || "";
+      page = 1;
+      update();
+    });
+    if ($clearFilters) $clearFilters.addEventListener("click", () => {
+      Object.keys(filters).forEach((k) => filters[k] = "");
+      if ($filtersGrid) $filtersGrid.querySelectorAll("[data-filter]").forEach((el) => { el.value = ""; });
+      page = 1;
+      update();
+    });
+
+    // export
+    function escapeCsv(v) {
+      const s = String(v == null ? "" : v);
+      if (/[",\r\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+      return s;
+    }
+    function downloadCsv(filename, rows) {
+      const cols = listColumns.length ? listColumns : SC2_DEFAULT_LIST_COLUMNS.slice();
+      const header = cols.map((k) => (SC2_CATALOG_BY_KEY[k] ? SC2_CATALOG_BY_KEY[k].label : k));
+      const lines = [header.map(escapeCsv).join(",")];
+      for (const r of rows) {
+        lines.push(cols.map((k) => escapeCsv(exportCellValue(k, r))).join(","));
+      }
+      const blob = new Blob(["\ufeff" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+    if ($export) $export.addEventListener("click", () => {
+      const rows = filtered().sort(cmp);
+      const d = new Date();
+      const pad = (n) => String(n).padStart(2, "0");
+      const stamp = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+      downloadCsv(`security-clearances-${stamp}.csv`, rows);
+    });
+
+    if ($bulkReport) {
+      $bulkReport.addEventListener("click", () => {
+        const rows = getSelectedRecords().sort(cmp);
+        if (!rows.length) {
+          alert("Select at least one record.");
+          return;
+        }
+        const d = new Date();
+        const pad = (n) => String(n).padStart(2, "0");
+        const stamp = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+        downloadCsv(`security-clearances-selected-${stamp}.csv`, rows);
+      });
+    }
+
+    if ($bulkDelete) {
+      $bulkDelete.addEventListener("click", async () => {
+        if (!SC2_CAN_DELETE) return;
+        const rows = getSelectedRecords();
+        if (!rows.length) {
+          alert("Select at least one record.");
+          return;
+        }
+        const n = rows.length;
+        if (
+          !confirm(
+            `Delete ${n.toLocaleString()} clearance record(s)? This cannot be undone.`
+          )
+        ) {
+          return;
+        }
+        let justification = "";
+        for (;;) {
+          justification = window.prompt(
+            `Audit log — bulk delete of ${n} clearance record(s)\nEnter justification (required, minimum 10 characters):`,
+            ""
+          );
+          if (justification === null) return;
+          justification = String(justification).trim();
+          if (justification.length >= 10) break;
+          alert("Justification must be at least 10 characters.");
+        }
+        const failed = [];
+        for (const rec of rows) {
+          const csid = String(rec.csid || "").trim();
+          if (!csid) continue;
+          try {
+            const r = await fetch("/intranet/api/security-clearance/record-delete-audit", {
+              method: "POST",
+              credentials: "same-origin",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ csid, justification }),
+            });
+            const j = await r.json().catch(() => ({}));
+            if (!r.ok) {
+              failed.push(csid);
+              console.warn("Audit failed for", csid, j.error);
+            }
+          } catch {
+            failed.push(csid);
+          }
+        }
+        if (failed.length) {
+          alert(
+            `Could not record audit for ${failed.length} record(s). Nothing was deleted.`
+          );
+          return;
+        }
+        const removeKeys = new Set(rows.map((r) => normCsid(r.csid)));
+        for (let i = DATA.length - 1; i >= 0; i--) {
+          if (removeKeys.has(normCsid(DATA[i].csid))) DATA.splice(i, 1);
+        }
+        for (const k of removeKeys) selectedCsids.delete(k);
+        if (SC2_CAN_WRITE) {
+          await pushRecordsToServerImmediate();
+        } else {
+          cacheRecordsLocally();
+        }
+        update();
+        if (activeRecord && removeKeys.has(normCsid(activeRecord.csid))) {
+          closeProfile(true);
+        }
+      });
+    }
+
+    async function parseXlsxInBrowser(file) {
+      if (typeof XLSX === "undefined") return [];
+      const buf = await file.arrayBuffer();
+      const wb = XLSX.read(buf, { type: "array" });
+      const sheet = wb.SheetNames && wb.SheetNames[0];
+      if (!sheet) return [];
+      const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheet], { defval: "" });
+      const out = [];
+      for (const raw of rows) {
+        const rec = rowFromSpreadsheet(raw);
+        if (rec) out.push(rec);
+      }
+      return out;
+    }
+
+    async function importRowsJson(rows) {
+      const r = await fetch("/intranet/api/security-clearance/records/import", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ records: rows }),
+      });
+      return { r, j: await r.json().catch(() => ({})) };
+    }
+
+    // import (xlsx) — server openpyxl first; browser parse + JSON import as fallback
+    async function importWorkbook(file) {
+      if (!file) return;
+      if (!SC2_CAN_WRITE) {
+        alert("You do not have permission to import clearance records.");
+        return;
+      }
+      const name = String(file.name || "").toLowerCase();
+      if (!name.endsWith(".xlsx") && !name.endsWith(".xlsm")) {
+        alert("Save your spreadsheet as .xlsx in Excel, then import again (.xls is not supported on the server).");
+        return;
+      }
+      const fd = new FormData();
+      fd.append("file", file, file.name || "import.xlsx");
+      let r = await fetch("/intranet/api/security-clearance/records/import-file", {
+        method: "POST",
+        credentials: "same-origin",
+        body: fd,
+      });
+      let j = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        const errText = String(j.error || "");
+        const tryFallback =
+          r.status === 404 ||
+          r.status === 500 ||
+          /openpyxl/i.test(errText);
+        if (tryFallback) {
+          const rows = await parseXlsxInBrowser(file);
+          if (rows.length) {
+            ({ r, j } = await importRowsJson(rows));
+          }
+        }
+      }
+      if (!r.ok) {
+        const extra = j.rows_parsed != null ? `\nRows parsed: ${j.rows_parsed}` : "";
+        alert((j.error || `Import failed (${r.status}).`) + extra);
+        return;
+      }
+      const stored = Number(j.sql_count ?? j.stored_count ?? j.total ?? 0);
+      if (stored <= 0) {
+        const diag = j.diagnostics ? `\n\nDB: ${j.diagnostics.database_path || "?"}\nTable: ${j.diagnostics.table_exists}` : "";
+        alert(
+          `Import did not persist (${stored} stored in SQL).\n\n` +
+            (j.error || "Check CSID column headers and deploy the latest server update.") +
+            diag
+        );
+        return;
+      }
+      const parts = [`${j.added || 0} added`, `${j.updated || 0} updated`, `${stored} stored on server`];
+      if (j.rows_parsed != null) parts.push(`${j.rows_parsed} row(s) in file`);
+      alert(`Import complete: ${parts.join(", ")}. Reloading…`);
+      window.location.reload();
+    }
+
+    if ($repairBtn) {
+      $repairBtn.addEventListener("click", async () => {
+        if (!confirm("Reload clearance records from server backups into the database?")) return;
+        $repairBtn.disabled = true;
+        cancelPendingSave();
+        try {
+          const r = await fetch("/intranet/api/security-clearance/records/repair", {
+            method: "POST",
+            credentials: "same-origin",
+            headers: { "Content-Type": "application/json" },
+            body: "{}",
+          });
+          const j = await r.json().catch(() => ({}));
+          if (!r.ok) {
+            alert(j.error || `Repair failed (${r.status})`);
+            return;
+          }
+          const sqlN = Number(j.sql_count ?? j.stored_count ?? j.count ?? 0);
+          if (sqlN <= 0) {
+            alert(
+              j.error ||
+                `Repair did not persist (0 in SQL). Check server logs or re-import your .xlsx.`
+            );
+            return;
+          }
+          alert(`Repair complete: ${sqlN} record(s) stored in the database. Reloading…`);
+          window.location.reload();
+        } catch (e) {
+          alert(String(e && e.message ? e.message : e) || "Repair failed.");
+        } finally {
+          $repairBtn.disabled = false;
+        }
+      });
+    }
+
+    if ($importBtn && $importFile) {
+      $importBtn.addEventListener("click", () => $importFile.click());
+      $importFile.addEventListener("change", async () => {
+        const f = $importFile.files && $importFile.files[0] ? $importFile.files[0] : null;
+        $importFile.value = "";
+        try {
+          await importWorkbook(f);
+        } catch (e) {
+          alert(String(e && e.message ? e.message : e) || "Import failed.");
+        }
+      });
+    }
+
+    // open add
+    if ($addBtn) $addBtn.addEventListener("click", () => {
+      formMode = "create";
+      activeRecord = null;
+      ensureSelectOptions($agentFrom, window.SC2_AGENT_REQUEST_FROM_OPTIONS || []);
+      ensureSelectOptions($level, window.SC2_CLEARANCE_LEVEL_OPTIONS || []);
+      $addForm.reset();
+      draftSignedPdfs = [];
+      applyGrantDateStaleStyle();
+      setAddOpen(true);
+      pushOverlayState({ mode: "create" });
+    });
+    const $grantDate = document.getElementById("sc2-grant-date");
+    if ($grantDate) {
+      $grantDate.addEventListener("change", applyGrantDateStaleStyle);
+      $grantDate.addEventListener("input", applyGrantDateStaleStyle);
+    }
+    if ($addClose) $addClose.addEventListener("click", () => closeProfile(true));
+    if ($addCancel) $addCancel.addEventListener("click", () => closeProfile(true));
+
+    // CSID link opens profile
+    $body.addEventListener("click", (e) => {
+      const t = e.target;
+      if (!(t instanceof HTMLElement)) return;
+      const btn = t.closest('[data-action="open"]');
+      if (!btn) return;
+      const csid = String(btn.getAttribute("data-csid") || "");
+      const rec = DATA.find((r) => r.csid === csid);
+      if (rec) openEditFor(rec);
+    });
+
+    if ($pdfList) {
+      $pdfList.addEventListener("click", (e) => {
+        const t = e.target;
+        if (!(t instanceof HTMLElement)) return;
+        const btn = t.closest(".nc-sc2-pdf-rm");
+        if (!btn) return;
+        e.preventDefault();
+        removeSignedPdf(btn.getAttribute("data-pdf-id") || "");
+      });
+    }
+    if ($pdfInput) {
+      $pdfInput.addEventListener("change", () => {
+        const files = $pdfInput.files ? [...$pdfInput.files] : [];
+        $pdfInput.value = "";
+        if (!files.length) return;
+        files.forEach((f) => addSignedPdfFromFile(f));
+      });
+    }
+
+    // Save record (no duplicates)
+    if ($addForm) $addForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+      if ($csidErr) $csidErr.hidden = true;
+      const fd = new FormData($addForm);
+      const csid = String(fd.get("csid") || "").trim();
+      const norm = (s) => String(s || "").trim().toUpperCase();
+      const csidNorm = norm(csid);
+      const clash = DATA.find((r) => norm(r.csid) === csidNorm && (!activeRecord || r !== activeRecord));
+      if (clash) { if ($csidErr) $csidErr.hidden = false; if ($csidInput) $csidInput.focus(); return; }
+      const rec = activeRecord || { created_at: Date.now(), archived: false, notes: [] };
+      rec.csid = csid;
+      rec.given = String(fd.get("given") || "").trim();
+      rec.family = String(fd.get("family") || "").trim();
+      rec.agent_request_from = String(fd.get("agent_request_from") || "").trim();
+      rec.level = String(fd.get("level") || "").trim();
+      rec.dob = String(fd.get("dob") || "").trim();
+      rec.email = String(fd.get("email") || "").trim();
+      rec.phone = String(fd.get("phone") || "").trim();
+      rec.revalidation = String(fd.get("revalidation") || "").trim(); // ISO yyyy-mm-dd from <input type="date">
+      rec.grant_date = String(fd.get("grant_date") || "").trim();
+      rec.expiry = String(fd.get("expiry") || "").trim();
+      rec.status = String(fd.get("status") || "").trim();
+      if (!activeRecord) {
+        rec.signed_pdfs = draftSignedPdfs.slice();
+      }
+      activeRecord = rec;
+      if (!DATA.includes(rec)) DATA.unshift(rec);
+      draftSignedPdfs = [];
+      saveRecords();
+      update();
+      closeProfile(true);
+    });
+
+    // Archive / Delete
+    if ($archive) $archive.addEventListener("click", () => {
+      if (!activeRecord) return;
+      activeRecord.archived = !activeRecord.archived;
+      saveRecords();
+      update();
+      closeProfile(true);
+    });
+    if ($delete) $delete.addEventListener("click", async () => {
+      if (!activeRecord) return;
+      const csid = activeRecord.csid;
+      if (!confirm(`Delete ${csid}? This cannot be undone.`)) return;
+      let justification = "";
+      for (;;) {
+        justification = window.prompt(
+          `Audit log — deleting clearance record ${csid}\nEnter justification (required, minimum 10 characters):`,
+          ""
+        );
+        if (justification === null) return;
+        justification = String(justification).trim();
+        if (justification.length >= 10) break;
+        alert("Justification must be at least 10 characters.");
+      }
+      try {
+        const r = await fetch("/intranet/api/security-clearance/record-delete-audit", {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ csid, justification }),
+        });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok) {
+          alert(j.error || "Could not record deletion for audit.");
+          return;
+        }
+      } catch {
+        alert("Could not reach server to record audit.");
+        return;
+      }
+      const idx = DATA.findIndex((r) => r === activeRecord);
+      if (idx >= 0) DATA.splice(idx, 1);
+      saveRecords();
+      update();
+      closeProfile(true);
+    });
+
+    // Notes
+    if ($noteSend) $noteSend.addEventListener("click", () => {
+      if (!activeRecord) return;
+      const text = String($noteText.value || "").trim();
+      const atts = pendingAttachments.slice();
+      if (!text && !atts.length) return;
+      activeRecord.notes = Array.isArray(activeRecord.notes) ? activeRecord.notes : [];
+      const note = { by: SC2_CURRENT_USER, at: new Date().toISOString(), text };
+      if (atts.length) {
+        note.attachments = atts.map((a) => ({ name: a.name, mime: a.mime, data: a.dataUrl }));
+      }
+      activeRecord.notes.push(note);
+      $noteText.value = "";
+      clearPendingAttachments();
+      saveRecords();
+      renderNotes();
+    });
+
+    if ($noteText) {
+      $noteText.addEventListener("keydown", (e) => {
+        // Enter posts; Shift+Enter inserts newline.
+        if (e.key !== "Enter") return;
+        if (e.shiftKey) return;
+        e.preventDefault();
+        if ($noteSend && !$noteSend.disabled) $noteSend.click();
+      });
+    }
+
+    if ($noteComposeRow) {
+      $noteComposeRow.addEventListener("dragenter", (e) => {
+        try {
+          if (!activeRecord) return;
+          if (!e.dataTransfer || !Array.from(e.dataTransfer.types || []).includes("Files")) return;
+          e.preventDefault();
+          $noteComposeRow.classList.add("is-dragover");
+        } catch {
+          /* ignore */
+        }
+      });
+      $noteComposeRow.addEventListener("dragover", (e) => {
+        try {
+          if (!activeRecord) return;
+          if (!e.dataTransfer) return;
+          const hasFiles = Array.from(e.dataTransfer.types || []).includes("Files");
+          if (!hasFiles) return;
+          e.preventDefault();
+          e.dataTransfer.dropEffect = "copy";
+          $noteComposeRow.classList.add("is-dragover");
+        } catch {
+          /* ignore */
+        }
+      });
+      $noteComposeRow.addEventListener("dragleave", (e) => {
+        try {
+          const rt = e.relatedTarget;
+          if (!$noteComposeRow.contains(rt instanceof Node ? rt : null)) $noteComposeRow.classList.remove("is-dragover");
+        } catch {
+          try {
+            $noteComposeRow.classList.remove("is-dragover");
+          } catch {}
+        }
+      });
+      $noteComposeRow.addEventListener("drop", (e) => {
+        try {
+          $noteComposeRow.classList.remove("is-dragover");
+          if (!activeRecord) return;
+          if (!e.dataTransfer) return;
+          const files = Array.from(e.dataTransfer.files || []).filter((f) => f && f.size !== undefined);
+          if (!files.length) return;
+          e.preventDefault();
+          files.forEach((f) => addPendingFromFile(f));
+        } catch {
+          /* ignore */
+        }
+      });
+    }
+
+    if ($noteText) {
+      $noteText.addEventListener("paste", (e) => {
+        try {
+          if (!activeRecord) return;
+          const cd = e.clipboardData;
+          if (!cd || !cd.items || !cd.items.length) return;
+          const items = [...cd.items];
+          const fileItems = items.filter((it) => it.kind === "file");
+          const files = fileItems.map((it) => it.getAsFile()).filter((f) => !!f);
+          if (!files.length) return;
+          e.preventDefault();
+          files.forEach((f) => addPendingFromFile(f));
+        } catch {
+          /* ignore */
+        }
+      });
+    }
+
+    if ($notesList) {
+      $notesList.addEventListener("click", (e) => {
+        const t = e.target;
+        if (!(t instanceof HTMLElement)) return;
+        const img = t.closest('img[data-fullimg="1"]');
+        if (!img) return;
+        const src = img.getAttribute("src") || "";
+        if (src) openImageViewer(src);
+      });
+    }
+
+    // history back closes overlay
+    window.addEventListener("popstate", () => {
+      const st = overlayState();
+      if (!st) { setAddOpen(false); return; }
+      if (st.mode === "create") { formMode = "create"; activeRecord = null; setAddOpen(true); return; }
+      if (st.mode === "edit") {
+        const rec = DATA.find((r) => String(r.csid || "") === String(st.csid || ""));
+        if (rec) openEditFor(rec);
+        else setAddOpen(false);
+      }
+    });
+
+    try { window.addEventListener("resize", syncViewerTopOffset); } catch {}
+
+    if ($perpage) {
+      $perpage.value = String(pageSize);
+      $perpage.addEventListener("change", () => {
+        const v = Number($perpage.value || String(SC2_DEFAULT_PAGE_SIZE));
+        pageSize = SC2_PAGE_SIZE_OPTIONS.includes(v) ? v : SC2_DEFAULT_PAGE_SIZE;
+        savePageSize(pageSize);
+        page = 1;
+        update();
+      });
+    }
+
+    renderTableHeader();
+    wireTableSort();
+    wireTableSelection();
+    wireColumnEditor();
+    update();
+  })();
+</script>
+{% endblock %}

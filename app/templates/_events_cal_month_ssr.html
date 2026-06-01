@@ -1,0 +1,33 @@
+{# Server-rendered month (Mon-first) — visible even if events_calendar.js fails to load #}
+<div class="nc-cal-month">
+  <div class="nc-cal-dow-row">
+    {% for w in ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] %}
+    <div class="nc-cal-dow">{{ w }}</div>
+    {% endfor %}
+  </div>
+  <div class="nc-cal-daygrid">
+    {% for c in cal_cells %}
+      {% if c.kind == 'pad' %}
+        <div class="nc-cal-cell nc-cal-cell--muted"><span class="nc-cal-cell-num">&nbsp;</span></div>
+      {% else %}
+        <button type="button" class="{{ c.btn_class }}" data-cal-date="{{ c.date }}" aria-label="{{ c.aria | e }}">
+          <div class="nc-cal-cell-head">
+            <span class="nc-cal-cell-num">{{ c.day }}</span>
+            {% if c.count and not c.preview %}
+            <span class="nc-cal-cell-dots" aria-hidden="true">
+              {% if c.count >= 1 %}●{% endif %}{% if c.count >= 2 %}●{% endif %}{% if c.count >= 3 %}●{% endif %}
+            </span>
+            {% endif %}
+          </div>
+          {% if c.preview %}
+          <div class="nc-cal-cell-events">
+            {% for p in c.preview %}
+            <span class="nc-cal-cell-ev{% if p.holiday %} nc-cal-cell-ev--holiday{% endif %}">{{ p.text | e }}</span>
+            {% endfor %}
+          </div>
+          {% endif %}
+        </button>
+      {% endif %}
+    {% endfor %}
+  </div>
+</div>

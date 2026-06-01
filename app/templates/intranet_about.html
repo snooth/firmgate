@@ -1,0 +1,212 @@
+{% extends "intranet_base.html" %}
+{% block title %}{{ portal_shell_name }} — About Company{% endblock %}
+
+{% block intranet_body %}
+<section class="nc-about2-hero" aria-label="About Company hero">
+  <div class="nc-about2-hero-inner">
+    <div class="nc-about2-hero-left">
+      <div class="nc-about2-hero-h1">About Company</div>
+      <div class="nc-about2-hero-sub">Company overview, values, and key information.</div>
+      {% if can_view_admin %}
+      <div class="nc-about2-hero-actions">
+        <button type="button" class="nc-btn nc-btn-primary" id="nc-about-edit">Edit</button>
+      </div>
+      {% endif %}
+    </div>
+    <div class="nc-about2-hero-right" aria-label="Hero image and quote">
+      <div class="nc-about2-hero-img" role="img" aria-label="Company image"></div>
+      <div class="nc-about2-hero-quote" aria-label="Company quote">
+        <div class="nc-about2-hero-quote-ic" aria-hidden="true">“</div>
+        <div class="nc-about2-hero-quote-txt">
+          Empowering our clients and people with secure, innovative ICT solutions that drive positive outcomes for a safer, stronger and smarter future.
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="nc-about2-grid">
+  <section class="nc-about2-card" aria-label="Who we are">
+    <div class="nc-about2-cardhead">
+      <div class="nc-about2-cardic" aria-hidden="true">👥</div>
+      <div class="nc-about2-cardtitle">{{ (about.who_title if about else 'Who we are') }}</div>
+    </div>
+    <div class="nc-about2-prose nc-about-prose">{{ who_body_html|safe if who_body_html else (about.who_body if about else '') }}</div>
+    <button type="button" class="nc-about2-more">
+      <span>Read more</span><span aria-hidden="true">▾</span>
+    </button>
+  </section>
+
+  <aside class="nc-about2-stack" aria-label="About Company side panels">
+    <section class="nc-about2-card" aria-label="Key links">
+      <div class="nc-about2-cardhead">
+        <div class="nc-about2-cardic" aria-hidden="true">🔗</div>
+        <div class="nc-about2-cardtitle">Key links</div>
+      </div>
+      <div class="nc-about2-links">
+        {% for l in (about.links if about and about.links else []) %}
+          {% set lbl = (l.label or '') %}
+          {% set ic = '📄' %}
+          {% if 'policy' in (lbl|lower) or 'document' in (lbl|lower) %}{% set ic = '📄' %}{% endif %}
+          {% if 'directory' in (lbl|lower) %}{% set ic = '👥' %}{% endif %}
+          {% if lbl|lower == 'files' %}{% set ic = '🗂' %}{% endif %}
+          <a class="nc-about2-linkrow" href="{{ l.url }}">
+            <span class="nc-about2-linkic" aria-hidden="true">{{ ic }}</span>
+            <span class="nc-about2-linkmeta">
+              <span class="nc-about2-linktitle">{{ l.label }}</span>
+              <span class="nc-about2-linksub">Access company files and resources</span>
+            </span>
+            <span class="nc-about2-linkchev" aria-hidden="true">›</span>
+          </a>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section class="nc-about2-card" aria-label="At a glance">
+      <div class="nc-about2-cardhead">
+        <div class="nc-about2-cardic" aria-hidden="true">📊</div>
+        <div class="nc-about2-cardtitle">At a glance</div>
+      </div>
+      <div class="nc-about2-kpis">
+        {% for item in (glance_items or []) %}
+        <div class="nc-about2-kpi{% if not item.value and not item.label and not item.subtitle %} is-empty{% endif %}">
+          <div class="nc-about2-kv">{{ item.value or '—' }}</div>
+          <div class="nc-about2-kl">{{ item.label or '—' }}</div>
+          {% if item.subtitle %}
+          <div class="nc-about2-ks">{{ item.subtitle }}</div>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </section>
+  </aside>
+</div>
+
+<section class="nc-about2-card nc-about2-values" aria-label="Our values">
+  <div class="nc-about2-cardhead">
+    <div class="nc-about2-cardic" aria-hidden="true">💎</div>
+    <div class="nc-about2-cardtitle">Our values</div>
+  </div>
+  <div class="nc-about2-values-grid">
+    <div class="nc-about2-val">
+      <div class="nc-about2-valic" aria-hidden="true">🛡</div>
+      <div class="nc-about2-valname">Integrity</div>
+      <div class="nc-about2-valsub">We do the right thing, every time.</div>
+    </div>
+    <div class="nc-about2-val">
+      <div class="nc-about2-valic" aria-hidden="true">⭐</div>
+      <div class="nc-about2-valname">Excellence</div>
+      <div class="nc-about2-valsub">We deliver high quality outcomes.</div>
+    </div>
+    <div class="nc-about2-val">
+      <div class="nc-about2-valic" aria-hidden="true">💡</div>
+      <div class="nc-about2-valname">Innovation</div>
+      <div class="nc-about2-valsub">We embrace new ideas and technologies.</div>
+    </div>
+    <div class="nc-about2-val">
+      <div class="nc-about2-valic" aria-hidden="true">🤝</div>
+      <div class="nc-about2-valname">Collaboration</div>
+      <div class="nc-about2-valsub">We work together to achieve more.</div>
+    </div>
+    <div class="nc-about2-val">
+      <div class="nc-about2-valic" aria-hidden="true">🎯</div>
+      <div class="nc-about2-valname">Accountability</div>
+      <div class="nc-about2-valsub">We take ownership and get results.</div>
+    </div>
+  </div>
+</section>
+
+{% if can_view_admin %}
+<script type="application/json" id="nc-about-data">{{ about | tojson }}</script>
+<div id="nc-about-dlg" class="nc-viewer-shell" hidden aria-label="About editor">
+  <div class="nc-viewer-topbar">
+    <div class="nc-viewer-topbar-title">Edit About Company</div>
+    <button type="button" class="nc-viewer-close" id="nc-about-x" aria-label="Close editor">&times;</button>
+  </div>
+  <div class="nc-blog-compose-canvas">
+    <form class="nc-blog-form--v3" id="nc-about-form">
+      <div class="nc-blog-compose-body">
+        <label class="nc-detail-label">Section title</label>
+        <input class="nc-detail-input" type="text" id="nc-about-who-title" placeholder="Who we are">
+
+        <div style="height:0.55rem;"></div>
+        <label class="nc-detail-label">Body</label>
+        <div class="nc-blog-toolbar nc-about-toolbar" role="toolbar" aria-label="About body formatting">
+          <button type="button" class="nc-blog-tbtn" data-cmd="bold" title="Bold"><b>B</b></button>
+          <button type="button" class="nc-blog-tbtn" data-cmd="italic" title="Italic"><i>I</i></button>
+          <button type="button" class="nc-blog-tbtn" data-cmd="underline" title="Underline"><u>U</u></button>
+          <button type="button" class="nc-blog-tbtn" data-cmd="strikeThrough" title="Strikethrough"><s>S</s></button>
+          <span class="nc-blog-tsep" aria-hidden="true"></span>
+          <label class="nc-about-tlabel"><span class="nc-sr-only">Font</span>
+            <select class="nc-blog-tselect" id="nc-about-font" title="Font">
+              <option value="">Font…</option>
+              <option value="Arial">Arial</option>
+              <option value="Georgia">Georgia</option>
+              <option value="Times New Roman">Times New Roman</option>
+              <option value="Courier New">Courier New</option>
+              <option value="Verdana">Verdana</option>
+              <option value="'Trebuchet MS'">Trebuchet MS</option>
+              <option value="system-ui">System UI</option>
+            </select>
+          </label>
+          <label class="nc-about-tlabel"><span class="nc-sr-only">Size</span>
+            <select class="nc-blog-tselect" id="nc-about-size" title="Text size">
+              <option value="">Size…</option>
+              <option value="2">Small</option>
+              <option value="3">Normal</option>
+              <option value="4">Large</option>
+              <option value="5">Larger</option>
+              <option value="6">X-Large</option>
+              <option value="7">XX-Large</option>
+            </select>
+          </label>
+          <span class="nc-blog-tsep" aria-hidden="true"></span>
+          <button type="button" class="nc-blog-tbtn" data-cmd="justifyLeft" title="Align left">L</button>
+          <button type="button" class="nc-blog-tbtn" data-cmd="justifyCenter" title="Align center">C</button>
+          <button type="button" class="nc-blog-tbtn" data-cmd="justifyRight" title="Align right">R</button>
+          <button type="button" class="nc-blog-tbtn" data-cmd="justifyFull" title="Justify">J</button>
+          <span class="nc-blog-tsep" aria-hidden="true"></span>
+          <button type="button" class="nc-blog-tbtn" data-cmd="h1" title="Heading 1">H1</button>
+          <button type="button" class="nc-blog-tbtn" data-cmd="h2" title="Heading 2">H2</button>
+          <button type="button" class="nc-blog-tbtn" data-cmd="h3" title="Heading 3">H3</button>
+          <button type="button" class="nc-blog-tbtn" data-cmd="p" title="Paragraph">¶</button>
+          <span class="nc-blog-tsep" aria-hidden="true"></span>
+          <button type="button" class="nc-blog-tbtn" data-cmd="ul" title="Bullet list">≡</button>
+          <button type="button" class="nc-blog-tbtn" data-cmd="ol" title="Numbered list">#</button>
+          <button type="button" class="nc-blog-tbtn" data-cmd="blockquote" title="Quote">❝</button>
+          <button type="button" class="nc-blog-tbtn" data-cmd="hr" title="Horizontal rule">—</button>
+          <button type="button" class="nc-blog-tbtn" data-cmd="removeFormat" title="Clear formatting">⌫</button>
+          <span class="nc-blog-tsep" aria-hidden="true"></span>
+          <button type="button" class="nc-blog-tbtn" data-cmd="link" title="Link">🔗</button>
+          <button type="button" class="nc-blog-tbtn" data-cmd="img" title="Image">🖼️</button>
+        </div>
+        <div class="nc-blog-editorbox nc-detail-input nc-about-editorbox" id="nc-about-who-body" contenteditable="true" role="textbox" aria-multiline="true" data-placeholder="Company overview…"></div>
+
+        <div style="height:0.9rem;"></div>
+        <h3 class="nc-admin-subhead" style="margin:0;">Key links</h3>
+        <div id="nc-about-links" style="margin-top:0.6rem;"></div>
+        <button type="button" class="nc-btn nc-btn-secondary" id="nc-about-link-add">+ Add link</button>
+
+        <div style="height:0.9rem;"></div>
+        <h3 class="nc-admin-subhead" style="margin:0;">At a glance</h3>
+        <p class="nc-detail-muted" style="margin-top:0.35rem;">Four headline stats shown on the About Company page.</p>
+        <div id="nc-about-glance" style="margin-top:0.6rem;"></div>
+
+        <p class="nc-detail-muted" id="nc-about-status" style="margin-top:0.9rem;"></p>
+      </div>
+
+      <div class="nc-blog-compose-foot">
+        <div class="nc-blog-foot-left">
+          <button type="button" class="nc-btn nc-btn-secondary" id="nc-about-cancel">Cancel</button>
+        </div>
+        <div class="nc-blog-foot-right">
+          <button type="submit" class="nc-btn nc-btn-primary" id="nc-about-save">Save</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+<script src="{{ url_for('static', filename='about_admin.js') }}?v=4" defer></script>
+{% endif %}
+{% endblock %}
+

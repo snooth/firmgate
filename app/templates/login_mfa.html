@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Verify sign-in — {{ portal_shell_name }}{% endblock %}
+{% block body_class %}nc-page-auth{% endblock %}
+{% block main_class %}main{% endblock %}
+{% block content %}
+<div class="nc-auth-wrap">
+  <div class="nc-auth-card" role="region" aria-label="Two-factor verification">
+    <div class="nc-auth-brand">
+      {% include "_auth_logo.html" %}
+      <div>
+        <div class="nc-auth-title">Two-factor authentication</div>
+        <div class="nc-auth-sub">Enter the 6-digit code from Google Authenticator or Microsoft Authenticator.</div>
+      </div>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for category, message in messages %}
+        <p class="flash {{ category }}">{{ message }}</p>
+      {% endfor %}
+    {% endwith %}
+
+    <p class="nc-auth-mfa-account">Signing in as <strong>{{ email }}</strong></p>
+
+    <form method="post" class="nc-auth-form">
+      <label class="nc-auth-label">
+        Authentication code
+        <div class="nc-auth-field">
+          <span class="nc-auth-ic" aria-hidden="true">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+          </span>
+          <input name="code" type="text" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" required placeholder="000000" autofocus>
+        </div>
+      </label>
+
+      <button type="submit" class="nc-auth-submit">Verify and continue</button>
+    </form>
+
+    <p class="nc-auth-mfa-foot">
+      <a href="{{ url_for('auth.login') }}">Use a different account</a>
+    </p>
+  </div>
+</div>
+{% endblock %}

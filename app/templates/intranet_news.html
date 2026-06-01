@@ -1,0 +1,184 @@
+{% extends "intranet_base.html" %}
+{% block title %}{{ portal_shell_name }} — Blogs{% endblock %}
+
+{% block intranet_body %}
+<div class="nc-intranet-hero">
+  <div>
+    <h1>Blogs</h1>
+    <p class="nc-intranet-muted"></p>
+  </div>
+  {% if can_manage_blogs %}
+  <div>
+    <button type="button" class="nc-btn nc-btn-primary" id="nc-blog-new">+ New blog</button>
+  </div>
+  {% endif %}
+</div>
+
+<div class="nc-intranet-newsgrid" id="nc-blogs" data-can-write="{{ '1' if can_manage_blogs else '0' }}" data-can-delete="{{ '1' if can_delete_blogs else '0' }}">
+  {% for p in posts %}
+    <article class="nc-intranet-post">
+      <div class="nc-intranet-post-media {% if p.image %}has-cover{% endif %}" {% if p.image %}style="background-image: url('{{ p.image|e }}')" {% endif %}>
+        {% if not p.image %}
+          <div class="nc-intranet-post-placeholder">📰</div>
+        {% endif %}
+      </div>
+      <div class="nc-intranet-post-body">
+        <div class="nc-intranet-newsdate">{{ p.date }}{% if p.author %} · {{ p.author }}{% endif %}</div>
+        <div class="nc-intranet-post-title">
+          <a href="#" data-blog-action="read" data-blog-id="{{ p.post_id or p.id }}">{{ p.title }}</a>
+        </div>
+        <div class="nc-intranet-muted">{{ p.excerpt }}</div>
+        <div class="nc-intranet-post-actions">
+          {% if can_manage_blogs and p.post_id %}
+            <a class="nc-btn nc-btn-secondary" href="#" data-blog-action="edit" data-blog-id="{{ p.post_id }}">Edit</a>
+          {% endif %}
+          {% if can_delete_blogs and p.post_id %}
+            <a class="nc-btn nc-btn-danger" href="#" data-blog-action="delete" data-blog-id="{{ p.post_id }}">Delete</a>
+          {% endif %}
+        </div>
+      </div>
+    </article>
+  {% else %}
+    <p class="nc-intranet-muted">No blog posts found.</p>
+  {% endfor %}
+</div>
+
+<script type="application/json" id="nc-blogs-data">{{ posts | tojson }}</script>
+
+<div id="nc-blog-dlg" class="nc-viewer-shell" hidden aria-label="Blog editor">
+  <div class="nc-viewer-topbar">
+    <div class="nc-viewer-topbar-title" id="nc-blog-heading">New blog post</div>
+    <button type="button" class="nc-viewer-close" id="nc-blog-cancel" aria-label="Close editor">&times;</button>
+  </div>
+  <div class="nc-blog-compose-canvas">
+    <form class="nc-blog-form nc-blog-form--v3" id="nc-blog-form">
+      <input type="hidden" id="nc-blog-post-id" value="">
+      <input type="hidden" id="nc-blog-status" value="draft">
+      <input type="hidden" id="nc-blog-image" value="">
+
+      <div class="nc-blog-compose-head">
+        <div class="nc-blog-compose-head-actions">
+          <span class="nc-blog-pill" id="nc-blog-pill-status">Draft</span>
+        </div>
+      </div>
+
+      <div class="nc-blog-compose-body">
+        <label class="nc-detail-label">Title</label>
+        <input class="nc-detail-input" type="text" id="nc-blog-title" autocomplete="off" placeholder="Give your post a title…" required>
+
+        <div class="nc-blog-grid2">
+          <div>
+            <label class="nc-detail-label">Category</label>
+            <select class="nc-detail-select" id="nc-blog-category">
+              <option value="">Select a category</option>
+              <option>Company</option>
+              <option>IT</option>
+              <option>Operations</option>
+              <option>People & Culture</option>
+              <option>Safety</option>
+            </select>
+          </div>
+          <div>
+            <label class="nc-detail-label">Visibility</label>
+            <select class="nc-detail-select" id="nc-blog-visibility">
+              <option value="all">All staff</option>
+              <option value="managers">Managers</option>
+              <option value="it">IT</option>
+            </select>
+          </div>
+        </div>
+
+        <label class="nc-detail-label">Cover image</label>
+        <div class="nc-blog-cover" id="nc-blog-cover">
+          <input type="file" id="nc-blog-cover-file" accept="image/*" hidden>
+          <div class="nc-blog-cover-inner" id="nc-blog-cover-inner" role="button" tabindex="0" aria-label="Upload cover image">
+            <div class="nc-blog-cover-ic" aria-hidden="true">🖼️</div>
+            <div class="nc-blog-cover-txt">Click to upload or drag and drop</div>
+          </div>
+        </div>
+
+        <div style="height:0.6rem;"></div>
+        <label class="nc-detail-label">Content</label>
+        <div class="nc-blog-toolbar" role="toolbar" aria-label="Editor toolbar">
+          <button type="button" class="nc-blog-tbtn" data-cmd="bold" title="Bold"><b>B</b></button>
+          <button type="button" class="nc-blog-tbtn" data-cmd="italic" title="Italic"><i>I</i></button>
+          <button type="button" class="nc-blog-tbtn" data-cmd="underline" title="Underline"><u>U</u></button>
+          <span class="nc-blog-tsep" aria-hidden="true"></span>
+          <button type="button" class="nc-blog-tbtn" data-cmd="h1" title="Heading 1">H1</button>
+          <button type="button" class="nc-blog-tbtn" data-cmd="h2" title="Heading 2">H2</button>
+          <span class="nc-blog-tsep" aria-hidden="true"></span>
+          <button type="button" class="nc-blog-tbtn" data-cmd="ul" title="Bullet list">≡</button>
+          <button type="button" class="nc-blog-tbtn" data-cmd="link" title="Link">🔗</button>
+          <button type="button" class="nc-blog-tbtn" data-cmd="img" title="Image">🖼️</button>
+        </div>
+        <div class="nc-blog-editorbox nc-detail-input" id="nc-blog-body" contenteditable="true" role="textbox" aria-multiline="true" data-placeholder="Start writing your post here…"></div>
+
+        <div class="nc-blog-toggles nc-blog-toggles--row">
+          <label class="nc-blog-toggle nc-blog-toggle--switch">
+            <span>Notify staff on publish</span>
+            <input type="checkbox" id="nc-blog-notify" checked>
+          </label>
+          <label class="nc-blog-toggle nc-blog-toggle--switch">
+            <span>Allow comments</span>
+            <input type="checkbox" id="nc-blog-comments">
+          </label>
+        </div>
+
+        <p class="nc-detail-muted" id="nc-blog-msg" style="margin-top:0.75rem;"></p>
+      </div>
+
+      {% if can_manage_blogs %}
+      <div class="nc-blog-compose-foot">
+        <div class="nc-blog-foot-left">
+          <button type="button" class="nc-btn nc-btn-secondary" id="nc-blog-save-draft">Save draft</button>
+          {% if can_delete_blogs %}
+          <button type="button" class="nc-btn nc-btn-danger" id="nc-blog-delete" hidden>Delete blog</button>
+          {% endif %}
+        </div>
+        <div class="nc-blog-foot-right">
+          <button type="button" class="nc-btn nc-btn-secondary" id="nc-blog-preview-btn">Preview</button>
+          <button type="button" class="nc-btn nc-btn-primary" id="nc-blog-publish">Publish</button>
+        </div>
+      </div>
+      {% endif %}
+    </form>
+  </div>
+</div>
+
+{# Full-width preview viewer (PDF-style) #}
+<div id="nc-blog-preview-viewer" class="nc-viewer-shell" hidden aria-label="Blog preview">
+  <div class="nc-viewer-topbar">
+    <div class="nc-viewer-topbar-title" id="nc-blog-preview-title">Preview</div>
+    <button type="button" class="nc-btn nc-btn-secondary" id="nc-blog-preview-edit" hidden>Edit</button>
+    {% if can_delete_blogs %}
+    <button type="button" class="nc-btn nc-btn-danger" id="nc-blog-preview-delete" hidden>Delete</button>
+    {% endif %}
+    <button type="button" class="nc-viewer-close" id="nc-blog-preview-close" aria-label="Close preview">&times;</button>
+  </div>
+  <div class="nc-blog-preview-body" id="nc-blog-preview-body">
+    <article class="nc-blog-article nc-blog-article--preview">
+      <div class="nc-blog-hero" id="nc-blog-prev-hero" hidden></div>
+      <div class="nc-blog-article-body">
+        <div class="nc-blog-toprow">
+          <div class="nc-blog-chips">
+            <span class="nc-blog-chip" id="nc-blog-prev-cat">Blog</span>
+            <span class="nc-blog-chip nc-blog-chip--muted" id="nc-blog-prev-date"></span>
+          </div>
+          <div class="nc-blog-author">
+            <span class="nc-blog-author-av" id="nc-blog-prev-author-av" aria-hidden="true"></span>
+            <span class="nc-blog-author-name" id="nc-blog-prev-author"></span>
+          </div>
+        </div>
+        <h2 class="nc-blog-article-title" id="nc-blog-prev-h1"></h2>
+        <div class="nc-blog-article-content" id="nc-blog-prev-content"></div>
+      </div>
+    </article>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script src="{{ url_for('static', filename='blogs.js') }}?v=16" defer></script>
+{% endblock %}
+

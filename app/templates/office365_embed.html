@@ -1,0 +1,6 @@
+{% extends "base.html" %}
+{% block title %}Microsoft 365{% endblock %}
+{% block body_class %}nc-page-onlyoffice nc-onlyoffice-embed nc-page-office365{% endblock %}
+{% block content %}
+<iframe class="nc-st-frame nc-office365-frame" title="{{ doc_title }}" src="{{ edit_url }}" allow="fullscreen"></iframe>
+{% endblock %}

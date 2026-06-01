@@ -1,0 +1,180 @@
+{% extends "intranet_base.html" %}
+{% block title %}{{ portal_shell_name }} — CRM — {{ 'New lead' if mode == 'new' else 'Edit lead' }}{% endblock %}
+
+{% block intranet_body %}
+{% set crm_inline = request.args.get('inline') == '1' %}
+<div class="nc-crm2 nc-crm2--leadform {% if crm_inline %}nc-crm2--leadform-inline{% endif %}" id="nc-crm-root">
+  <main class="nc-crm2-main" aria-label="CRM content">
+    {% if not (crm_inline and mode == 'new') %}
+    <div class="nc-crm2-head">
+      <div>
+        <div class="nc-crm2-h1">{{ 'New lead' if mode == 'new' else 'Edit lead' }}</div>
+        <div class="nc-crm2-hsub">{{ 'Create a new lead.' if mode == 'new' else 'Update lead details.' }}</div>
+      </div>
+      {% if not crm_inline %}
+      <div class="nc-crm2-head-actions">
+        <a class="nc-crm2-dd" href="{{ url_for('intranet.crm_leads_page') }}{% if request.args.get('embed') == '1' %}?embed=1{% endif %}">
+          <span>Back</span>
+        </a>
+      </div>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    <section class="nc-crm2-card nc-crm2-card--pad" aria-label="Lead form">
+      <form id="crm-lead-form" class="nc-crm2-formgrid" autocomplete="off">
+        <label class="nc-crm2-field">
+          <span class="nc-crm2-label">Name</span>
+          <input class="nc-crm2-in" name="full_name" type="text" value="{{ lead.full_name if lead else '' }}" required />
+        </label>
+        <label class="nc-crm2-field">
+          <span class="nc-crm2-label">Email</span>
+          <input class="nc-crm2-in" name="email" type="email" value="{{ lead.email if lead else '' }}" />
+        </label>
+        <label class="nc-crm2-field">
+          <span class="nc-crm2-label">Phone</span>
+          <input class="nc-crm2-in" name="phone" type="text" value="{{ lead.phone if lead else '' }}" />
+        </label>
+        <label class="nc-crm2-field">
+          <span class="nc-crm2-label">Company</span>
+          <input class="nc-crm2-in" name="company_name" type="text" value="{{ lead.company.name if lead and lead.company else '' }}" />
+        </label>
+        <label class="nc-crm2-field">
+          <span class="nc-crm2-label">Lead status</span>
+          <select class="nc-crm2-in" name="status">
+            {% set st = (lead.status if lead else 'New') %}
+            <option {% if st=='New' %}selected{% endif %}>New</option>
+            <option {% if st=='Contacted' %}selected{% endif %}>Contacted</option>
+            <option {% if st=='Qualified' %}selected{% endif %}>Qualified</option>
+            <option {% if st=='Converted' %}selected{% endif %}>Converted</option>
+            <option {% if st=='Lost' %}selected{% endif %}>Lost</option>
+          </select>
+        </label>
+        <label class="nc-crm2-field">
+          <span class="nc-crm2-label">Source</span>
+          {% set src = (lead.source if lead else 'Website') %}
+          <select class="nc-crm2-in" name="source">
+            <option {% if src=='Website' %}selected{% endif %}>Website</option>
+            <option {% if src=='Referral' %}selected{% endif %}>Referral</option>
+            <option {% if src=='LinkedIn' %}selected{% endif %}>LinkedIn</option>
+            <option {% if src=='Event' %}selected{% endif %}>Event</option>
+            <option {% if src=='Cold call' %}selected{% endif %}>Cold call</option>
+          </select>
+        </label>
+        <label class="nc-crm2-field nc-crm2-field--full">
+          <span class="nc-crm2-label">Notes</span>
+          <textarea class="nc-crm2-in" name="notes" rows="4" placeholder="Optional context, next steps, or conversation details…">{{ lead.notes if lead and lead.notes else '' }}</textarea>
+        </label>
+      </form>
+
+      <div class="nc-crm2-dialogfoot">
+        <button type="button" class="nc-btn" id="crm-lead-cancel">Cancel</button>
+        <button type="button" class="nc-btn nc-btn-primary" id="crm-lead-save">{{ 'Create lead' if mode == 'new' else 'Save changes' }}</button>
+      </div>
+      <div id="crm-lead-status" class="nc-detail-muted" style="margin-top:0.65rem"></div>
+    </section>
+  </main>
+</div>
+
+<script>
+(() => {
+  const mode = "{{ mode }}";
+  const leadId = {{ (lead.id if lead else 0) | int }};
+  const inline =
+    typeof URLSearchParams !== "undefined" &&
+    new URLSearchParams(window.location.search).get("inline") === "1";
+  const status = document.getElementById("crm-lead-status");
+  const form = document.getElementById("crm-lead-form");
+  const btnSave = document.getElementById("crm-lead-save");
+  const btnCancel = document.getElementById("crm-lead-cancel");
+
+  function setStatus(t) { if (status) status.textContent = t || ""; }
+  function payload() {
+    const fd = new FormData(form);
+    const p = {};
+    for (const [k, v] of fd.entries()) p[k] = String(v || "").trim();
+    return p;
+  }
+
+  function afterSaveNavigate(id) {
+    if (
+      inline &&
+      mode === "new" &&
+      window.parent !== window.self
+    ) {
+      window.parent.postMessage(
+        { kind: "nc-crm-new-lead-saved", leadId: id },
+        window.location.origin
+      );
+      return;
+    }
+    if (
+      inline &&
+      mode === "edit" &&
+      window.parent !== window.self
+    ) {
+      window.parent.postMessage(
+        { kind: "nc-crm-edit-lead-saved", leadId: id },
+        window.location.origin
+      );
+      return;
+    }
+    const qp = window.location.search || "";
+    const emb = /\b(?:^|[?&])embed=1\b/.test(qp) ? "embed=1" : "";
+    window.location.href = `/intranet/crm/leads/${id}${emb ? `?${emb}` : ""}`;
+  }
+
+  async function save() {
+    setStatus("Saving…");
+    btnSave.disabled = true;
+    try {
+      const p = payload();
+      const url = mode === "new" ? "/intranet/api/crm/leads" : `/intranet/api/crm/leads/${leadId}`;
+      const method = mode === "new" ? "POST" : "PATCH";
+      const r = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify(p),
+      });
+      if (!r.ok) {
+        setStatus("Save failed.");
+        btnSave.disabled = false;
+        return;
+      }
+      const j = await r.json();
+      const id = j && j.lead && j.lead.id ? j.lead.id : leadId;
+      afterSaveNavigate(id);
+    } catch (e) {
+      setStatus("Save failed.");
+    } finally {
+      btnSave.disabled = false;
+    }
+  }
+
+  function onCancel() {
+    if (
+      inline &&
+      mode === "new" &&
+      window.parent !== window.self
+    ) {
+      window.parent.postMessage({ kind: "nc-crm-new-lead-cancel" }, window.location.origin);
+      return;
+    }
+    if (
+      inline &&
+      mode === "edit" &&
+      window.parent !== window.self
+    ) {
+      window.parent.postMessage({ kind: "nc-crm-edit-lead-cancel" }, window.location.origin);
+      return;
+    }
+    history.back();
+  }
+
+  if (btnSave) btnSave.addEventListener("click", save);
+  if (btnCancel) btnCancel.addEventListener("click", onCancel);
+})();
+</script>
+{% endblock %}
+

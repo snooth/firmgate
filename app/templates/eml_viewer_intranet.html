@@ -1,0 +1,175 @@
+{% extends "intranet_base.html" %}
+{% block body_class %}nc-page-intranet nc-eml-preview-page{% endblock %}
+{% block title %}{{ portal_shell_name }} — Email preview{% endblock %}
+
+{% block intranet_body %}
+  <div class="nc-viewer-shell nc-eml-page-shell" aria-label="Email preview">
+    <div class="nc-viewer-topbar">
+      <div class="nc-viewer-topbar-title">Email preview — {{ node.name }}</div>
+      <div style="display:flex; gap:0.5rem; align-items:center;">
+        <a class="nc-btn nc-btn-secondary" href="{{ url_for('intranet.documents_page') }}">Back to Documents</a>
+        <a class="nc-btn nc-btn-primary" href="{{ url_for('files.api_download', node_id=node.id) }}">Download .eml</a>
+        <a class="nc-viewer-close" href="{{ url_for('intranet.documents_page') }}" aria-label="Close email preview">&times;</a>
+      </div>
+    </div>
+
+    <div class="nc-eml-shellbody">
+      <div class="nc-eml">
+        <div class="nc-eml-grid">
+          <section class="nc-eml-card" aria-label="Email headers">
+            <h2 class="nc-eml-card-title">Headers</h2>
+            <dl class="nc-eml-dl">
+              {% for k, v in headers.items() %}
+                {% if v %}
+                  <dt>{{ k }}</dt>
+                  <dd>{{ v }}</dd>
+                {% endif %}
+              {% endfor %}
+            </dl>
+          </section>
+
+          <section class="nc-eml-card" aria-label="Email body">
+            <h2 class="nc-eml-card-title">Body</h2>
+            {% if html_srcdoc %}
+              <iframe
+                class="nc-eml-iframe"
+                title="Email HTML body"
+                sandbox
+                referrerpolicy="no-referrer"
+                srcdoc="{{ html_srcdoc|e }}"
+              ></iframe>
+            {% elif text_body %}
+              <pre class="nc-eml-pre">{{ text_body }}</pre>
+            {% else %}
+              <p class="nc-detail-muted">No readable body found in this email.</p>
+            {% endif %}
+          </section>
+
+          <section class="nc-eml-card" aria-label="Email attachments">
+            <h2 class="nc-eml-card-title">Attachments</h2>
+            {% if attachments and attachments|length %}
+              <ul class="nc-eml-attach">
+                {% for a in attachments %}
+                  <li>
+                    <span class="nc-eml-attach-name">{{ a.filename or "(unnamed)" }}</span>
+                    <span class="nc-eml-attach-type">{{ a.content_type }}{% if a.size_bytes %} · {{ (a.size_bytes / 1024 / 1024) | round(2) }} MB{% endif %}</span>
+                    <span class="nc-eml-attach-actions">
+                      {% if a.kind == "image" %}
+                        <a class="nc-btn nc-btn-secondary nc-eml-attach-btn js-eml-view-image"
+                           href="{{ url_for('files.eml_attachment', node_id=node.id, att_index=a.index) }}?inline=1"
+                           data-filename="{{ a.filename or 'Image' }}">View</a>
+                      {% else %}
+                        <a class="nc-btn nc-btn-secondary nc-eml-attach-btn"
+                           href="{{ url_for('files.eml_attachment', node_id=node.id, att_index=a.index) }}?inline=1"
+                           target="_blank" rel="noopener noreferrer">View</a>
+                      {% endif %}
+                      <a class="nc-btn nc-btn-secondary nc-eml-attach-btn"
+                         href="{{ url_for('files.eml_attachment', node_id=node.id, att_index=a.index) }}"
+                         target="_blank" rel="noopener noreferrer">Download</a>
+                      {% if a.kind == "office" %}
+                        <button type="button"
+                                class="nc-btn nc-btn-primary nc-eml-open-office"
+                                data-extract-url="{{ url_for('files.api_eml_extract_attachment', node_id=node.id) }}"
+                                data-index="{{ a.index }}">Open in OnlyOffice</button>
+                      {% endif %}
+                    </span>
+                  </li>
+                {% endfor %}
+              </ul>
+            {% else %}
+              <p class="nc-detail-muted">No attachments detected.</p>
+            {% endif %}
+          </section>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="eml-img-viewer" class="nc-viewer-shell" hidden aria-label="Image viewer">
+    <div class="nc-viewer-topbar">
+      <div class="nc-viewer-topbar-title" id="eml-img-title">Image</div>
+      <button type="button" class="nc-viewer-close" id="eml-img-close" aria-label="Close image viewer">&times;</button>
+    </div>
+    <div class="nc-img-viewer-body">
+      <img id="eml-img-el" class="nc-img-viewer-img" alt="Preview">
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      const SHELL = "intranet";
+      function isOffice(name) {
+        const n = String(name || "").toLowerCase();
+        return /\.(doc|docx|xls|xlsx|ppt|pptx|odt|ods|odp|rtf)$/.test(n);
+      }
+      async function extractAndOpen(btn) {
+        const url = btn.getAttribute("data-extract-url");
+        const idx = btn.getAttribute("data-index");
+        const li = btn.closest("li");
+        const nameEl = li ? li.querySelector(".nc-eml-attach-name") : null;
+        const filename = nameEl ? nameEl.textContent : "";
+        btn.disabled = true;
+        btn.textContent = "Preparing…";
+        try {
+          const r = await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "same-origin",
+            body: JSON.stringify({ index: Number(idx) }),
+          });
+          const j = await r.json().catch(() => ({}));
+          if (!r.ok || !j.node || !j.node.id) throw new Error(j.error || j.reason || "Could not extract attachment");
+          const newId = j.node.id;
+          if (isOffice(filename)) {
+            window.location.href = `/onlyoffice/editor/${encodeURIComponent(String(newId))}?shell=${encodeURIComponent(SHELL)}`;
+          } else {
+            window.open(`/files/api/view/${encodeURIComponent(String(newId))}`, "_blank", "noopener,noreferrer");
+          }
+        } catch (e) {
+          btn.disabled = false;
+          btn.textContent = "Open in OnlyOffice";
+          alert(String(e && e.message ? e.message : e) || "Failed");
+        }
+      }
+      document.querySelectorAll(".nc-eml-open-office").forEach((b) => {
+        b.addEventListener("click", () => extractAndOpen(b));
+      });
+
+      // In-window image preview for attachments (png/jpg/etc)
+      const viewer = document.getElementById("eml-img-viewer");
+      const img = document.getElementById("eml-img-el");
+      const closeBtn = document.getElementById("eml-img-close");
+      const titleEl = document.getElementById("eml-img-title");
+
+      function closeViewer() {
+        if (!viewer || !img) return;
+        viewer.hidden = true;
+        img.src = "";
+        document.body.style.overflow = "";
+      }
+
+      function openViewer(href, filename) {
+        if (!viewer || !img) return;
+        if (titleEl) titleEl.textContent = filename || "Image";
+        img.src = href;
+        viewer.hidden = false;
+        document.body.style.overflow = "hidden";
+      }
+
+      if (closeBtn) closeBtn.addEventListener("click", closeViewer);
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape" && viewer && !viewer.hidden) closeViewer();
+      });
+
+      document.querySelectorAll(".js-eml-view-image").forEach((a) => {
+        a.addEventListener("click", (e) => {
+          e.preventDefault();
+          const href = a.getAttribute("href") || "";
+          const filename = a.getAttribute("data-filename") || "Image";
+          openViewer(href, filename);
+        });
+      });
+    })();
+  </script>
+{% endblock %}
+

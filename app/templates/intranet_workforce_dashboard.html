@@ -1,0 +1,466 @@
+{% extends "intranet_base.html" %}
+
+{% block title %}{{ portal_shell_name }} — Workforce Dashboard{% endblock %}
+
+{% block intranet_body %}
+<div class="nc-wfd">
+  <header class="nc-wfd-head">
+    <div>
+      <h1 class="nc-wfd-h1">Workforce Dashboard</h1>
+      <div class="nc-wfd-sub">
+        Overview of our workforce including employees, contractors and project distribution.
+      </div>
+    </div>
+    <div class="nc-wfd-head-actions">
+      <div class="nc-wfd-filter-wrap">
+        <button type="button" class="nc-wfd-chip nc-wfd-chip-btn" id="wfd-filters-btn" aria-label="Filters" aria-expanded="false" aria-controls="wfd-filters-popover" aria-haspopup="dialog">Filters</button>
+        <div class="nc-wfd-filters-popover" id="wfd-filters-popover" role="dialog" aria-labelledby="wfd-filters-title" hidden>
+          <div class="nc-wfd-filters-title" id="wfd-filters-title">Date range</div>
+          <p class="nc-wfd-filters-hint">Show resources active during this period (by start and contract dates).</p>
+          <div class="nc-wfd-filters-fields">
+            <label class="nc-wfd-filters-label">
+              <span>From</span>
+              <input class="nc-wfd-filters-date" type="date" id="wfd-filter-from" autocomplete="off">
+            </label>
+            <label class="nc-wfd-filters-label">
+              <span>To</span>
+              <input class="nc-wfd-filters-date" type="date" id="wfd-filter-to" autocomplete="off">
+            </label>
+          </div>
+          <div class="nc-wfd-filters-actions">
+            <button type="button" class="nc-wfd-filters-clear" id="wfd-filter-clear">Clear</button>
+            <button type="button" class="nc-wfd-filters-apply" id="wfd-filter-apply">Apply</button>
+          </div>
+        </div>
+      </div>
+      <div class="nc-wfd-chip" id="wfd-as-at" aria-label="As at date">As at {{ as_at }}</div>
+    </div>
+  </header>
+
+  <section class="nc-wfd-kpis" aria-label="Key metrics">
+    <article class="nc-wfd-card">
+      <div class="nc-wfd-card-top">
+        <div class="nc-wfd-card-title">Total Workforce</div>
+      </div>
+      <div class="nc-wfd-card-val" data-wfd-kpi="total">{{ total }}</div>
+      <div class="nc-wfd-card-meta" data-wfd-kpi="total-meta">{{ employees }} Employees ・ {{ contractors }} Contractors</div>
+    </article>
+
+    <article class="nc-wfd-card">
+      <div class="nc-wfd-card-top">
+        <div class="nc-wfd-card-title">Active Resources</div>
+      </div>
+      <div class="nc-wfd-card-val" data-wfd-kpi="active">{{ total }}</div>
+      <div class="nc-wfd-card-meta" data-wfd-kpi="active-meta">100% of total</div>
+    </article>
+
+    <article class="nc-wfd-card">
+      <div class="nc-wfd-card-top">
+        <div class="nc-wfd-card-title">Onboarding (30 days)</div>
+      </div>
+      <div class="nc-wfd-card-val" data-wfd-kpi="onboarding">{{ onboarding_30 }}</div>
+      <div class="nc-wfd-card-meta" data-wfd-kpi="onboarding-meta">{% if total %}{{ ((onboarding_30 / total) * 100) | round(1) }}%{% else %}0%{% endif %} of total</div>
+    </article>
+
+    <article class="nc-wfd-card">
+      <div class="nc-wfd-card-top">
+        <div class="nc-wfd-card-title">Non Compliant Resources</div>
+      </div>
+      <div class="nc-wfd-card-val" data-wfd-kpi="non-compliant">{{ non_compliant_resources }}</div>
+      <div class="nc-wfd-card-meta" data-wfd-kpi="non-compliant-meta">{% if total %}{{ ((non_compliant_resources / total) * 100) | round(1) }}%{% else %}0%{% endif %} missing profile fields</div>
+    </article>
+
+    <article class="nc-wfd-card">
+      <div class="nc-wfd-card-top">
+        <div class="nc-wfd-card-title">Contracts Expiring (60 days)</div>
+      </div>
+      <div class="nc-wfd-card-val" data-wfd-kpi="contracts-expiring">{{ contracts_expiring_60 }}</div>
+      <div class="nc-wfd-card-meta" data-wfd-kpi="contracts-expiring-meta">{% if total %}{{ ((contracts_expiring_60 / total) * 100) | round(1) }}%{% else %}0%{% endif %} of total</div>
+    </article>
+  </section>
+
+  <section class="nc-wfd-grid2" aria-label="Charts">
+    <article class="nc-wfd-panel" data-wfd-panel>
+      <div class="nc-wfd-panel-head nc-wfd-panel-head--table">
+        <div class="nc-wfd-panel-title">Workforce by Type</div>
+        <button type="button" class="nc-wfd-min-btn" data-wfd-collapse-toggle aria-expanded="true" aria-controls="wfd-type-collapse" id="wfd-type-collapse-btn" data-wfd-collapse-expand="Expand Workforce by Type section" data-wfd-collapse-collapse="Collapse Workforce by Type section">
+          <span class="nc-wfd-min-icon" aria-hidden="true">−</span>
+          <span class="nc-wfd-sr-only">Collapse Workforce by Type section</span>
+        </button>
+      </div>
+      <div class="nc-wfd-panel-collapse" id="wfd-type-collapse">
+      <div class="nc-wfd-chart">
+        <div class="nc-wfd-chart-donut-wrap">
+          <canvas id="wfd-type" aria-label="Workforce by type chart"></canvas>
+        </div>
+        <div class="nc-wfd-legend" id="wfd-type-legend"></div>
+      </div>
+      </div>
+    </article>
+
+    <article class="nc-wfd-panel" data-wfd-panel>
+      <div class="nc-wfd-panel-head nc-wfd-panel-head--table">
+        <div>
+          <div class="nc-wfd-panel-title">Workforce by Project</div>
+          <div class="nc-wfd-panel-sub">Cards in each Project section (saved on Workforce)</div>
+        </div>
+        <button type="button" class="nc-wfd-min-btn" data-wfd-collapse-toggle aria-expanded="true" aria-controls="wfd-project-chart-collapse" id="wfd-project-collapse-btn" data-wfd-collapse-expand="Expand Workforce by Project section" data-wfd-collapse-collapse="Collapse Workforce by Project section">
+          <span class="nc-wfd-min-icon" aria-hidden="true">−</span>
+          <span class="nc-wfd-sr-only">Collapse Workforce by Project section</span>
+        </button>
+      </div>
+      <div class="nc-wfd-panel-collapse" id="wfd-project-chart-collapse">
+      <div class="nc-wfd-chart">
+        <div class="nc-wfd-chart-donut-wrap">
+          <canvas id="wfd-project" aria-label="Workforce by project chart"></canvas>
+        </div>
+        <div class="nc-wfd-legend" id="wfd-project-legend"></div>
+      </div>
+      </div>
+    </article>
+
+    <article class="nc-wfd-panel" data-wfd-panel>
+      <div class="nc-wfd-panel-head nc-wfd-panel-head--table">
+        <div class="nc-wfd-panel-title">Contractors by Project</div>
+        <button type="button" class="nc-wfd-min-btn" data-wfd-collapse-toggle aria-expanded="true" aria-controls="wfd-contractors-collapse" id="wfd-contractors-collapse-btn" data-wfd-collapse-expand="Expand Contractors by Project section" data-wfd-collapse-collapse="Collapse Contractors by Project section">
+          <span class="nc-wfd-min-icon" aria-hidden="true">−</span>
+          <span class="nc-wfd-sr-only">Collapse Contractors by Project section</span>
+        </button>
+      </div>
+      <div class="nc-wfd-panel-collapse" id="wfd-contractors-collapse">
+      <div class="nc-wfd-chart">
+        <div class="nc-wfd-chart-bar-wrap">
+          <canvas id="wfd-contractors" aria-label="Contractors by project chart"></canvas>
+        </div>
+      </div>
+      </div>
+    </article>
+  </section>
+
+  <section aria-label="Tables" class="nc-wfd-dept-section">
+    <article class="nc-wfd-panel" data-wfd-panel>
+      <div class="nc-wfd-panel-head nc-wfd-panel-head--table">
+        <div class="nc-wfd-panel-title">Workforce by Department / Role</div>
+        <button type="button" class="nc-wfd-min-btn" data-wfd-collapse-toggle aria-expanded="true" aria-controls="wfd-dept-collapse" id="wfd-dept-collapse-btn">
+          <span class="nc-wfd-min-icon" aria-hidden="true">−</span>
+          <span class="nc-wfd-sr-only">Collapse Workforce by Department section</span>
+        </button>
+      </div>
+      <div class="nc-wfd-panel-collapse" id="wfd-dept-collapse">
+      <div class="nc-wfd-tablewrap">
+        <table class="nc-wfd-table">
+          <thead>
+            <tr>
+              <th>Department / Role</th>
+              <th style="text-align:right;">Employees</th>
+              <th style="text-align:right;">Contractors</th>
+              <th style="text-align:right;">Total</th>
+            </tr>
+          </thead>
+          <tbody id="wfd-dept-tbody">
+            {% for r in (dept_rows or []) %}
+              <tr>
+                <td>{{ r.dept }}</td>
+                <td style="text-align:right;">{{ r.employees }}</td>
+                <td style="text-align:right;">{{ r.contractors }}</td>
+                <td style="text-align:right; font-weight: 750;">{{ r.total }}</td>
+              </tr>
+            {% else %}
+              <tr>
+                <td colspan="4" class="nc-intranet-muted">No data.</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+          <tfoot>
+            <tr>
+              <td style="font-weight: 800;">Total</td>
+              <td style="text-align:right; font-weight: 800;" data-wfd-dept-foot="employees">{{ employees }}</td>
+              <td style="text-align:right; font-weight: 800;" data-wfd-dept-foot="contractors">{{ contractors }}</td>
+              <td style="text-align:right; font-weight: 900;" data-wfd-dept-foot="total">{{ total }}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+      </div>
+    </article>
+  </section>
+
+  <section class="nc-wfd-panel" aria-label="Workforce list" data-wfd-panel>
+    <div class="nc-wfd-panel-head nc-wfd-panel-head--table">
+      <div class="nc-wfd-panel-title">Workforce List</div>
+      <div class="nc-wfd-panel-head-trailing">
+        <a class="nc-wfd-link" href="{{ url_for('intranet.directory_page') }}">View all workforce</a>
+        <button type="button" class="nc-wfd-link nc-wfd-columns-edit" id="wfd-columns-edit">Edit columns</button>
+        <button type="button" class="nc-wfd-min-btn" data-wfd-collapse-toggle aria-expanded="true" aria-controls="wfd-list-collapse" id="wfd-list-collapse-btn">
+          <span class="nc-wfd-min-icon" aria-hidden="true">−</span>
+          <span class="nc-wfd-sr-only">Collapse Workforce List section</span>
+        </button>
+      </div>
+    </div>
+    <div class="nc-wfd-panel-collapse" id="wfd-list-collapse">
+    <div class="nc-wfd-tablewrap">
+      <table class="nc-wfd-table" id="wfd-list">
+        <thead>
+          <tr id="wfd-list-head-row"></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    </div>
+  </section>
+</div>
+
+<dialog class="nc-wfd-cols-dialog" id="wfd-columns-dialog" aria-labelledby="wfd-columns-title">
+  <div class="nc-wfd-cols-card">
+    <header class="nc-wfd-cols-head">
+      <h2 class="nc-wfd-cols-title" id="wfd-columns-title">Workforce list columns</h2>
+      <button type="button" class="nc-wfd-cols-x" id="wfd-columns-close" aria-label="Close">&times;</button>
+    </header>
+    <p class="nc-wfd-cols-lead">Choose which resource fields appear in the table and set their order. Your choices are saved in this browser.</p>
+    <ul class="nc-wfd-cols-list" id="wfd-columns-editor" role="list"></ul>
+    <footer class="nc-wfd-cols-foot">
+      <button type="button" class="nc-wfd-cols-reset" id="wfd-columns-reset">Reset to default</button>
+      <div class="nc-wfd-cols-foot-actions">
+        <button type="button" class="nc-wfd-cols-cancel" id="wfd-columns-cancel">Cancel</button>
+        <button type="button" class="nc-wfd-cols-save" id="wfd-columns-save">Save</button>
+      </div>
+    </footer>
+  </div>
+</dialog>
+
+<script>
+  window.__WFD_PROJECT_LABELS__ = {{ project_label_map | tojson }};
+  window.__WFD_PROJECT_MEMBERS_SEED__ = {{ project_members_seed | tojson }};
+  window.__WFD_USER_ID_ALIASES__ = {{ user_id_aliases | tojson }};
+  window.__WFD_PEOPLE__ = {{ people_json | safe }};
+  window.__WFD_DIRECTORY_URL__ = {{ url_for('intranet.directory_page') | tojson }};
+  window.__WFD_AS_AT_LABEL__ = {{ ('As at ' ~ as_at) | tojson }};
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
+<script src="{{ url_for('static', filename='workforce_dashboard.js') }}?v=19" defer></script>
+
+<style>
+  .nc-wfd{ width:100%; max-width:none; margin:0; }
+  .nc-wfd-head{ display:flex; align-items:flex-start; justify-content:space-between; gap:1rem; margin-bottom: 1rem; }
+  .nc-wfd-h1{ margin:0; font-size: 1.55rem; letter-spacing:-.02em; }
+  .nc-wfd-sub{ margin-top:.25rem; color: rgba(15,23,42,.55); font-weight:650; }
+  .nc-wfd-head-actions{ display:flex; align-items:center; gap:.6rem; flex-wrap:wrap; }
+
+  .nc-wfd-filter-wrap{ position:relative; }
+  .nc-wfd-chip-btn{ cursor:pointer; border:inherit; font:inherit; }
+  .nc-wfd-chip-btn:hover{ border-color: rgba(148,163,184,.45); background: rgba(255,255,255,.92); }
+  .nc-wfd-chip-btn[aria-expanded="true"],
+  .nc-wfd-chip-btn.is-active{ border-color: rgba(14,165,233,.55); color: rgba(14,165,233,.95); box-shadow: 0 0 0 2px rgba(14,165,233,.12); }
+  .nc-wfd-filters-popover{
+    position:absolute; right:0; top:calc(100% + .45rem); z-index:40;
+    min-width:min(320px, 92vw); padding:.85rem .9rem;
+    border:1px solid rgba(148,163,184,.28); border-radius:14px;
+    background:rgba(255,255,255,.98); box-shadow:0 12px 40px rgba(15,23,42,.12);
+  }
+  .nc-wfd-filters-popover[hidden]{ display:none !important; }
+  .nc-wfd-filters-title{ font-weight:950; letter-spacing:-.02em; margin-bottom:.35rem; }
+  .nc-wfd-filters-hint{ margin:0 0 .75rem; font-size:.85rem; font-weight:650; color:rgba(15,23,42,.55); line-height:1.4; }
+  .nc-wfd-filters-fields{ display:grid; grid-template-columns:1fr 1fr; gap:.65rem; }
+  .nc-wfd-filters-label{ display:flex; flex-direction:column; gap:.3rem; font-weight:800; font-size:.82rem; color:rgba(15,23,42,.65); }
+  .nc-wfd-filters-date{
+    width:100%; padding:.45rem .55rem; border-radius:10px;
+    border:1px solid rgba(148,163,184,.35); font-weight:750; font-size:.9rem;
+    color:rgba(15,23,42,.85); background:#fff;
+  }
+  .nc-wfd-filters-date:focus{ outline:2px solid rgba(14,165,233,.45); outline-offset:1px; }
+  .nc-wfd-filters-actions{ display:flex; justify-content:flex-end; gap:.5rem; margin-top:.85rem; }
+  .nc-wfd-filters-clear,
+  .nc-wfd-filters-apply{
+    padding:.4rem .75rem; border-radius:999px; font-weight:850; cursor:pointer; border:1px solid rgba(148,163,184,.3);
+    background:rgba(255,255,255,.9); color:rgba(15,23,42,.75);
+  }
+  .nc-wfd-filters-apply{ background:rgba(37,99,235,.92); border-color:rgba(37,99,235,.85); color:#fff; }
+  .nc-wfd-filters-apply:hover{ filter:brightness(1.05); }
+
+  .nc-wfd-chip{ display:inline-flex; align-items:center; gap:.4rem; padding:.45rem .65rem; border:1px solid rgba(148,163,184,.25); border-radius: 999px; background: rgba(255,255,255,.72); font-weight:800; color: rgba(15,23,42,.72); }
+
+  .nc-wfd-kpis{ display:grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap:.85rem; margin-bottom: 1rem; }
+  .nc-wfd-card{ background: rgba(255,255,255,.72); border:1px solid rgba(148,163,184,.25); border-radius: 16px; padding: .85rem .9rem; }
+  .nc-wfd-card-top{ display:flex; align-items:center; justify-content:space-between; gap:.6rem; }
+  .nc-wfd-card-title{ font-weight: 900; letter-spacing:-.01em; color: rgba(15,23,42,.78); font-size:.95rem; }
+  .nc-wfd-card-val{ margin-top:.25rem; font-size: 1.55rem; font-weight: 950; letter-spacing:-.02em; }
+  .nc-wfd-card-meta{ margin-top:.1rem; color: rgba(15,23,42,.55); font-weight: 700; font-size:.88rem; }
+
+  .nc-wfd-grid2{ display:grid; grid-template-columns: 1.05fr 1.05fr .9fr; gap: .85rem; margin-bottom: 1rem; }
+  .nc-wfd-panel{ background: rgba(255,255,255,.72); border:1px solid rgba(148,163,184,.25); border-radius: 16px; overflow:hidden; }
+  .nc-wfd-dept-section{ margin-bottom: 1.25rem; }
+  .nc-wfd-panel-head{ display:flex; align-items:flex-end; justify-content:space-between; gap:.75rem; padding: .8rem .9rem; border-bottom: 1px solid rgba(148,163,184,.18); }
+  .nc-wfd-panel-head--table{ align-items: center; }
+  .nc-wfd-panel-head-trailing{ display:flex; align-items:center; gap:.65rem; flex-shrink: 0; }
+  .nc-wfd-panel-title{ font-weight: 950; letter-spacing:-.02em; }
+  .nc-wfd-min-btn{
+    flex-shrink: 0;
+    width: 2.1rem;
+    height: 2.1rem;
+    padding: 0;
+    border-radius: 10px;
+    border: 1px solid rgba(148,163,184,.38);
+    background: rgba(255,255,255,.92);
+    color: rgba(15,23,42,.62);
+    font-size: 1.15rem;
+    font-weight: 700;
+    line-height: 1;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .nc-wfd-min-btn:hover{ background: rgba(15,23,42,.04); border-color: rgba(148,163,184,.55); color: rgba(15,23,42,.85); }
+  .nc-wfd-min-btn:focus-visible{ outline: 2px solid rgba(14,165,233,.75); outline-offset: 2px; }
+  .nc-wfd-panel.nc-wfd-panel--collapsed .nc-wfd-panel-collapse{ display: none; }
+  .nc-wfd-panel.nc-wfd-panel--collapsed .nc-wfd-panel-head{ border-bottom: none; }
+  .nc-wfd-panel.nc-wfd-panel--collapsed .nc-wfd-min-btn{ color: rgba(14,165,233,.9); }
+  .nc-wfd-sr-only{
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0,0,0,0);
+    white-space: nowrap;
+    border: 0;
+  }
+  .nc-wfd-panel-sub{ color: rgba(15,23,42,.55); font-weight: 700; font-size:.85rem; }
+  .nc-wfd-chart{ padding: .85rem .9rem 1rem; }
+  /* Chart.js + maintainAspectRatio:false needs a sized parent or doughnuts render at 0 height */
+  .nc-wfd-chart-donut-wrap {
+    position: relative;
+    height: 220px;
+    width: 100%;
+    max-width: 100%;
+  }
+  .nc-wfd-chart-bar-wrap {
+    position: relative;
+    height: 280px;
+    width: 100%;
+    max-width: 100%;
+  }
+  .nc-wfd-legend{ margin-top:.4rem; display:flex; flex-direction:column; gap:.25rem; }
+  .nc-wfd-legend-row{ display:flex; align-items:center; justify-content:space-between; gap:.6rem; font-weight:800; color: rgba(15,23,42,.7); }
+  .nc-wfd-dot{ width:10px; height:10px; border-radius:999px; display:inline-block; margin-right:.5rem; }
+  .nc-wfd-link{ font-weight: 900; text-decoration: none; color: rgba(14,165,233,.95); }
+  button.nc-wfd-link.nc-wfd-columns-edit{
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    font: inherit;
+    font-size: inherit;
+  }
+  button.nc-wfd-link.nc-wfd-columns-edit:hover{ text-decoration: underline; }
+
+  .nc-wfd-cols-dialog{
+    border: none;
+    border-radius: 16px;
+    padding: 0;
+    max-width: min(520px, calc(100vw - 2rem));
+    width: 100%;
+    box-shadow: 0 24px 48px rgba(15,23,42,.18);
+  }
+  .nc-wfd-cols-dialog::backdrop{ background: rgba(15,23,42,.45); }
+  .nc-wfd-cols-card{ padding: 1rem 1.1rem 1.1rem; }
+  .nc-wfd-cols-head{ display:flex; align-items:flex-start; justify-content:space-between; gap:.75rem; margin-bottom:.5rem; }
+  .nc-wfd-cols-title{ margin:0; font-size:1.15rem; font-weight:950; letter-spacing:-.02em; }
+  .nc-wfd-cols-x{ border:none; background:transparent; font-size:1.5rem; line-height:1; cursor:pointer; color:rgba(15,23,42,.55); padding:.15rem .35rem; }
+  .nc-wfd-cols-lead{ margin:0 0 .85rem; color:rgba(15,23,42,.58); font-weight:650; font-size:.9rem; line-height:1.45; }
+  .nc-wfd-cols-list{ list-style:none; margin:0; padding:0; max-height:min(52vh,420px); overflow:auto; border:1px solid rgba(148,163,184,.22); border-radius:12px; }
+  .nc-wfd-cols-row{
+    display:grid;
+    grid-template-columns: auto 1fr auto auto;
+    align-items:center;
+    gap:.5rem .65rem;
+    padding:.55rem .65rem;
+    border-bottom:1px solid rgba(148,163,184,.12);
+  }
+  .nc-wfd-cols-row:last-child{ border-bottom:none; }
+  .nc-wfd-cols-row > span{ font-weight:800; color:rgba(15,23,42,.82); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .nc-wfd-cols-move{
+    border:1px solid rgba(148,163,184,.35);
+    background:rgba(255,255,255,.9);
+    border-radius:8px;
+    width:2rem;
+    height:2rem;
+    cursor:pointer;
+    font-weight:800;
+    color:rgba(15,23,42,.65);
+  }
+  .nc-wfd-cols-move:disabled{ opacity:.35; cursor:not-allowed; }
+  .nc-wfd-cols-foot{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:.75rem;
+    margin-top:1rem;
+    flex-wrap:wrap;
+  }
+  .nc-wfd-cols-foot-actions{ display:flex; gap:.5rem; }
+  .nc-wfd-cols-reset{
+    border:none;
+    background:transparent;
+    color:rgba(14,165,233,.95);
+    font-weight:850;
+    cursor:pointer;
+    padding:.35rem 0;
+  }
+  .nc-wfd-cols-cancel,
+  .nc-wfd-cols-save{
+    border-radius:10px;
+    padding:.5rem .85rem;
+    font-weight:850;
+    cursor:pointer;
+    border:1px solid rgba(148,163,184,.35);
+    background:rgba(255,255,255,.92);
+  }
+  .nc-wfd-cols-save{
+    background:rgba(37,99,235,.92);
+    border-color:rgba(37,99,235,.85);
+    color:#fff;
+  }
+
+  .nc-wfd-tablewrap{ width:100%; overflow:auto; }
+  .nc-wfd-table{ width:100%; border-collapse: collapse; }
+  .nc-wfd-table th{ text-align:left; font-size:.85rem; color: rgba(15,23,42,.55); font-weight: 900; padding: .75rem .9rem; border-bottom: 1px solid rgba(148,163,184,.18); white-space: nowrap; vertical-align: bottom; }
+  .nc-wfd-sort-btn {
+    background: none;
+    border: none;
+    padding: 0;
+    margin: 0;
+    font: inherit;
+    font-weight: 900;
+    color: inherit;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+    max-width: 100%;
+  }
+  .nc-wfd-sort-btn:hover { color: rgba(15,23,42,.82); }
+  .nc-wfd-sort-ind { font-size: .68em; line-height: 1; opacity: .35; min-width: .85em; font-weight: 950; }
+  .nc-wfd-sort-btn.is-active .nc-wfd-sort-ind { opacity: 1; color: rgba(14,165,233,.95); }
+  .nc-wfd-table td{ padding: .7rem .9rem; border-bottom: 1px solid rgba(148,163,184,.12); font-weight: 750; color: rgba(15,23,42,.8); white-space: nowrap; }
+  .nc-wfd-table tbody tr:hover td{ background: rgba(15,23,42,.03); }
+  /* Contract End proximity (whole UTC calendar days until date) */
+  .nc-wfd-contract-end--urgent { color: #b91c1c !important; font-weight: 850; }
+  .nc-wfd-contract-end--warn { color: #c2410c !important; font-weight: 800; }
+
+  @media (max-width: 1200px){
+    .nc-wfd-kpis{ grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .nc-wfd-grid2{ grid-template-columns: 1fr; }
+  }
+  @media (max-width: 720px){
+    .nc-wfd-head{ flex-direction: column; }
+    .nc-wfd-kpis{ grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (max-width: 520px){
+    .nc-wfd-kpis{ grid-template-columns: 1fr; }
+  }
+</style>
+{% endblock %}
+

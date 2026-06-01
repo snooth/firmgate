@@ -1,0 +1,717 @@
+{% extends "intranet_base.html" %}
+
+{% block title %}{{ portal_shell_name }} — Resource Pool{% endblock %}
+
+{% block intranet_body %}
+<div class="nc-rp" id="nc-resource-pool">
+  <header class="nc-rp-head">
+    <div>
+      <h1 class="nc-rp-h1">Resource Pool</h1>
+      <p class="nc-rp-sub">Search and manage our resource pool of cleared and skilled professionals.</p>
+    </div>
+    <div class="nc-rp-head-actions">
+      {% if can_create %}
+      <button type="button" class="nc-rp-btn nc-rp-btn-ghost" id="rp-import-btn">Import</button>
+      <button type="button" class="nc-rp-btn nc-rp-btn-primary" id="rp-add-btn">+ Add resource</button>
+      {% endif %}
+      <div class="nc-rp-export-wrap">
+        <button type="button" class="nc-rp-btn nc-rp-btn-ghost" id="rp-export-btn" aria-haspopup="true" aria-expanded="false">Export ▾</button>
+        <div class="nc-rp-export-menu" id="rp-export-menu" hidden>
+          <button type="button" data-rp-export="csv">Export CSV (filtered)</button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <section class="nc-rp-kpis" aria-label="Summary">
+    <article class="nc-rp-kpi" data-kpi="total">
+      <div class="nc-rp-kpi-ic nc-rp-kpi-ic--blue" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      </div>
+      <div>
+        <div class="nc-rp-kpi-label">Total resources</div>
+        <div class="nc-rp-kpi-val" id="rp-kpi-total">0</div>
+      </div>
+    </article>
+    <article class="nc-rp-kpi" data-kpi="available_now">
+      <div class="nc-rp-kpi-ic nc-rp-kpi-ic--green" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4"/><path d="M3 10h18"/></svg>
+      </div>
+      <div>
+        <div class="nc-rp-kpi-label">Available now</div>
+        <div class="nc-rp-kpi-val" id="rp-kpi-available-now">0</div>
+        <div class="nc-rp-kpi-meta" id="rp-kpi-available-now-meta">0% of total</div>
+      </div>
+    </article>
+    <article class="nc-rp-kpi" data-kpi="available_30">
+      <div class="nc-rp-kpi-ic nc-rp-kpi-ic--orange" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4"/><path d="M3 10h18"/></svg>
+      </div>
+      <div>
+        <div class="nc-rp-kpi-label">Available within 30 days</div>
+        <div class="nc-rp-kpi-val" id="rp-kpi-available-30">0</div>
+        <div class="nc-rp-kpi-meta" id="rp-kpi-available-30-meta">0% of total</div>
+      </div>
+    </article>
+    <article class="nc-rp-kpi" data-kpi="cleared">
+      <div class="nc-rp-kpi-ic nc-rp-kpi-ic--purple" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      </div>
+      <div>
+        <div class="nc-rp-kpi-label">Cleared resources</div>
+        <div class="nc-rp-kpi-val" id="rp-kpi-cleared">0</div>
+        <div class="nc-rp-kpi-meta" id="rp-kpi-cleared-meta">0% of total</div>
+      </div>
+    </article>
+    <article class="nc-rp-kpi" data-kpi="gaps">
+      <div class="nc-rp-kpi-ic nc-rp-kpi-ic--red" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+      </div>
+      <div>
+        <div class="nc-rp-kpi-label">Key skill gaps</div>
+        <div class="nc-rp-kpi-val" id="rp-kpi-gaps">0</div>
+        <button type="button" class="nc-rp-kpi-link" id="rp-gap-analysis-btn">See gap analysis</button>
+      </div>
+    </article>
+  </section>
+
+  <section class="nc-rp-toolbar" aria-label="Search and filters">
+    <div class="nc-rp-search-row">
+      <label class="nc-rp-search">
+        <span class="nc-rp-search-ic" aria-hidden="true">⌕</span>
+        <input type="search" id="rp-search" placeholder="Search by name, skills, keywords…" autocomplete="off">
+      </label>
+      <select class="nc-rp-saved" id="rp-saved-searches" aria-label="Saved searches">
+        <option value="">Saved searches</option>
+      </select>
+    </div>
+    <div class="nc-rp-filters-row">
+      <select class="nc-rp-filter" id="rp-filter-skills" aria-label="Skills">
+        <option value="">Skills</option>
+      </select>
+      <select class="nc-rp-filter" id="rp-filter-clearance" aria-label="Clearance">
+        <option value="">Clearance</option>
+      </select>
+      <select class="nc-rp-filter" id="rp-filter-location" aria-label="Location">
+        <option value="">Location</option>
+      </select>
+      <select class="nc-rp-filter" id="rp-filter-availability" aria-label="Availability">
+        <option value="">Availability</option>
+        <option value="available_now">Available now</option>
+        <option value="available_soon">Available within 30 days</option>
+        <option value="unavailable">Unavailable</option>
+      </select>
+      <select class="nc-rp-filter" id="rp-filter-employment" aria-label="Employment type">
+        <option value="">Employment type</option>
+      </select>
+      <button type="button" class="nc-rp-more-filters" id="rp-more-filters-btn" hidden>More filters</button>
+      <div class="nc-rp-toolbar-right">
+        <button type="button" class="nc-rp-btn nc-rp-btn-ghost" id="rp-columns-edit">Edit columns</button>
+        <button type="button" class="nc-rp-btn nc-rp-btn-ghost" id="rp-save-search-btn">Save search</button>
+        <div class="nc-rp-view-toggle" role="group" aria-label="View">
+          <button type="button" class="is-active" data-rp-view="list" title="List view" aria-pressed="true">☰</button>
+          <button type="button" data-rp-view="grid" title="Grid view" aria-pressed="false">▦</button>
+        </div>
+      </div>
+    </div>
+    <div class="nc-rp-chips-row" id="rp-active-chips" hidden>
+      <div class="nc-rp-chips" id="rp-chips"></div>
+      <button type="button" class="nc-rp-clear-all" id="rp-clear-filters">Clear all</button>
+    </div>
+  </section>
+
+  <div class="nc-rp-main">
+    <div class="nc-rp-table-wrap">
+      <table class="nc-rp-table" id="rp-table">
+        <thead>
+          <tr id="rp-thead-row"></tr>
+        </thead>
+        <tbody id="rp-tbody"></tbody>
+      </table>
+      <div class="nc-rp-empty" id="rp-empty" hidden>No resources match your filters.</div>
+      <footer class="nc-rp-pager">
+        <div class="nc-rp-pager-meta" id="rp-pager-meta">Showing 0 results</div>
+        <nav class="nc-rp-pager-nav" id="rp-pager" aria-label="Pagination"></nav>
+      </footer>
+    </div>
+  </div>
+
+  <div class="nc-modal-backdrop nc-rp-modal-backdrop" id="rp-detail-backdrop" hidden>
+    <div class="nc-rp-modal" id="rp-detail-panel" role="dialog" aria-modal="true" aria-labelledby="rp-modal-title">
+      <header class="nc-rp-profile-header">
+        <div id="rp-panel-head"></div>
+        <div class="nc-rp-profile-header-bar">
+          <div id="rp-panel-toolbar" class="nc-rp-profile-toolbar"></div>
+          <div class="nc-rp-profile-header-right">
+            <div id="rp-panel-head-right"></div>
+            <button type="button" class="nc-rp-modal-close" id="rp-panel-close" aria-label="Close">×</button>
+          </div>
+        </div>
+      </header>
+      <nav class="nc-rp-tabs" role="tablist">
+        <button type="button" role="tab" class="is-active" data-rp-tab="overview" aria-selected="true">Overview</button>
+        <button type="button" role="tab" data-rp-tab="skills" aria-selected="false">Skills</button>
+        <button type="button" role="tab" data-rp-tab="experience" aria-selected="false">Experience</button>
+        <button type="button" role="tab" data-rp-tab="documents" aria-selected="false">Documents</button>
+        <button type="button" role="tab" data-rp-tab="notes" aria-selected="false">Notes</button>
+      </nav>
+      <div class="nc-rp-modal-body" id="rp-panel-body"></div>
+    </div>
+  </div>
+
+  <div class="nc-modal-backdrop" id="rp-import-backdrop" hidden>
+    <div class="nc-modal nc-rp-edit-modal" role="dialog" aria-modal="true" aria-labelledby="rp-import-title">
+      <div class="nc-modal-card">
+        <div class="nc-modal-head">
+          <div class="nc-modal-title" id="rp-import-title">Import from CV</div>
+          <button type="button" class="nc-modal-close" id="rp-import-close" aria-label="Close">×</button>
+        </div>
+        <div class="nc-rp-import-body">
+          <p class="nc-rp-import-lead">Upload a PDF or Word CV. We extract name, email, skills, clearance, and location where possible — review before saving.</p>
+          <label class="nc-rp-import-drop" id="rp-import-drop">
+            <input type="file" id="rp-import-file" accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden>
+            <span class="nc-rp-import-drop-ic" aria-hidden="true">↑</span>
+            <span class="nc-rp-import-drop-label" id="rp-import-filename">Choose PDF or .docx file</span>
+            <span class="nc-rp-import-drop-hint">Max 12 MB</span>
+          </label>
+          <p class="nc-rp-import-status" id="rp-import-status" hidden></p>
+          <ul class="nc-rp-import-warnings" id="rp-import-warnings" hidden></ul>
+          <div class="nc-rp-edit-grid" id="rp-import-fields" hidden>
+            <label class="nc-rp-edit-field">
+              <span>First name</span>
+              <input type="text" id="rp-import-given" autocomplete="given-name">
+            </label>
+            <label class="nc-rp-edit-field">
+              <span>Last name</span>
+              <input type="text" id="rp-import-family" autocomplete="family-name">
+            </label>
+            <label class="nc-rp-edit-field">
+              <span>Email</span>
+              <input type="email" id="rp-import-email" autocomplete="email">
+            </label>
+            <label class="nc-rp-edit-field">
+              <span>Job title</span>
+              <input type="text" id="rp-import-job-title">
+            </label>
+            <label class="nc-rp-edit-field">
+              <span>Location</span>
+              <input type="text" id="rp-import-location" placeholder="e.g. Canberra ACT">
+            </label>
+            <label class="nc-rp-edit-field">
+              <span>Clearance level</span>
+              <input type="text" id="rp-import-clearance" placeholder="e.g. NV2, Baseline">
+            </label>
+            <label class="nc-rp-edit-field nc-rp-edit-field--full">
+              <span>Key skills</span>
+              <input type="text" id="rp-import-skills" placeholder="Comma-separated">
+            </label>
+          </div>
+          <div class="nc-rp-edit-actions">
+            <div class="nc-rp-edit-actions-right">
+              <button type="button" class="nc-rp-btn nc-rp-btn-ghost" id="rp-import-cancel">Cancel</button>
+              <button type="button" class="nc-rp-btn nc-rp-btn-primary" id="rp-import-save" disabled>Create resource</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="nc-modal-backdrop" id="rp-edit-backdrop" hidden>
+    <div class="nc-modal nc-rp-edit-modal" role="dialog" aria-modal="true" aria-labelledby="rp-edit-title">
+      <div class="nc-modal-card">
+        <div class="nc-modal-head">
+          <div class="nc-modal-title" id="rp-edit-title">Add resource</div>
+          <button type="button" class="nc-modal-close" id="rp-edit-close" aria-label="Close">×</button>
+        </div>
+        <form class="nc-rp-edit-form" id="rp-edit-form">
+          <input type="hidden" name="id" id="rp-edit-id" value="">
+          <div class="nc-rp-edit-grid">
+            <label class="nc-rp-edit-field nc-rp-edit-field--full">
+              <span>Full name</span>
+              <input type="text" name="full_name" id="rp-edit-full-name" required autocomplete="name">
+            </label>
+            <label class="nc-rp-edit-field">
+              <span>Email</span>
+              <input type="email" name="email" id="rp-edit-email" autocomplete="email">
+            </label>
+            <label class="nc-rp-edit-field">
+              <span>Phone</span>
+              <input type="tel" name="phone" id="rp-edit-phone" autocomplete="tel">
+            </label>
+            <label class="nc-rp-edit-field">
+              <span>Job title</span>
+              <input type="text" name="job_title" id="rp-edit-job-title">
+            </label>
+            <label class="nc-rp-edit-field">
+              <span>Department</span>
+              <input type="text" name="department" id="rp-edit-department">
+            </label>
+            <label class="nc-rp-edit-field">
+              <span>Employment type</span>
+              <select name="employment_type" id="rp-edit-employment">
+                <option value="Employee">Employee</option>
+                <option value="Contractor">Contractor</option>
+                <option value="Casual">Casual</option>
+                <option value="Subcontractor">Subcontractor</option>
+              </select>
+            </label>
+            <label class="nc-rp-edit-field">
+              <span>Location</span>
+              <input type="text" name="location" id="rp-edit-location" placeholder="e.g. Canberra ACT">
+            </label>
+            <label class="nc-rp-edit-field">
+              <span>Clearance level</span>
+              <input type="text" name="clearance_level" id="rp-edit-clearance" placeholder="e.g. NV1, Baseline">
+            </label>
+            <label class="nc-rp-edit-field">
+              <span>Clearance status</span>
+              <input type="text" name="clearance_status" id="rp-edit-clearance-status" placeholder="Active">
+            </label>
+            <label class="nc-rp-edit-field">
+              <span>Resource added</span>
+              <input type="date" name="contract_start_date" id="rp-edit-contract-start">
+            </label>
+            <label class="nc-rp-edit-field nc-rp-edit-field--full">
+              <span>Key skills</span>
+              <input type="text" name="skills" id="rp-edit-skills" placeholder="Comma-separated, e.g. AWS, Kubernetes">
+            </label>
+            <label class="nc-rp-edit-field nc-rp-edit-field--full">
+              <span>About</span>
+              <textarea name="about" id="rp-edit-about" rows="3"></textarea>
+            </label>
+          </div>
+          <div class="nc-rp-edit-actions">
+            {% if can_delete %}
+            <button type="button" class="nc-rp-btn nc-rp-btn-danger" id="rp-edit-delete" hidden>Delete resource</button>
+            {% endif %}
+            <div class="nc-rp-edit-actions-right">
+              <button type="button" class="nc-rp-btn nc-rp-btn-ghost" id="rp-edit-cancel">Cancel</button>
+              <button type="submit" class="nc-rp-btn nc-rp-btn-primary" id="rp-edit-save">Save</button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="nc-modal-backdrop" id="rp-section-backdrop" hidden>
+    <div class="nc-modal nc-rp-section-modal" role="dialog" aria-modal="true" aria-labelledby="rp-section-title">
+      <div class="nc-modal-card">
+        <div class="nc-modal-head">
+          <div class="nc-modal-title" id="rp-section-title">Edit</div>
+          <button type="button" class="nc-modal-close" id="rp-section-close" aria-label="Close">×</button>
+        </div>
+        <div class="nc-rp-section-form" id="rp-section-form"></div>
+        <div class="nc-rp-edit-actions" style="padding:0 1rem 1rem">
+          <div class="nc-rp-edit-actions-right" style="margin-left:auto">
+            <button type="button" class="nc-rp-btn nc-rp-btn-ghost" id="rp-section-cancel">Cancel</button>
+            <button type="button" class="nc-rp-btn nc-rp-btn-primary" id="rp-section-save">Save</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <dialog class="nc-rp-cols-dialog" id="rp-columns-dialog" aria-labelledby="rp-columns-title">
+    <div class="nc-rp-cols-card">
+      <header class="nc-rp-cols-head">
+        <h2 class="nc-rp-cols-title" id="rp-columns-title">Table columns</h2>
+        <button type="button" class="nc-rp-cols-x" id="rp-columns-close" aria-label="Close">×</button>
+      </header>
+      <p class="nc-rp-cols-lead">Choose which columns appear in the resource table and set their order. Saved in this browser.</p>
+      <ul class="nc-rp-cols-list" id="rp-columns-editor" role="list"></ul>
+      <footer class="nc-rp-cols-foot">
+        <button type="button" class="nc-rp-cols-reset" id="rp-columns-reset">Reset to default</button>
+        <div class="nc-rp-cols-foot-actions">
+          <button type="button" class="nc-rp-cols-cancel" id="rp-columns-cancel">Cancel</button>
+          <button type="button" class="nc-rp-cols-save" id="rp-columns-save">Save</button>
+        </div>
+      </footer>
+    </div>
+  </dialog>
+
+  <dialog class="nc-rp-gap-dialog" id="rp-gap-dialog">
+    <div class="nc-rp-gap-dialog-inner">
+      <div class="nc-rp-gap-dialog-head">
+        <h2>Gap analysis</h2>
+        <button type="button" id="rp-gap-dialog-close" aria-label="Close">×</button>
+      </div>
+      <p class="nc-rp-gap-hint">Profile fields missing across the workforce (compliance gaps).</p>
+      <ul class="nc-rp-gap-list" id="rp-gap-list"></ul>
+    </div>
+  </dialog>
+</div>
+
+<script>
+  window.__RP_POOL__ = {{ pool_json | safe }};
+  window.__RP_CAN_CREATE__ = {{ 'true' if can_create else 'false' }};
+  window.__RP_CAN_DELETE__ = {{ 'true' if can_delete else 'false' }};
+  window.__RP_USER__ = {{ rp_user_json | safe }};
+</script>
+<script src="{{ url_for('static', filename='resource_pool.js') }}?v=11" defer></script>
+
+<style>
+  .nc-rp { width: 100%; max-width: none; margin: 0; font-size: 0.92rem; }
+  .nc-rp-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; margin-bottom: 1rem; flex-wrap: wrap; }
+  .nc-rp-h1 { margin: 0; font-size: 1.55rem; letter-spacing: -0.02em; }
+  .nc-rp-sub { margin: 0.25rem 0 0; color: rgba(15, 23, 42, 0.55); font-weight: 650; max-width: 42rem; }
+  .nc-rp-head-actions { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+  .nc-rp-btn { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.45rem 0.85rem; border-radius: 8px; font-weight: 750; border: 1px solid rgba(15, 23, 42, 0.12); background: #fff; cursor: pointer; text-decoration: none; color: inherit; font-size: 0.88rem; }
+  .nc-rp-btn-primary { background: #2563eb; border-color: #2563eb; color: #fff; }
+  .nc-rp-btn-ghost { background: #fff; }
+  .nc-rp-export-wrap { position: relative; }
+  .nc-rp-export-menu { position: absolute; right: 0; top: calc(100% + 4px); background: #fff; border: 1px solid rgba(15, 23, 42, 0.12); border-radius: 8px; box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12); z-index: 20; min-width: 180px; padding: 0.25rem; }
+  .nc-rp-export-menu button { display: block; width: 100%; text-align: left; padding: 0.5rem 0.75rem; border: 0; background: transparent; cursor: pointer; border-radius: 6px; font-weight: 650; }
+  .nc-rp-export-menu button:hover { background: rgba(37, 99, 235, 0.08); }
+
+  .nc-rp-kpis { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0.75rem; margin-bottom: 1rem; }
+  .nc-rp-kpi { display: flex; gap: 0.75rem; align-items: flex-start; padding: 0.85rem 1rem; background: #fff; border: 1px solid rgba(15, 23, 42, 0.08); border-radius: 12px; }
+  .nc-rp-kpi-ic { width: 2.25rem; height: 2.25rem; border-radius: 10px; display: grid; place-items: center; flex-shrink: 0; }
+  .nc-rp-kpi-ic svg { width: 1.15rem; height: 1.15rem; }
+  .nc-rp-kpi-ic--blue { background: rgba(37, 99, 235, 0.12); color: #2563eb; }
+  .nc-rp-kpi-ic--green { background: rgba(22, 163, 74, 0.12); color: #16a34a; }
+  .nc-rp-kpi-ic--orange { background: rgba(234, 88, 12, 0.12); color: #ea580c; }
+  .nc-rp-kpi-ic--purple { background: rgba(124, 58, 237, 0.12); color: #7c3aed; }
+  .nc-rp-kpi-ic--red { background: rgba(220, 38, 38, 0.1); color: #dc2626; }
+  .nc-rp-kpi-label { font-size: 0.78rem; font-weight: 700; color: rgba(15, 23, 42, 0.55); }
+  .nc-rp-kpi-val { font-size: 1.35rem; font-weight: 850; letter-spacing: -0.02em; line-height: 1.1; margin-top: 0.15rem; }
+  .nc-rp-kpi-meta { font-size: 0.75rem; color: rgba(15, 23, 42, 0.5); font-weight: 650; margin-top: 0.1rem; }
+  .nc-rp-kpi-link { margin-top: 0.25rem; padding: 0; border: 0; background: none; color: #2563eb; font-weight: 750; font-size: 0.78rem; cursor: pointer; text-decoration: underline; }
+
+  .nc-rp-toolbar { background: #fff; border: 1px solid rgba(15, 23, 42, 0.08); border-radius: 12px; padding: 0.85rem 1rem; margin-bottom: 0.85rem; }
+  .nc-rp-search-row { display: flex; gap: 0.6rem; margin-bottom: 0.65rem; }
+  .nc-rp-search { flex: 1; display: flex; align-items: center; gap: 0.5rem; border: 1px solid rgba(15, 23, 42, 0.12); border-radius: 8px; padding: 0 0.65rem; background: #f8fafc; }
+  .nc-rp-search input { flex: 1; border: 0; background: transparent; padding: 0.55rem 0; font-weight: 650; outline: none; }
+  .nc-rp-saved { min-width: 10rem; border-radius: 8px; border: 1px solid rgba(15, 23, 42, 0.12); padding: 0.45rem 0.5rem; font-weight: 650; }
+  .nc-rp-filters-row { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+  .nc-rp-filter { border-radius: 8px; border: 1px solid rgba(15, 23, 42, 0.12); padding: 0.4rem 0.5rem; font-weight: 650; min-width: 7rem; max-width: 11rem; }
+  .nc-rp-toolbar-right { margin-left: auto; display: flex; align-items: center; gap: 0.5rem; }
+  .nc-rp-view-toggle { display: flex; border: 1px solid rgba(15, 23, 42, 0.12); border-radius: 8px; overflow: hidden; }
+  .nc-rp-view-toggle button { border: 0; background: #fff; padding: 0.35rem 0.55rem; cursor: pointer; font-weight: 800; }
+  .nc-rp-view-toggle button.is-active { background: rgba(37, 99, 235, 0.12); color: #2563eb; }
+  .nc-rp-chips-row { display: flex; align-items: center; gap: 0.5rem; margin-top: 0.6rem; flex-wrap: wrap; }
+  .nc-rp-chips { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+  .nc-rp-chip { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.2rem 0.55rem; border-radius: 999px; background: rgba(37, 99, 235, 0.1); color: #1d4ed8; font-size: 0.78rem; font-weight: 750; }
+  .nc-rp-chip button { border: 0; background: none; cursor: pointer; padding: 0; line-height: 1; color: inherit; font-weight: 900; }
+  .nc-rp-clear-all { border: 0; background: none; color: #2563eb; font-weight: 750; cursor: pointer; font-size: 0.82rem; }
+
+  .nc-rp-main { position: relative; }
+  .nc-rp-table-wrap { background: #fff; border: 1px solid rgba(15, 23, 42, 0.08); border-radius: 12px; overflow: hidden; }
+  .nc-rp-table { width: 100%; border-collapse: collapse; }
+  .nc-rp-table th, .nc-rp-table td { padding: 0.65rem 0.75rem; text-align: left; border-bottom: 1px solid rgba(15, 23, 42, 0.06); vertical-align: middle; }
+  .nc-rp-table th { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; color: rgba(15, 23, 42, 0.5); font-weight: 800; background: #f8fafc; }
+  .nc-rp-table tbody tr { cursor: pointer; }
+  .nc-rp-table tbody tr:hover { background: rgba(37, 99, 235, 0.04); }
+  .nc-rp-table tbody tr.is-selected { background: rgba(37, 99, 235, 0.08); }
+  .nc-rp-th-check, .nc-rp-td-check { width: 2.5rem; }
+  .nc-rp-name-cell { display: flex; align-items: center; gap: 0.6rem; min-width: 10rem; }
+  .nc-rp-avatar { width: 2.1rem; height: 2.1rem; border-radius: 999px; display: grid; place-items: center; font-weight: 850; font-size: 0.75rem; flex-shrink: 0; }
+  .nc-rp-name { font-weight: 850; }
+  .nc-rp-role { font-size: 0.75rem; color: rgba(15, 23, 42, 0.5); font-weight: 650; }
+  .nc-rp-skill-tags { display: flex; flex-wrap: wrap; gap: 0.25rem; max-width: 14rem; }
+  .nc-rp-skill-tag { font-size: 0.72rem; padding: 0.15rem 0.45rem; border-radius: 6px; background: rgba(37, 99, 235, 0.1); color: #1d4ed8; font-weight: 750; white-space: nowrap; }
+  .nc-rp-badge { display: inline-block; padding: 0.2rem 0.5rem; border-radius: 6px; font-size: 0.72rem; font-weight: 800; background: rgba(37, 99, 235, 0.12); color: #1d4ed8; }
+  .nc-rp-pill { display: inline-block; padding: 0.2rem 0.55rem; border-radius: 999px; font-size: 0.72rem; font-weight: 800; }
+  .nc-rp-pill--now { background: rgba(22, 163, 74, 0.12); color: #15803d; }
+  .nc-rp-pill--soon { background: rgba(234, 88, 12, 0.12); color: #c2410c; }
+  .nc-rp-pill--off { background: rgba(100, 116, 139, 0.12); color: #475569; }
+  .nc-rp-actions { display: flex; gap: 0.25rem; }
+  .nc-rp-icon-btn { border: 0; background: transparent; cursor: pointer; padding: 0.2rem; border-radius: 6px; color: rgba(15, 23, 42, 0.55); font-size: 0.95rem; }
+  .nc-rp-icon-btn:hover { background: rgba(15, 23, 42, 0.06); color: #2563eb; }
+  .nc-rp-empty { padding: 2rem; text-align: center; color: rgba(15, 23, 42, 0.5); font-weight: 650; }
+  .nc-rp-pager { display: flex; align-items: center; justify-content: space-between; padding: 0.65rem 0.85rem; flex-wrap: wrap; gap: 0.5rem; }
+  .nc-rp-pager-meta { font-size: 0.82rem; color: rgba(15, 23, 42, 0.55); font-weight: 650; }
+  .nc-rp-pager-nav { display: flex; gap: 0.25rem; flex-wrap: wrap; }
+  .nc-rp-pager-nav button { min-width: 2rem; padding: 0.25rem 0.45rem; border: 1px solid rgba(15, 23, 42, 0.1); border-radius: 6px; background: #fff; cursor: pointer; font-weight: 750; }
+  .nc-rp-pager-nav button.is-active { background: #2563eb; color: #fff; border-color: #2563eb; }
+
+  .nc-rp-modal-backdrop {
+    position: fixed;
+    top: var(--nc-viewer-top, 140px);
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 70;
+    display: flex;
+    align-items: stretch;
+    justify-content: flex-end;
+    padding: 0;
+    background: rgba(15, 23, 42, 0.38);
+    backdrop-filter: blur(3px);
+  }
+  .nc-rp-modal {
+    position: relative;
+    width: min(58vw, 920px);
+    min-width: min(100%, 720px);
+    max-width: none;
+    height: 100%;
+    max-height: none;
+    background: #f8fafc;
+    border-radius: 14px 0 0 0;
+    border: 1px solid rgba(15, 23, 42, 0.1);
+    border-right: 0;
+    box-shadow: -12px 0 48px rgba(15, 23, 42, 0.18);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    animation: nc-rp-modal-in 0.2s ease;
+  }
+  @keyframes nc-rp-modal-in {
+    from { opacity: 0; transform: translateX(12px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+  .nc-rp-profile-header { background: #fff; border-bottom: 1px solid rgba(15, 23, 42, 0.08); flex-shrink: 0; padding: 1rem 1.1rem 0.75rem; }
+  .nc-rp-profile-header-bar { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; margin-top: 0.85rem; flex-wrap: wrap; }
+  .nc-rp-profile-header-right { display: flex; align-items: center; gap: 0.5rem; margin-left: auto; }
+  .nc-rp-profile-toolbar { display: flex; align-items: center; gap: 0.45rem; flex-wrap: wrap; }
+  .nc-rp-profile-hero { display: flex; align-items: center; gap: 0.85rem; }
+  .nc-rp-profile-hero .nc-rp-avatar { width: 3.25rem; height: 3.25rem; font-size: 1rem; }
+  .nc-rp-profile-title-row { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+  .nc-rp-profile-title-row h2 { margin: 0; font-size: 1.35rem; font-weight: 900; letter-spacing: -0.02em; }
+  .nc-rp-profile-subtitle { margin: 0.2rem 0 0; color: rgba(15, 23, 42, 0.55); font-weight: 650; font-size: 0.9rem; }
+  .nc-rp-btn-profile { display: inline-flex; align-items: center; gap: 0.35rem; }
+  .nc-rp-btn-icon { font-size: 0.95rem; line-height: 1; }
+  .nc-rp-more-wrap { position: relative; }
+  .nc-rp-more-menu { position: absolute; left: 0; top: calc(100% + 4px); background: #fff; border: 1px solid rgba(15, 23, 42, 0.12); border-radius: 10px; box-shadow: 0 12px 32px rgba(15, 23, 42, 0.12); min-width: 180px; z-index: 5; padding: 0.25rem; }
+  .nc-rp-more-menu button { display: block; width: 100%; text-align: left; border: 0; background: transparent; padding: 0.5rem 0.65rem; border-radius: 8px; font-weight: 650; cursor: pointer; }
+  .nc-rp-more-menu button:hover { background: rgba(37, 99, 235, 0.08); }
+  .nc-rp-modal-close {
+    border: 0;
+    background: rgba(15, 23, 42, 0.06);
+    width: 2rem;
+    height: 2rem;
+    border-radius: 8px;
+    font-size: 1.25rem;
+    cursor: pointer;
+    line-height: 1;
+    color: rgba(15, 23, 42, 0.55);
+    flex-shrink: 0;
+  }
+  .nc-rp-modal-close:hover { background: rgba(15, 23, 42, 0.1); color: #0f172a; }
+  .nc-rp-tabs { display: flex; gap: 0; padding: 0 1.1rem; background: #fff; border-bottom: 1px solid rgba(15, 23, 42, 0.08); overflow-x: auto; flex-shrink: 0; }
+  .nc-rp-tabs button { border: 0; background: none; padding: 0.7rem 0.85rem; font-weight: 750; font-size: 0.84rem; color: rgba(15, 23, 42, 0.5); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; white-space: nowrap; }
+  .nc-rp-tabs button.is-active { color: #2563eb; border-bottom-color: #2563eb; }
+  .nc-rp-modal-body { flex: 1; overflow: auto; padding: 1rem 1.1rem 1.25rem; min-height: 0; background: #f8fafc; }
+  .nc-rp-profile-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(260px, 300px); gap: 1rem; align-items: start; }
+  .nc-rp-profile-main { display: flex; flex-direction: column; gap: 0.85rem; min-width: 0; }
+  .nc-rp-profile-side { display: flex; flex-direction: column; gap: 0.85rem; min-width: 0; }
+  .nc-rp-card { background: #fff; border: 1px solid rgba(15, 23, 42, 0.08); border-radius: 12px; padding: 1rem 1.05rem; }
+  .nc-rp-card h3 { margin: 0 0 0.65rem; font-size: 0.95rem; font-weight: 900; letter-spacing: -0.01em; color: #0f172a; }
+  .nc-rp-card-lead { margin: 0 0 0.65rem; line-height: 1.55; color: rgba(15, 23, 42, 0.72); font-weight: 650; font-size: 0.88rem; }
+  .nc-rp-kv-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem 1rem; }
+  .nc-rp-kv label { display: block; font-size: 0.68rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: rgba(15, 23, 42, 0.45); margin-bottom: 0.2rem; }
+  .nc-rp-kv .nc-rp-kv-val { display: flex; align-items: center; gap: 0.35rem; font-weight: 750; font-size: 0.88rem; color: #0f172a; flex-wrap: wrap; }
+  .nc-rp-copy { border: 0; background: transparent; cursor: pointer; color: rgba(15, 23, 42, 0.4); padding: 0.1rem; font-size: 0.85rem; border-radius: 4px; }
+  .nc-rp-copy:hover { color: #2563eb; background: rgba(37, 99, 235, 0.08); }
+  .nc-rp-tag-local { font-size: 0.68rem; font-weight: 800; padding: 0.12rem 0.4rem; border-radius: 6px; background: rgba(22, 163, 74, 0.12); color: #15803d; }
+  .nc-rp-tag-active { font-size: 0.68rem; font-weight: 800; padding: 0.12rem 0.4rem; border-radius: 6px; background: rgba(22, 163, 74, 0.12); color: #15803d; margin-left: 0.35rem; }
+  .nc-rp-compliance-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.85rem; }
+  .nc-rp-progress { height: 6px; background: rgba(15, 23, 42, 0.08); border-radius: 999px; overflow: hidden; margin: 0.5rem 0; }
+  .nc-rp-progress > span { display: block; height: 100%; background: linear-gradient(90deg, #22c55e, #16a34a); border-radius: 999px; }
+  .nc-rp-meta-muted { font-size: 0.78rem; color: rgba(15, 23, 42, 0.5); font-weight: 650; margin: 0.35rem 0 0; }
+  .nc-rp-link-btn { border: 0; background: none; color: #2563eb; font-weight: 750; font-size: 0.82rem; cursor: pointer; padding: 0; margin-top: 0.5rem; }
+  .nc-rp-snapshot { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0.5rem; }
+  .nc-rp-snap { background: #fff; border: 1px solid rgba(15, 23, 42, 0.08); border-radius: 10px; padding: 0.65rem 0.5rem; text-align: center; }
+  .nc-rp-snap-ic { font-size: 1rem; margin-bottom: 0.25rem; }
+  .nc-rp-snap label { display: block; font-size: 0.62rem; font-weight: 800; text-transform: uppercase; color: rgba(15, 23, 42, 0.45); }
+  .nc-rp-snap strong { display: block; font-size: 0.82rem; font-weight: 900; margin-top: 0.15rem; color: #0f172a; }
+  .nc-rp-snap span { font-size: 0.68rem; color: rgba(15, 23, 42, 0.45); font-weight: 650; }
+  .nc-rp-avail-card { background: linear-gradient(135deg, rgba(22, 163, 74, 0.14), rgba(22, 163, 74, 0.06)); border: 1px solid rgba(22, 163, 74, 0.22); border-radius: 12px; padding: 1rem; }
+  .nc-rp-avail-card.nc-rp-avail-card--off { background: linear-gradient(135deg, rgba(100, 116, 139, 0.12), rgba(100, 116, 139, 0.04)); border-color: rgba(100, 116, 139, 0.2); }
+  .nc-rp-avail-card h4 { margin: 0 0 0.35rem; font-size: 1rem; font-weight: 900; color: #15803d; }
+  .nc-rp-avail-card.nc-rp-avail-card--off h4 { color: #475569; }
+  .nc-rp-avail-card p { margin: 0; font-size: 0.82rem; color: rgba(15, 23, 42, 0.6); font-weight: 650; line-height: 1.45; }
+  .nc-rp-avail-card .nc-rp-btn { margin-top: 0.75rem; width: 100%; justify-content: center; }
+  .nc-rp-quick-list { list-style: none; margin: 0; padding: 0; }
+  .nc-rp-quick-list li + li { border-top: 1px solid rgba(15, 23, 42, 0.06); }
+  .nc-rp-quick-list button { display: flex; align-items: center; justify-content: space-between; width: 100%; border: 0; background: transparent; padding: 0.65rem 0; font-weight: 750; font-size: 0.86rem; cursor: pointer; color: #0f172a; text-align: left; }
+  .nc-rp-quick-list button:hover { color: #2563eb; }
+  .nc-rp-quick-list .nc-rp-quick-ic { margin-right: 0.5rem; opacity: 0.55; }
+  .nc-rp-note-feed { display: flex; flex-direction: column; gap: 0.65rem; }
+  .nc-rp-note-item { display: flex; gap: 0.6rem; align-items: flex-start; }
+  .nc-rp-note-dot { width: 2rem; height: 2rem; border-radius: 8px; display: grid; place-items: center; font-size: 0.75rem; flex-shrink: 0; }
+  .nc-rp-note-dot--p { background: rgba(124, 58, 237, 0.12); color: #6d28d9; }
+  .nc-rp-note-dot--o { background: rgba(234, 88, 12, 0.12); color: #c2410c; }
+  .nc-rp-note-dot--g { background: rgba(22, 163, 74, 0.12); color: #15803d; }
+  .nc-rp-note-item strong { display: block; font-size: 0.82rem; font-weight: 850; }
+  .nc-rp-note-item p { margin: 0.15rem 0 0; font-size: 0.8rem; color: rgba(15, 23, 42, 0.62); font-weight: 650; line-height: 1.4; }
+  .nc-rp-note-item time { font-size: 0.72rem; color: rgba(15, 23, 42, 0.42); font-weight: 650; }
+  .nc-rp-notes-chat-panel { display: flex; flex-direction: column; min-height: 320px; max-height: min(62vh, 520px); }
+  .nc-rp-notes-chat { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+  .nc-rp-notes-feed {
+    flex: 1; min-height: 120px; overflow: auto; display: flex; flex-direction: column; gap: 0.55rem;
+    padding: 0.65rem 0.75rem; border: 1px solid rgba(148, 163, 184, 0.22); border-radius: 12px;
+    background: #f8fafc; margin-bottom: 0.65rem;
+  }
+  .nc-rp-notes-empty { margin: 0; font-size: 0.84rem; color: rgba(15, 23, 42, 0.45); font-weight: 650; }
+  .nc-rp-notes-msg { display: flex; gap: 0.5rem; align-items: flex-start; max-width: 92%; }
+  .nc-rp-notes-msg.is-mine { flex-direction: row-reverse; margin-left: auto; }
+  .nc-rp-notes-av {
+    width: 1.85rem; height: 1.85rem; border-radius: 999px; flex-shrink: 0;
+    background: rgba(59, 130, 246, 0.15); color: #1d4ed8; font-size: 0.65rem; font-weight: 800;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .nc-rp-notes-msg.is-mine .nc-rp-notes-av { background: rgba(34, 197, 94, 0.18); color: #15803d; }
+  .nc-rp-notes-bub {
+    border: 1px solid rgba(148, 163, 184, 0.28); border-radius: 10px; padding: 0.45rem 0.6rem;
+    background: #fff; min-width: 0; flex: 1;
+  }
+  .nc-rp-notes-msg.is-mine .nc-rp-notes-bub {
+    background: rgba(239, 246, 255, 0.9); border-color: rgba(59, 130, 246, 0.28);
+  }
+  .nc-rp-notes-meta { font-size: 0.72rem; font-weight: 700; color: rgba(15, 23, 42, 0.45); margin-bottom: 0.25rem; }
+  .nc-rp-notes-meta strong { color: rgba(15, 23, 42, 0.72); font-weight: 850; }
+  .nc-rp-notes-body { font-size: 0.84rem; line-height: 1.45; word-break: break-word; font-weight: 650; }
+  .nc-rp-notes-body img { max-width: 100%; height: auto; border-radius: 6px; margin: 0.35rem 0; display: block; }
+  .nc-rp-notes-compose { flex-shrink: 0; border: 1px solid rgba(148, 163, 184, 0.28); border-radius: 12px; background: #fff; overflow: hidden; }
+  .nc-rp-notes-toolbar {
+    display: flex; flex-wrap: wrap; gap: 0.2rem; padding: 0.35rem 0.45rem;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.18); background: #f8fafc;
+  }
+  .nc-rp-notes-tool {
+    border: 1px solid rgba(148, 163, 184, 0.25); background: #fff; border-radius: 6px;
+    min-width: 1.85rem; height: 1.85rem; font-size: 0.78rem; font-weight: 800; cursor: pointer; color: #334155;
+  }
+  .nc-rp-notes-tool:hover { background: rgba(59, 130, 246, 0.08); border-color: rgba(59, 130, 246, 0.35); }
+  .nc-rp-notes-editor {
+    min-height: 4.5rem; max-height: 9rem; overflow: auto; padding: 0.5rem 0.6rem;
+    font-size: 0.86rem; line-height: 1.45; outline: none;
+  }
+  .nc-rp-notes-editor:empty::before {
+    content: attr(data-placeholder); color: rgba(15, 23, 42, 0.38); pointer-events: none;
+  }
+  .nc-rp-notes-emoji-bar { display: flex; flex-wrap: wrap; gap: 0.15rem; padding: 0.35rem 0.45rem; border-top: 1px solid rgba(148, 163, 184, 0.12); }
+  .nc-rp-notes-emoji {
+    border: none; background: transparent; font-size: 1.05rem; padding: 0.1rem 0.2rem; border-radius: 6px; cursor: pointer;
+  }
+  .nc-rp-notes-emoji:hover { background: rgba(15, 23, 42, 0.06); }
+  .nc-rp-notes-compose-foot {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 0.45rem; padding: 0.45rem 0.55rem;
+    border-top: 1px solid rgba(148, 163, 184, 0.18); background: #fafbfc;
+  }
+  .nc-rp-notes-status { font-size: 0.76rem; color: rgba(15, 23, 42, 0.5); font-weight: 650; flex: 1; min-width: 6rem; }
+  .nc-rp-notes-emoji-pop {
+    position: fixed; z-index: 120; background: #fff; border: 1px solid rgba(148, 163, 184, 0.35);
+    border-radius: 10px; box-shadow: 0 12px 28px rgba(15, 23, 42, 0.14); padding: 0.45rem; display: none;
+  }
+  .nc-rp-notes-emoji-pop.is-open { display: block; }
+  .nc-rp-notes-emoji-grid { display: grid; grid-template-columns: repeat(8, 1.75rem); gap: 0.15rem; }
+  .nc-rp-notes-emoji-grid button {
+    border: none; background: transparent; font-size: 1.1rem; cursor: pointer; border-radius: 6px; padding: 0.1rem;
+  }
+  .nc-rp-notes-emoji-grid button:hover { background: rgba(15, 23, 42, 0.06); }
+  .nc-rp-tab-panel { max-width: none; }
+  @media (max-width: 900px) {
+    .nc-rp-profile-layout { grid-template-columns: 1fr; }
+    .nc-rp-snapshot { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .nc-rp-compliance-row { grid-template-columns: 1fr; }
+    .nc-rp-kv-grid { grid-template-columns: 1fr; }
+  }
+  body.nc-rp-modal-open { overflow: hidden; }
+  .nc-rp-section-bar { display: flex; justify-content: flex-end; margin-bottom: 0.75rem; }
+  .nc-rp-section-edit { border: 0; background: rgba(37, 99, 235, 0.1); color: #1d4ed8; font-weight: 750; font-size: 0.8rem; padding: 0.35rem 0.65rem; border-radius: 8px; cursor: pointer; }
+  .nc-rp-section-edit:hover { background: rgba(37, 99, 235, 0.18); }
+  .nc-rp-section-modal { max-width: 560px; }
+  .nc-rp-section-form { padding: 0 1rem; max-height: min(60vh, 480px); overflow: auto; }
+  .nc-rp-section-form textarea { width: 100%; min-height: 200px; border: 1px solid rgba(15, 23, 42, 0.12); border-radius: 8px; padding: 0.55rem; font-weight: 650; font-family: inherit; resize: vertical; }
+  .nc-rp-section-hint { margin: 0 0 0.5rem; font-size: 0.82rem; color: rgba(15, 23, 42, 0.55); font-weight: 650; }
+  .nc-rp-docs-upload { display: flex; flex-direction: column; gap: 0.65rem; }
+  .nc-rp-docs-upload label { display: inline-flex; align-items: center; gap: 0.5rem; font-weight: 750; cursor: pointer; }
+  .nc-rp-docs-meta { font-size: 0.85rem; color: rgba(15, 23, 42, 0.55); font-weight: 650; }
+  .nc-rp-cv-viewer { display: flex; flex-direction: column; height: 100%; min-height: 0; flex: 1; }
+  .nc-rp-cv-viewer iframe { flex: 1; width: 100%; min-height: 420px; border: 0; background: #f8fafc; }
+  .nc-rp-cv-viewer-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem; flex-shrink: 0; }
+  #rp-section-backdrop.nc-modal-backdrop,
+  #rp-edit-backdrop.nc-modal-backdrop,
+  #rp-import-backdrop.nc-modal-backdrop {
+    z-index: 85;
+    background: rgba(15, 23, 42, 0.38);
+    backdrop-filter: blur(3px);
+  }
+  .nc-rp-edit-modal { max-width: 640px; }
+  .nc-rp-import-body { padding: 0 1rem 1rem; }
+  .nc-rp-import-lead { margin: 0 0 0.85rem; font-size: 0.88rem; font-weight: 650; color: rgba(15, 23, 42, 0.58); line-height: 1.45; }
+  .nc-rp-import-drop {
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.25rem;
+    border: 2px dashed rgba(59, 130, 246, 0.35); border-radius: 12px; padding: 1.25rem 1rem; cursor: pointer;
+    background: rgba(59, 130, 246, 0.04); text-align: center;
+  }
+  .nc-rp-import-drop:hover { border-color: rgba(59, 130, 246, 0.55); background: rgba(59, 130, 246, 0.07); }
+  .nc-rp-import-drop-ic { font-size: 1.5rem; color: #2563eb; font-weight: 900; }
+  .nc-rp-import-drop-label { font-weight: 800; color: #0f172a; }
+  .nc-rp-import-drop-hint { font-size: 0.78rem; color: rgba(15, 23, 42, 0.45); font-weight: 650; }
+  .nc-rp-import-status { margin: 0.65rem 0 0; font-size: 0.86rem; font-weight: 700; color: #2563eb; }
+  .nc-rp-import-warnings { margin: 0.5rem 0 0; padding-left: 1.1rem; font-size: 0.82rem; color: #b45309; font-weight: 650; }
+  .nc-rp-import-warnings li { margin: 0.2rem 0; }
+  .nc-rp-edit-form { padding: 0 1rem 1rem; }
+  .nc-rp-edit-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.65rem 0.75rem; }
+  .nc-rp-edit-field { display: flex; flex-direction: column; gap: 0.25rem; }
+  .nc-rp-edit-field--full { grid-column: 1 / -1; }
+  .nc-rp-edit-field span { font-size: 0.72rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; color: rgba(15, 23, 42, 0.5); }
+  .nc-rp-edit-field input, .nc-rp-edit-field select, .nc-rp-edit-field textarea {
+    border: 1px solid rgba(15, 23, 42, 0.12); border-radius: 8px; padding: 0.45rem 0.55rem; font-weight: 650;
+  }
+  .nc-rp-edit-actions { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin-top: 0.85rem; flex-wrap: wrap; }
+  .nc-rp-edit-actions-right { display: flex; gap: 0.5rem; margin-left: auto; }
+  .nc-rp-btn-danger { background: #fef2f2; border-color: #fecaca; color: #b91c1c; }
+  .nc-rp-detail-section { margin-bottom: 1rem; }
+  .nc-rp-detail-section h3 { margin: 0 0 0.35rem; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; color: rgba(15, 23, 42, 0.45); font-weight: 800; }
+  .nc-rp-detail-section p { margin: 0; font-weight: 650; line-height: 1.45; }
+  .nc-rp-gap-list { margin: 0; padding-left: 1.1rem; }
+  .nc-rp-cols-dialog {
+    border: none; border-radius: 16px; padding: 0;
+    max-width: min(520px, calc(100vw - 2rem)); width: 100%;
+    box-shadow: 0 24px 48px rgba(15, 23, 42, 0.18); z-index: 90;
+  }
+  .nc-rp-cols-dialog::backdrop { background: rgba(15, 23, 42, 0.45); }
+  .nc-rp-cols-card { padding: 1rem 1.1rem; }
+  .nc-rp-cols-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 0.75rem; margin-bottom: 0.5rem; }
+  .nc-rp-cols-title { margin: 0; font-size: 1.15rem; font-weight: 950; }
+  .nc-rp-cols-x { border: none; background: transparent; font-size: 1.5rem; cursor: pointer; color: rgba(15, 23, 42, 0.55); }
+  .nc-rp-cols-lead { margin: 0 0 0.85rem; color: rgba(15, 23, 42, 0.58); font-weight: 650; font-size: 0.9rem; line-height: 1.45; }
+  .nc-rp-cols-list { list-style: none; margin: 0; padding: 0; max-height: min(52vh, 420px); overflow: auto; border: 1px solid rgba(148, 163, 184, 0.22); border-radius: 12px; }
+  .nc-rp-cols-row {
+    display: grid; grid-template-columns: auto 1fr auto auto; align-items: center;
+    gap: 0.5rem 0.65rem; padding: 0.55rem 0.65rem; border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+  }
+  .nc-rp-cols-row:last-child { border-bottom: none; }
+  .nc-rp-cols-row > span { font-weight: 800; color: rgba(15, 23, 42, 0.82); }
+  .nc-rp-cols-move {
+    border: 1px solid rgba(148, 163, 184, 0.35); background: #fff; border-radius: 8px;
+    width: 2rem; height: 2rem; cursor: pointer; font-weight: 800;
+  }
+  .nc-rp-cols-move:disabled { opacity: 0.35; cursor: not-allowed; }
+  .nc-rp-cols-foot { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; margin-top: 1rem; flex-wrap: wrap; }
+  .nc-rp-cols-foot-actions { display: flex; gap: 0.5rem; }
+  .nc-rp-cols-reset { border: none; background: transparent; color: #2563eb; font-weight: 850; cursor: pointer; }
+  .nc-rp-cols-cancel, .nc-rp-cols-save {
+    border-radius: 10px; padding: 0.5rem 0.85rem; font-weight: 850; cursor: pointer;
+    border: 1px solid rgba(148, 163, 184, 0.35); background: #fff;
+  }
+  .nc-rp-cols-save { background: #2563eb; border-color: #2563eb; color: #fff; }
+
+  .nc-rp-gap-dialog { border: 0; border-radius: 12px; padding: 0; max-width: 28rem; width: calc(100% - 2rem); }
+  .nc-rp-gap-dialog::backdrop { background: rgba(15, 23, 42, 0.35); }
+  .nc-rp-gap-dialog-inner { padding: 1rem 1.15rem; }
+  .nc-rp-gap-dialog-head { display: flex; justify-content: space-between; align-items: center; }
+  .nc-rp-gap-dialog-head h2 { margin: 0; font-size: 1.1rem; }
+  .nc-rp-gap-hint { color: rgba(15, 23, 42, 0.55); font-size: 0.85rem; }
+
+  .nc-rp-avatar--0 { background: #dbeafe; color: #1d4ed8; }
+  .nc-rp-avatar--1 { background: #dcfce7; color: #15803d; }
+  .nc-rp-avatar--2 { background: #ffedd5; color: #c2410c; }
+  .nc-rp-avatar--3 { background: #ede9fe; color: #6d28d9; }
+  .nc-rp-avatar--4 { background: #fce7f3; color: #be185d; }
+  .nc-rp-avatar--5 { background: #e0f2fe; color: #0369a1; }
+
+  @media (max-width: 1200px) {
+    .nc-rp-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  }
+  @media (max-width: 720px) {
+    .nc-rp-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .nc-rp-filters-row .nc-rp-filter { min-width: calc(50% - 0.5rem); flex: 1; }
+    .nc-rp-modal { width: 100%; min-width: 0; border-radius: 12px 12px 0 0; }
+  }
+</style>
+{% endblock %}

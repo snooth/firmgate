@@ -1,0 +1,642 @@
+{% extends "intranet_base.html" %}
+{% block title %}{{ portal_shell_name }} — CRM — {{ lead.full_name if lead else 'Lead' }}{% endblock %}
+
+{% block intranet_body %}
+{% set crm_emb = '?embed=1' if request.args.get('embed') == '1' else '' %}
+{% set crm_inline = request.args.get('inline') == '1' %}
+{% set crm_nav_active = 'leads' %}
+<div class="nc-crm2 nc-crm2--lead {% if crm_inline %}nc-crm2--leadform{% endif %}" id="nc-crm-root">
+  {% if not crm_inline %}
+    {% include "_intranet_crm_sidebar.html" %}
+  {% endif %}
+
+  <main class="nc-crm2-main" aria-label="CRM content">
+    {% if not crm_inline %}
+      <div class="nc-crm2-leadback">
+        <a class="nc-crm2-backlink" href="{{ url_for('intranet.crm_leads_page') }}{{ crm_emb }}">← Back to leads</a>
+      </div>
+    {% endif %}
+
+    <section class="nc-crm2-leadhero" aria-label="Lead header">
+      <div class="nc-crm2-leadhero-left">
+        <div class="nc-crm2-leadhero-avatar" aria-hidden="true">{{ (lead.full_name or "L")[0:2]|upper }}</div>
+        <div class="nc-crm2-leadhero-meta">
+          <div class="nc-crm2-leadhero-title">
+            <div class="nc-crm2-leadhero-name">{{ lead.full_name }}</div>
+            <span class="nc-crm2-pill nc-crm2-pill--{% if lead.status %}{{ lead.status|lower }}{% else %}new{% endif %}">{{ lead.status or "New" }}</span>
+          </div>
+          <div class="nc-crm2-leadhero-sub">{{ lead.title or "" }}</div>
+        </div>
+      </div>
+
+      <div class="nc-crm2-leadhero-actions" aria-label="Lead actions">
+        <button type="button" class="nc-btn nc-btn-primary nc-crm2-splitbtn">
+          <span>Convert</span><span aria-hidden="true">▾</span>
+        </button>
+        {% if crm_can_create %}<button type="button" class="nc-btn" id="nc-crm2-editbtn">Edit lead</button>{% endif %}
+        <button type="button" class="nc-crm2-iconbtn" aria-label="More actions">⋯</button>
+      </div>
+    </section>
+
+    <section class="nc-crm2-leadfacts" aria-label="Lead facts">
+      <div class="nc-crm2-fact"><span class="nc-crm2-factic" aria-hidden="true">✉</span><span>{{ lead.email }}</span></div>
+      <div class="nc-crm2-fact"><span class="nc-crm2-factic" aria-hidden="true">📞</span><span>{{ lead.phone or "" }}</span></div>
+      <div class="nc-crm2-fact"><span class="nc-crm2-factic" aria-hidden="true">🏢</span><span>{% if lead.company %}{{ lead.company.name }}{% endif %}</span></div>
+      <div class="nc-crm2-fact"><span class="nc-crm2-factic" aria-hidden="true">📍</span><span>{{ lead.location or "" }}</span></div>
+    </section>
+
+    <section
+      id="crm-notes-chat-root"
+      class="nc-crm2-card nc-crm2-card--pad nc-crm-notes-chat-root"
+      aria-label="Lead notes"
+      {% if lead %}data-lead-id="{{ lead.id }}"{% endif %}
+      data-time-zone="{{ app_time_zone|default('')|e }}"
+      data-time-offset-ms="{{ app_time_offset_ms|default(0) }}"
+    >
+      <div class="nc-crm-notes-head">
+        <div class="nc-crm-notes-title">Notes</div>
+        <div class="nc-crm-notes-sub">Capture notes like chat — timestamps use your organisation time settings.</div>
+      </div>
+      <div class="nc-crm-notes-window" aria-live="polite">
+        <div id="crm-notes-thread" class="nc-crm-notes-thread" tabindex="0"></div>
+        <div class="nc-crm-notes-compose">
+          <label class="nc-sr-only" for="crm-notes-input">New note</label>
+          <textarea id="crm-notes-input" class="nc-crm-notes-input" rows="2" maxlength="8000" placeholder="Write a note… (Enter to send, Shift+Enter for new line)"{% if not crm_can_create %} disabled{% endif %}></textarea>
+          {% if crm_can_create %}<button type="button" id="crm-notes-send" class="nc-btn nc-btn-primary">Send</button>{% endif %}
+        </div>
+        <div id="crm-notes-status" class="nc-detail-muted nc-crm-notes-status" role="status"></div>
+      </div>
+    </section>
+
+    <div class="nc-crm2-tabs" role="tablist" aria-label="Lead sections">
+      <button type="button" class="nc-crm2-tab is-active" data-tab="overview" role="tab" aria-selected="true">Overview</button>
+      <button type="button" class="nc-crm2-tab" data-tab="activity" role="tab" aria-selected="false">Activity</button>
+      <button type="button" class="nc-crm2-tab" data-tab="notes" role="tab" aria-selected="false">Notes</button>
+      <button type="button" class="nc-crm2-tab" data-tab="emails" role="tab" aria-selected="false">Emails</button>
+      <button type="button" class="nc-crm2-tab" data-tab="deals" role="tab" aria-selected="false">Deals</button>
+      <button type="button" class="nc-crm2-tab" data-tab="files" role="tab" aria-selected="false">Files</button>
+    </div>
+
+    <div class="nc-crm2-leadgrid">
+      <section class="nc-crm2-leadleft" aria-label="Lead overview">
+        <div class="nc-crm2-leadcols">
+          <div class="nc-crm2-card nc-crm2-card--pad">
+            <div class="nc-crm2-cardhead">
+              <div class="nc-crm2-cardtitle">Lead details</div>
+            </div>
+            <div class="nc-crm2-deflist">
+              <div class="nc-crm2-dlrow"><div class="nc-crm2-dt">Lead status</div><div class="nc-crm2-dd"><span>{{ lead.status or 'New' }}</span><span aria-hidden="true">▾</span></div></div>
+              <div class="nc-crm2-dlrow"><div class="nc-crm2-dt">Source</div><div class="nc-crm2-dv">{{ lead.source or "Website" }}</div></div>
+              <div class="nc-crm2-dlrow"><div class="nc-crm2-dt">Lead owner</div><div class="nc-crm2-dv"><span class="nc-crm2-ownerpic" aria-hidden="true"></span>{% if lead.owner %}{{ lead.owner.full_name or lead.owner.username }}{% else %}—{% endif %}</div></div>
+              <div class="nc-crm2-dlrow"><div class="nc-crm2-dt">Created</div><div class="nc-crm2-dv">{% if lead.created_at %}{{ lead.created_at.strftime("%b %d, %Y") }}{% else %}—{% endif %}</div></div>
+              <div class="nc-crm2-dlrow"><div class="nc-crm2-dt">Score</div><div class="nc-crm2-dv"><span class="nc-crm2-score nc-crm2-score--{% if lead.score|int >= 80 %}hi{% elif lead.score|int >= 60 %}mid{% else %}lo{% endif %}">{{ lead.score or 0 }}</span></div></div>
+              <div class="nc-crm2-dlrow"><div class="nc-crm2-dt">Tags</div><div class="nc-crm2-dv"><span class="nc-crm2-tag">Marketing</span> <span class="nc-crm2-tag">Automation</span> <span class="nc-crm2-tag">Q2 Campaign</span></div></div>
+              <div class="nc-crm2-dlrow"><div class="nc-crm2-dt">Lead stage</div><div class="nc-crm2-dd"><span>{{ lead.status or 'New' }}</span><span aria-hidden="true">▾</span></div></div>
+            </div>
+          </div>
+
+          <div class="nc-crm2-card nc-crm2-card--pad">
+            <div class="nc-crm2-cardhead">
+              <div class="nc-crm2-cardtitle">About this lead</div>
+            </div>
+            <div class="nc-crm2-about">
+              <div class="nc-crm2-about-text">
+                Brighton downloaded our Q2 campaign guide from the website and requested more information about our marketing automation platform.
+              </div>
+              <div class="nc-crm2-chips">
+                <span class="nc-crm2-chip">Marketing Automation</span>
+                <span class="nc-crm2-chip">Email Campaigns</span>
+              </div>
+              <div class="nc-crm2-deflist nc-crm2-deflist--tight">
+                <div class="nc-crm2-dlrow"><div class="nc-crm2-dt">Budget</div><div class="nc-crm2-dv">$20,000 - $50,000</div></div>
+                <div class="nc-crm2-dlrow"><div class="nc-crm2-dt">Timeline</div><div class="nc-crm2-dv">Q3 2024</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="nc-crm2-card nc-crm2-card--pad">
+          <div class="nc-crm2-cardhead">
+            <div class="nc-crm2-cardtitle">Company</div>
+            <a class="nc-crm2-link" href="#" aria-label="View company">View company</a>
+          </div>
+          <div class="nc-crm2-companybox">
+            <div class="nc-crm2-companyic2" aria-hidden="true">🏢</div>
+            <div class="nc-crm2-companymeta">
+              <div class="nc-crm2-companyname">{% if lead.company %}{{ lead.company.name }}{% else %}—{% endif %}</div>
+              <div class="nc-crm2-companysub">Software Development • 51-200 employees • Sydney, NSW</div>
+              <div class="nc-crm2-companyfacts">
+                <div class="nc-crm2-companyfact"><span aria-hidden="true">🌐</span> www.brightsolutions.com</div>
+                <div class="nc-crm2-companyfact"><span aria-hidden="true">📞</span> +61 2 9876 5432</div>
+                <div class="nc-crm2-companyfact"><span aria-hidden="true">✉</span> info@brightsolutions.com</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="nc-crm2-card nc-crm2-card--pad">
+          <div class="nc-crm2-cardhead">
+            <div class="nc-crm2-cardtitle">Contacts (2)</div>
+            <a class="nc-crm2-link" href="#" aria-label="Add contact">＋ Add contact</a>
+          </div>
+          <div class="nc-crm2-contactrow">
+            <div class="nc-crm2-contact">
+              <div class="nc-crm2-avatar nc-crm2-avatar--sm" aria-hidden="true">BR</div>
+              <div class="nc-crm2-contactmeta">
+                <div class="nc-crm2-contactname">Brighton Ross</div>
+                <div class="nc-crm2-contactsub">Head of Marketing</div>
+              </div>
+              <div class="nc-crm2-contactfacts">
+                <div class="nc-crm2-mini"><span aria-hidden="true">✉</span> brighton.ross@example.com</div>
+                <div class="nc-crm2-mini"><span aria-hidden="true">📞</span> +61 412 345 678</div>
+              </div>
+              <span class="nc-crm2-badge">Primary</span>
+              <button type="button" class="nc-crm2-kebab" aria-label="Contact actions">⋯</button>
+            </div>
+            <div class="nc-crm2-contact">
+              <div class="nc-crm2-avatar nc-crm2-avatar--sm" aria-hidden="true">JT</div>
+              <div class="nc-crm2-contactmeta">
+                <div class="nc-crm2-contactname">Jessica Taylor</div>
+                <div class="nc-crm2-contactsub">Marketing Specialist</div>
+              </div>
+              <div class="nc-crm2-contactfacts">
+                <div class="nc-crm2-mini"><span aria-hidden="true">✉</span> jessica.taylor@example.com</div>
+                <div class="nc-crm2-mini"><span aria-hidden="true">📞</span> +61 422 876 123</div>
+              </div>
+              <button type="button" class="nc-crm2-kebab" aria-label="Contact actions">⋯</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <aside class="nc-crm2-leadright" aria-label="Lead side panels">
+        <div class="nc-crm2-card nc-crm2-card--pad">
+          <div class="nc-crm2-cardhead">
+            <div class="nc-crm2-cardtitle">Activity</div>
+            <a class="nc-crm2-link" href="#" aria-label="View all activity">View all</a>
+          </div>
+          <div class="nc-crm2-actlist">
+            <div class="nc-crm2-act">
+              <div class="nc-crm2-actic nc-crm2-actic--pink" aria-hidden="true">▦</div>
+              <div class="nc-crm2-actmeta">
+                <div class="nc-crm2-actname">Website form submitted</div>
+                <div class="nc-crm2-actsub">Q2 Campaign Guide Download</div>
+                <div class="nc-crm2-acttime">May 21, 2024 • 2:30 PM</div>
+              </div>
+            </div>
+            <div class="nc-crm2-act">
+              <div class="nc-crm2-actic nc-crm2-actic--blue" aria-hidden="true">✉</div>
+              <div class="nc-crm2-actmeta">
+                <div class="nc-crm2-actname">Email opened</div>
+                <div class="nc-crm2-actsub">Q2 Campaign Guide</div>
+                <div class="nc-crm2-acttime">May 21, 2024 • 2:45 PM</div>
+              </div>
+            </div>
+            <div class="nc-crm2-act">
+              <div class="nc-crm2-actic nc-crm2-actic--orange" aria-hidden="true">✉</div>
+              <div class="nc-crm2-actmeta">
+                <div class="nc-crm2-actname">Email sent</div>
+                <div class="nc-crm2-actsub">Q2 Campaign Guide</div>
+                <div class="nc-crm2-acttime">May 21, 2024 • 2:30 PM</div>
+              </div>
+            </div>
+          </div>
+          <button type="button" class="nc-crm2-more">Show more</button>
+        </div>
+
+        <div class="nc-crm2-card nc-crm2-card--pad">
+          <div class="nc-crm2-cardhead">
+            <div class="nc-crm2-cardtitle">Files</div>
+            <a class="nc-crm2-link" href="#" aria-label="View all files">View all</a>
+          </div>
+          <div class="nc-crm2-files">
+            <div class="nc-crm2-file">
+              <div class="nc-crm2-fileic" aria-hidden="true">📄</div>
+              <div class="nc-crm2-filemeta">
+                <div class="nc-crm2-filename">Q2 Campaign Guide.pdf</div>
+                <div class="nc-crm2-filesub">2.4 MB • May 21, 2024</div>
+              </div>
+            </div>
+            <div class="nc-crm2-file">
+              <div class="nc-crm2-fileic" aria-hidden="true">📄</div>
+              <div class="nc-crm2-filemeta">
+                <div class="nc-crm2-filename">Product Overview.pptx</div>
+                <div class="nc-crm2-filesub">5.1 MB • May 20, 2024</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </main>
+</div>
+
+{% include "_intranet_crm_coming_soon_dialog.html" %}
+
+<div id="crm-viewer" class="nc-viewer-shell" hidden aria-label="CRM viewer">
+  <div class="nc-viewer-topbar">
+    <div class="nc-viewer-topbar-title" id="crm-title">CRM</div>
+    <button type="button" class="nc-viewer-close" id="crm-close" aria-label="Close CRM viewer">&times;</button>
+  </div>
+  <iframe id="crm-frame" class="nc-viewer-frame" title="CRM viewer" loading="lazy"></iframe>
+</div>
+
+<div id="crm-full-edit-drawer" class="nc-crm-new-lead-drawer" hidden>
+  <div id="crm-full-edit-backdrop" class="nc-crm-new-lead-backdrop" aria-hidden="true"></div>
+  <div class="nc-crm-new-lead-sheet" role="dialog" aria-modal="true" aria-labelledby="crm-full-edit-title">
+    <div class="nc-crm-new-lead-top">
+      <div id="crm-full-edit-title" class="nc-crm-new-lead-title">Edit lead</div>
+      <button type="button" class="nc-viewer-close" id="crm-full-edit-close" aria-label="Close">×</button>
+    </div>
+    <div class="nc-crm2-card nc-crm2-card--pad" style="margin:0.9rem; overflow:auto;">
+      <form id="crm-full-edit-form" class="nc-crm2-formgrid" autocomplete="off">
+        <label class="nc-crm2-field">
+          <span class="nc-crm2-label">Name</span>
+          <input class="nc-crm2-in" name="full_name" type="text" value="{{ lead.full_name }}" required />
+        </label>
+        <label class="nc-crm2-field">
+          <span class="nc-crm2-label">Email</span>
+          <input class="nc-crm2-in" name="email" type="email" value="{{ lead.email or '' }}" />
+        </label>
+        <label class="nc-crm2-field">
+          <span class="nc-crm2-label">Phone</span>
+          <input class="nc-crm2-in" name="phone" type="text" value="{{ lead.phone or '' }}" />
+        </label>
+        <label class="nc-crm2-field">
+          <span class="nc-crm2-label">Company</span>
+          <input class="nc-crm2-in" name="company_name" type="text" value="{% if lead.company %}{{ lead.company.name }}{% endif %}" />
+        </label>
+        <label class="nc-crm2-field">
+          <span class="nc-crm2-label">Company website</span>
+          <input class="nc-crm2-in" name="company_website" type="text" value="{% if lead.company %}{{ lead.company.website or '' }}{% endif %}" />
+        </label>
+        <label class="nc-crm2-field">
+          <span class="nc-crm2-label">Company phone</span>
+          <input class="nc-crm2-in" name="company_phone" type="text" value="{% if lead.company %}{{ lead.company.phone or '' }}{% endif %}" />
+        </label>
+        <label class="nc-crm2-field">
+          <span class="nc-crm2-label">Company email</span>
+          <input class="nc-crm2-in" name="company_email" type="email" value="{% if lead.company %}{{ lead.company.email or '' }}{% endif %}" />
+        </label>
+        <label class="nc-crm2-field">
+          <span class="nc-crm2-label">Company location</span>
+          <input class="nc-crm2-in" name="company_location" type="text" value="{% if lead.company %}{{ lead.company.location or '' }}{% endif %}" />
+        </label>
+        <label class="nc-crm2-field">
+          <span class="nc-crm2-label">Job title / subtitle</span>
+          <input class="nc-crm2-in" name="title" type="text" value="{{ lead.title or '' }}" />
+        </label>
+        <label class="nc-crm2-field">
+          <span class="nc-crm2-label">Location</span>
+          <input class="nc-crm2-in" name="location" type="text" value="{{ lead.location or '' }}" />
+        </label>
+        <label class="nc-crm2-field">
+          <span class="nc-crm2-label">Lead status</span>
+          {% set st = lead.status or 'New' %}
+          <select class="nc-crm2-in" name="status">
+            <option {% if st=='New' %}selected{% endif %}>New</option>
+            <option {% if st=='Contacted' %}selected{% endif %}>Contacted</option>
+            <option {% if st=='Qualified' %}selected{% endif %}>Qualified</option>
+            <option {% if st=='Converted' %}selected{% endif %}>Converted</option>
+            <option {% if st=='Lost' %}selected{% endif %}>Lost</option>
+          </select>
+        </label>
+        <label class="nc-crm2-field">
+          <span class="nc-crm2-label">Source</span>
+          {% set src = lead.source or '' %}
+          <select class="nc-crm2-in" name="source">
+            <option value="" {% if not src %}selected{% endif %}>—</option>
+            <option {% if src=='Website' %}selected{% endif %}>Website</option>
+            <option {% if src=='Referral' %}selected{% endif %}>Referral</option>
+            <option {% if src=='LinkedIn' %}selected{% endif %}>LinkedIn</option>
+            <option {% if src=='Event' %}selected{% endif %}>Event</option>
+            <option {% if src=='Cold call' %}selected{% endif %}>Cold call</option>
+          </select>
+        </label>
+        <label class="nc-crm2-field">
+          <span class="nc-crm2-label">Score (0–100)</span>
+          <input class="nc-crm2-in" name="score" type="number" min="0" max="100" value="{{ lead.score or 0 }}" />
+        </label>
+        <label class="nc-crm2-field nc-crm2-field--full">
+          <span class="nc-crm2-label">Tags (comma-separated)</span>
+          <input class="nc-crm2-in" name="tags" type="text" value="{% if lead.attributes and lead.attributes.get('tags') %}{{ (lead.attributes.get('tags')|join(', ')) }}{% endif %}" />
+        </label>
+        <label class="nc-crm2-field nc-crm2-field--full">
+          <span class="nc-crm2-label">About</span>
+          <textarea class="nc-crm2-in" name="about" rows="3" placeholder="Short summary shown on the profile…">{% if lead.attributes and lead.attributes.get('about') %}{{ lead.attributes.get('about') }}{% endif %}</textarea>
+        </label>
+        <label class="nc-crm2-field">
+          <span class="nc-crm2-label">Budget</span>
+          <input class="nc-crm2-in" name="budget" type="text" value="{% if lead.attributes and lead.attributes.get('budget') %}{{ lead.attributes.get('budget') }}{% endif %}" />
+        </label>
+        <label class="nc-crm2-field">
+          <span class="nc-crm2-label">Timeline</span>
+          <input class="nc-crm2-in" name="timeline" type="text" value="{% if lead.attributes and lead.attributes.get('timeline') %}{{ lead.attributes.get('timeline') }}{% endif %}" />
+        </label>
+        <div class="nc-crm2-field nc-crm2-field--full" style="margin-top:0.25rem;">
+          <div class="nc-crm2-label" style="display:flex; align-items:center; justify-content:space-between; gap:0.75rem;">
+            <span>Contacts</span>
+            {% if crm_can_create %}<button type="button" class="nc-btn nc-btn-secondary nc-btn-sm" id="crm-full-edit-add-contact">+ Add contact</button>{% endif %}
+          </div>
+          <div id="crm-full-edit-contacts"></div>
+        </div>
+
+        <div class="nc-crm2-field nc-crm2-field--full" style="margin-top:0.25rem;">
+          <div class="nc-crm2-label" style="display:flex; align-items:center; justify-content:space-between; gap:0.75rem;">
+            <span>Attached files</span>
+            <div>
+              {% if crm_can_create %}
+              <input id="crm-full-edit-files-input" type="file" class="visually-hidden" multiple>
+              <button type="button" class="nc-btn nc-btn-secondary nc-btn-sm" id="crm-full-edit-files-btn">Upload files</button>
+              {% endif %}
+            </div>
+          </div>
+          <div id="crm-full-edit-files"></div>
+          <div class="nc-detail-muted" style="margin-top:0.35rem;">Files upload to chat media storage and are linked to this lead.</div>
+        </div>
+      </form>
+      <div class="nc-crm2-dialogfoot" style="margin-top:0.9rem; display:flex; flex-wrap:wrap; gap:0.5rem; align-items:center;">
+        {% if crm_can_delete %}<button type="button" class="nc-btn nc-btn-danger" id="crm-lead-delete-btn" style="margin-right:auto;">Delete lead</button>{% endif %}
+        <button type="button" class="nc-btn" id="crm-full-edit-cancel">Cancel</button>
+        {% if crm_can_create %}<button type="button" class="nc-btn nc-btn-primary" id="crm-full-edit-save">Save changes</button>{% endif %}
+      </div>
+      <div id="crm-full-edit-status" class="nc-detail-muted" style="margin-top:0.65rem"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  const editBtn = document.getElementById("nc-crm2-editbtn");
+  const drawer = document.getElementById("crm-full-edit-drawer");
+  const backdrop = document.getElementById("crm-full-edit-backdrop");
+  const x = document.getElementById("crm-full-edit-close");
+  const cancel = document.getElementById("crm-full-edit-cancel");
+  const save = document.getElementById("crm-full-edit-save");
+  const status = document.getElementById("crm-full-edit-status");
+  const form = document.getElementById("crm-full-edit-form");
+  const tabs = Array.from(document.querySelectorAll(".nc-crm2-tab"));
+  const leadId = {{ lead.id|int }};
+  const contactsHost = document.getElementById("crm-full-edit-contacts");
+  const addContactBtn = document.getElementById("crm-full-edit-add-contact");
+  const filesHost = document.getElementById("crm-full-edit-files");
+  const filesBtn = document.getElementById("crm-full-edit-files-btn");
+  const filesInput = document.getElementById("crm-full-edit-files-input");
+
+  const LEAD_INIT = {{ (lead_json or {}) | tojson }};
+  let contacts = Array.isArray(LEAD_INIT.contacts) ? LEAD_INIT.contacts : [];
+  let files = Array.isArray(LEAD_INIT.files) ? LEAD_INIT.files : [];
+  const delLeadBtn = document.getElementById("crm-lead-delete-btn");
+  const CRM_LEADS_RETURN_HREF = "{{ url_for('intranet.crm_leads_page') }}{{ crm_emb }}";
+
+  function promptDeletionJustification(title) {
+    let text = "";
+    for (;;) {
+      text = window.prompt(
+        `${title}\n\nAudit log — enter justification (required, minimum 10 characters):`,
+        ""
+      );
+      if (text === null) return null;
+      text = String(text).trim();
+      if (text.length >= 10) return text;
+      window.alert("Justification must be at least 10 characters.");
+    }
+  }
+
+  function setStatus(t){ if (status) status.textContent = t || ""; }
+
+  function open() {
+    if (!drawer) return;
+    drawer.hidden = false;
+  }
+
+  function close() {
+    if (!drawer) return;
+    drawer.hidden = true;
+    setStatus("");
+  }
+
+  async function doSave() {
+    if (!form) return;
+    setStatus("Saving…");
+    if (save) save.disabled = true;
+    try {
+      const fd = new FormData(form);
+      const p = {};
+      for (const [k, v] of fd.entries()) p[k] = String(v || "").trim();
+      p.contacts = contacts.map((c) => ({
+        id: c.id,
+        full_name: String(c.full_name || "").trim(),
+        email: String(c.email || "").trim(),
+        phone: String(c.phone || "").trim(),
+        title: String(c.title || "").trim(),
+        is_primary: !!c.is_primary,
+      }));
+      p.files = files.map((f) => ({
+        url: String(f.url || "").trim(),
+        name: String(f.name || "").trim(),
+        size: Number(f.size) || 0,
+      }));
+      const r = await fetch(`/intranet/api/crm/leads/${leadId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify(p),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.error || "Save failed");
+      window.location.reload();
+    } catch (e) {
+      setStatus(String(e && e.message ? e.message : e) || "Save failed");
+    } finally {
+      if (save) save.disabled = false;
+    }
+  }
+
+  if (editBtn) editBtn.addEventListener("click", open);
+  if (x) x.addEventListener("click", close);
+  if (cancel) cancel.addEventListener("click", close);
+  if (backdrop) backdrop.addEventListener("click", close);
+  if (save) save.addEventListener("click", doSave);
+
+  if (delLeadBtn) {
+    delLeadBtn.addEventListener("click", async () => {
+      if (!window.confirm("Permanently delete this lead? This cannot be undone.")) return;
+      const justification = promptDeletionJustification("Deleting CRM lead");
+      if (justification === null) return;
+      try {
+        delLeadBtn.disabled = true;
+        const r = await fetch(`/intranet/api/crm/leads/${leadId}`, {
+          method: "DELETE",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ justification }),
+        });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(j.error || "Delete failed");
+        window.location.href = CRM_LEADS_RETURN_HREF;
+      } catch (e) {
+        alert(String(e && e.message ? e.message : e) || "Delete failed");
+        delLeadBtn.disabled = false;
+      }
+    });
+  }
+
+  function esc(s){ return String(s||"").replace(/[&<>"']/g, (c)=>({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c])); }
+
+  function renderContacts(){
+    if (!contactsHost) return;
+    if (!contacts.length) {
+      contactsHost.innerHTML = `<div class="nc-detail-muted" style="padding:0.6rem 0;">No contacts yet.</div>`;
+      return;
+    }
+    contactsHost.innerHTML = contacts.map((c, idx) => `
+      <div style="display:grid; grid-template-columns: 1.2fr 1fr; gap:0.75rem; padding:0.65rem 0; border-top:1px solid rgba(148,163,184,0.18);">
+        <label class="nc-crm2-field" style="margin:0;">
+          <span class="nc-crm2-label">Full name</span>
+          <input class="nc-crm2-in" data-cf="full_name" data-ci="${idx}" value="${esc(c.full_name||"")}" />
+        </label>
+        <label class="nc-crm2-field" style="margin:0;">
+          <span class="nc-crm2-label">Title</span>
+          <input class="nc-crm2-in" data-cf="title" data-ci="${idx}" value="${esc(c.title||"")}" />
+        </label>
+        <label class="nc-crm2-field" style="margin:0;">
+          <span class="nc-crm2-label">Email</span>
+          <input class="nc-crm2-in" data-cf="email" data-ci="${idx}" value="${esc(c.email||"")}" />
+        </label>
+        <label class="nc-crm2-field" style="margin:0;">
+          <span class="nc-crm2-label">Phone</span>
+          <input class="nc-crm2-in" data-cf="phone" data-ci="${idx}" value="${esc(c.phone||"")}" />
+        </label>
+        <div style="display:flex; align-items:center; gap:0.6rem;">
+          <label style="display:inline-flex; align-items:center; gap:0.5rem; font-weight:700; color:rgba(15,23,42,0.7);">
+            <input type="radio" name="crm-primary-contact" ${c.is_primary ? "checked" : ""} data-ci="${idx}">
+            Primary
+          </label>
+          <button type="button" class="nc-btn nc-btn-secondary nc-btn-sm" data-cdel="${idx}">Remove</button>
+        </div>
+      </div>
+    `).join("");
+  }
+
+  function renderFiles(){
+    if (!filesHost) return;
+    if (!files.length) {
+      filesHost.innerHTML = `<div class="nc-detail-muted" style="padding:0.6rem 0;">No files attached.</div>`;
+      return;
+    }
+    filesHost.innerHTML = files.map((f, idx)=>`
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:0.75rem; padding:0.55rem 0; border-top:1px solid rgba(148,163,184,0.18);">
+        <a href="${esc(f.url||"#")}" target="_blank" rel="noreferrer" style="text-decoration:none;">
+          <div style="font-weight:800; color:rgba(15,23,42,0.88);">${esc(f.name||"Attachment")}</div>
+          <div class="nc-detail-muted" style="margin-top:0.15rem;">${f.size ? esc(String(f.size)) + " bytes" : ""}</div>
+        </a>
+        <button type="button" class="nc-btn nc-btn-secondary nc-btn-sm" data-fdel="${idx}">Remove</button>
+      </div>
+    `).join("");
+  }
+
+  if (contactsHost) {
+    contactsHost.addEventListener("input", (e) => {
+      const t = e.target;
+      if (!(t instanceof HTMLElement)) return;
+      const i = t.getAttribute("data-ci");
+      const f = t.getAttribute("data-cf");
+      if (i == null || !f) return;
+      const idx = Number(i);
+      if (!contacts[idx]) return;
+      contacts[idx][f] = t.value;
+    });
+    contactsHost.addEventListener("click", (e) => {
+      const t = e.target;
+      if (!(t instanceof HTMLElement)) return;
+      const del = t.getAttribute("data-cdel");
+      if (del != null) {
+        const idx = Number(del);
+        contacts.splice(idx, 1);
+        if (contacts.length) contacts[0].is_primary = true;
+        renderContacts();
+        return;
+      }
+    });
+    contactsHost.addEventListener("change", (e) => {
+      const t = e.target;
+      if (!(t instanceof HTMLInputElement)) return;
+      if (t.name !== "crm-primary-contact") return;
+      const idx = Number(t.getAttribute("data-ci"));
+      contacts.forEach((c, i) => (c.is_primary = i === idx));
+    });
+  }
+
+  if (addContactBtn) addContactBtn.addEventListener("click", () => {
+    contacts = Array.isArray(contacts) ? contacts : [];
+    if (!contacts.length) {
+      contacts.push({ id: null, full_name: "", email: "", phone: "", title: "", is_primary: true });
+    } else {
+      contacts.push({ id: null, full_name: "", email: "", phone: "", title: "", is_primary: false });
+    }
+    renderContacts();
+  });
+
+  async function uploadChatFile(file) {
+    const fd = new FormData();
+    fd.append("file", file, file.name || "file.bin");
+    const r = await fetch("/intranet/api/chat/upload-file", { method: "POST", credentials: "same-origin", body: fd });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j.url) throw new Error(j.error || "Upload failed");
+    return { url: String(j.url), name: String(j.name || file.name || "Attachment"), size: Number(j.size) || file.size || 0 };
+  }
+
+  if (filesBtn && filesInput) filesBtn.addEventListener("click", () => filesInput.click());
+  if (filesInput) filesInput.addEventListener("change", async () => {
+    const list = filesInput.files ? Array.from(filesInput.files) : [];
+    filesInput.value = "";
+    if (!list.length) return;
+    try {
+      setStatus("Uploading…");
+      for (const f of list.slice(0, 10)) {
+        const up = await uploadChatFile(f);
+        files.push(up);
+      }
+      renderFiles();
+      setStatus("");
+    } catch (e) {
+      setStatus(String(e && e.message ? e.message : e) || "Upload failed");
+    }
+  });
+
+  if (filesHost) filesHost.addEventListener("click", (e) => {
+    const t = e.target;
+    if (!(t instanceof HTMLElement)) return;
+    const del = t.getAttribute("data-fdel");
+    if (del == null) return;
+    const idx = Number(del);
+    files.splice(idx, 1);
+    renderFiles();
+  });
+
+  renderContacts();
+  renderFiles();
+
+  tabs.forEach((t) => {
+    t.addEventListener("click", () => {
+      tabs.forEach((b) => {
+        b.classList.toggle("is-active", b === t);
+        b.setAttribute("aria-selected", b === t ? "true" : "false");
+      });
+      if (t.getAttribute("data-tab") === "notes") {
+        const anchor = document.getElementById("crm-notes-chat-root");
+        if (anchor) anchor.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      }
+    });
+  });
+})();
+</script>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script src="{{ url_for('static', filename='crm.js') }}?v=8"></script>
+<script src="{{ url_for('static', filename='crm_lead_notes.js') }}?v=2" defer></script>
+{% endblock %}
+

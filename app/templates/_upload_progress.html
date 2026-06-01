@@ -1,0 +1,33 @@
+{# Shared by intranet header and standalone files browser. Pass upload_progress_class_modifier for header styling. #}
+<div
+  id="upload-progress"
+  class="nc-upload-progress {{ upload_progress_class_modifier|default('') }}"
+  hidden
+  aria-live="polite"
+>
+  <div class="nc-upload-progress-inner">
+    <div class="nc-upload-progress-row">
+      <span id="upload-progress-label" class="nc-upload-progress-label">Uploading…</span>
+      <button
+        type="button"
+        id="upload-progress-dismiss"
+        class="nc-upload-progress-dismiss"
+        aria-label="Dismiss upload progress"
+      >
+        &times;
+      </button>
+    </div>
+    <div
+      id="upload-progress-track"
+      class="nc-upload-progress-track"
+      role="progressbar"
+      aria-valuemin="0"
+      aria-valuemax="100"
+      aria-valuenow="0"
+    >
+      <div id="upload-progress-fill" class="nc-upload-progress-fill"></div>
+    </div>
+    <div id="upload-progress-detail" class="nc-upload-progress-detail"></div>
+  </div>
+</div>
+{% include "_upload_summary_dialog.html" %}

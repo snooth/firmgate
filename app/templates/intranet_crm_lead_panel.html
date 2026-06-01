@@ -1,0 +1,188 @@
+{% extends "intranet_base.html" %}
+{% block title %}{{ portal_shell_name }} — CRM — {{ lead.full_name if lead else 'Lead' }}{% endblock %}
+
+{% block intranet_body %}
+{% set crm_inline = request.args.get('inline') == '1' %}
+<div class="nc-crm2 nc-crm2--lead-panel {% if crm_inline %}nc-crm2--leadform-inline{% endif %}" id="nc-crm-root">
+  <main class="nc-crm2-main" aria-label="Lead quick view">
+    <div class="nc-crm-lead-panel-head">
+      <div class="nc-crm-lead-panel-h1">{{ lead.full_name }}</div>
+      <div class="nc-crm-lead-panel-headrow">
+        <span class="nc-crm2-pill nc-crm2-pill--{% if lead.status %}{{ lead.status|lower }}{% else %}new{% endif %}">{{ lead.status or "New" }}</span>
+        <span class="nc-crm-panel-headlinks">
+          <button
+            type="button"
+            class="nc-crm-panel-editlink nc-crm-panel-editbtn"
+            id="crm-lead-full-open"
+            data-lead-id="{{ lead.id }}"
+            data-lead-name="{{ lead.full_name|e }}"
+          >Full profile</button>
+          <span class="nc-crm-panel-headgap" aria-hidden="true">·</span>
+          <button
+            type="button"
+            class="nc-crm-panel-editlink nc-crm-panel-editbtn"
+            id="crm-lead-edit-open"
+            data-lead-id="{{ lead.id }}"
+            data-lead-name="{{ lead.full_name|e }}"
+          >Edit lead</button>
+        </span>
+      </div>
+    </div>
+
+    <div class="nc-crm-lead-panel-grid">
+      <section class="nc-crm-lead-panel-fields nc-crm2-card nc-crm2-card--pad" aria-label="Lead fields">
+        <div class="nc-crm-panel-dlgrid">
+          <div class="nc-crm-panel-kv"><div class="nc-crm-panel-lbl">Name</div><div class="nc-crm-panel-val">{{ lead.full_name }}</div></div>
+          <div class="nc-crm-panel-kv"><div class="nc-crm-panel-lbl">Email</div><div class="nc-crm-panel-val">{{ lead.email or "—" }}</div></div>
+          <div class="nc-crm-panel-kv"><div class="nc-crm-panel-lbl">Phone</div><div class="nc-crm-panel-val">{{ lead.phone or "—" }}</div></div>
+          <div class="nc-crm-panel-kv"><div class="nc-crm-panel-lbl">Company</div><div class="nc-crm-panel-val">{% if lead.company %}{{ lead.company.name }}{% else %}—{% endif %}</div></div>
+          <div class="nc-crm-panel-kv"><div class="nc-crm-panel-lbl">Lead status</div><div class="nc-crm-panel-val">{{ lead.status or "New" }}</div></div>
+          <div class="nc-crm-panel-kv"><div class="nc-crm-panel-lbl">Source</div><div class="nc-crm-panel-val">{{ lead.source or "—" }}</div></div>
+          <div class="nc-crm-panel-kv"><div class="nc-crm-panel-lbl">Lead owner</div><div class="nc-crm-panel-val">{% if lead.owner %}{{ lead.owner.full_name or lead.owner.username }}{% else %}—{% endif %}</div></div>
+          <div class="nc-crm-panel-kv"><div class="nc-crm-panel-lbl">Created</div><div class="nc-crm-panel-val">{% if lead.created_at %}{{ lead.created_at.strftime("%b %d, %Y") }}{% else %}—{% endif %}</div></div>
+          <div class="nc-crm-panel-kv nc-crm-panel-kv--span2"><div class="nc-crm-panel-lbl">Score</div><div class="nc-crm-panel-val"><span class="nc-crm2-score nc-crm2-score--{% if lead.score|int >= 80 %}hi{% elif lead.score|int >= 60 %}mid{% else %}lo{% endif %}">{{ lead.score or 0 }}</span></div></div>
+          <div class="nc-crm-panel-kv nc-crm-panel-kv--span2">
+            <div class="nc-crm-panel-lbl">Recorded notes</div>
+            <div class="nc-crm-panel-val nc-crm-panel-val--multiline">{% if lead.notes %}{{ lead.notes }}{% else %}<span class="nc-detail-muted">No notes saved on this lead.</span>{% endif %}</div>
+          </div>
+        </div>
+      </section>
+
+      <section
+        id="crm-notes-chat-root"
+        class="nc-crm-lead-panel-chat nc-crm2-card nc-crm2-card--pad nc-crm-notes-chat-root"
+        aria-label="Team notes"
+        data-lead-id="{{ lead.id }}"
+        data-time-zone="{{ app_time_zone|default('')|e }}"
+        data-time-offset-ms="{{ app_time_offset_ms|default(0) }}"
+      >
+        <div class="nc-crm-notes-head">
+          <div class="nc-crm-notes-title">Team notes</div>
+          <div class="nc-crm-notes-sub">Post updates here — timestamps follow your organisation time settings.</div>
+        </div>
+        <div class="nc-crm-notes-window nc-crm-lead-panel-notes-window" aria-live="polite">
+          <div id="crm-notes-thread" class="nc-crm-notes-thread" tabindex="0"></div>
+          <div class="nc-crm-notes-compose">
+            <label class="nc-sr-only" for="crm-notes-input">New note</label>
+            <textarea id="crm-notes-input" class="nc-crm-notes-input" rows="2" maxlength="8000" placeholder="Write an update… (Enter to send, Shift+Enter for new line)"></textarea>
+            <button type="button" id="crm-notes-send" class="nc-btn nc-btn-primary">Send</button>
+          </div>
+          <div id="crm-notes-status" class="nc-detail-muted nc-crm-notes-status" role="status"></div>
+        </div>
+      </section>
+    </div>
+
+    <div id="crm-edit-lead-drawer" class="nc-crm-new-lead-drawer" hidden>
+      <div id="crm-edit-lead-backdrop" class="nc-crm-new-lead-backdrop" aria-hidden="true"></div>
+      <div class="nc-crm-new-lead-sheet" role="dialog" aria-modal="true" aria-labelledby="crm-edit-lead-sheet-title">
+        <div class="nc-crm-new-lead-top">
+          <div id="crm-edit-lead-sheet-title" class="nc-crm-new-lead-title">Edit lead</div>
+          <button type="button" class="nc-viewer-close" id="crm-edit-lead-close" aria-label="Close">×</button>
+        </div>
+        <iframe id="crm-edit-lead-frame" class="nc-crm-new-lead-frame" title="Edit lead" loading="lazy"></iframe>
+      </div>
+    </div>
+
+    <div id="crm-full-lead-drawer" class="nc-crm-new-lead-drawer" hidden>
+      <div id="crm-full-lead-backdrop" class="nc-crm-new-lead-backdrop" aria-hidden="true"></div>
+      <div class="nc-crm-new-lead-sheet" role="dialog" aria-modal="true" aria-labelledby="crm-full-lead-sheet-title">
+        <div class="nc-crm-new-lead-top">
+          <div id="crm-full-lead-sheet-title" class="nc-crm-new-lead-title">Full profile</div>
+          <button type="button" class="nc-viewer-close" id="crm-full-lead-close" aria-label="Close">×</button>
+        </div>
+        <iframe id="crm-full-lead-frame" class="nc-crm-new-lead-frame" title="Full profile" loading="lazy"></iframe>
+      </div>
+    </div>
+  </main>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script src="{{ url_for('static', filename='crm_lead_notes.js') }}?v=3" defer></script>
+<script>
+(() => {
+  const fullOpenBtn = document.getElementById("crm-lead-full-open");
+  const fullDrawer = document.getElementById("crm-full-lead-drawer");
+  const fullBackdrop = document.getElementById("crm-full-lead-backdrop");
+  const fullCloseBtn = document.getElementById("crm-full-lead-close");
+  const fullFrame = document.getElementById("crm-full-lead-frame");
+  const fullTitleEl = document.getElementById("crm-full-lead-sheet-title");
+
+  const openBtn = document.getElementById("crm-lead-edit-open");
+  const drawer = document.getElementById("crm-edit-lead-drawer");
+  const backdrop = document.getElementById("crm-edit-lead-backdrop");
+  const closeBtn = document.getElementById("crm-edit-lead-close");
+  const frame = document.getElementById("crm-edit-lead-frame");
+  const titleEl = document.getElementById("crm-edit-lead-sheet-title");
+
+  function buildFullUrl(leadId) {
+    const u = new URL(`/intranet/crm/leads/${encodeURIComponent(String(leadId))}`, window.location.origin);
+    u.searchParams.set("embed", "1");
+    u.searchParams.set("inline", "1");
+    return u.toString();
+  }
+
+  function buildEditUrl(leadId) {
+    const u = new URL(`/intranet/crm/leads/${encodeURIComponent(String(leadId))}/edit`, window.location.origin);
+    u.searchParams.set("embed", "1");
+    u.searchParams.set("inline", "1");
+    return u.toString();
+  }
+
+  function open() {
+    if (!openBtn || !drawer || !frame) return;
+    const leadId = openBtn.getAttribute("data-lead-id");
+    if (!leadId) return;
+    const nm = (openBtn.getAttribute("data-lead-name") || "").trim();
+    if (titleEl) titleEl.textContent = nm ? `Edit lead — ${nm}` : "Edit lead";
+    frame.src = buildEditUrl(leadId);
+    drawer.hidden = false;
+  }
+
+  function close() {
+    if (!drawer || !frame) return;
+    drawer.hidden = true;
+    frame.src = "about:blank";
+  }
+
+  function openFull() {
+    if (!fullOpenBtn || !fullDrawer || !fullFrame) return;
+    const leadId = fullOpenBtn.getAttribute("data-lead-id");
+    if (!leadId) return;
+    const nm = (fullOpenBtn.getAttribute("data-lead-name") || "").trim();
+    if (fullTitleEl) fullTitleEl.textContent = nm ? `Full profile — ${nm}` : "Full profile";
+    fullFrame.src = buildFullUrl(leadId);
+    fullDrawer.hidden = false;
+  }
+
+  function closeFull() {
+    if (!fullDrawer || !fullFrame) return;
+    fullDrawer.hidden = true;
+    fullFrame.src = "about:blank";
+  }
+
+  if (openBtn) openBtn.addEventListener("click", open);
+  if (backdrop) backdrop.addEventListener("click", close);
+  if (closeBtn) closeBtn.addEventListener("click", close);
+
+  if (fullOpenBtn) fullOpenBtn.addEventListener("click", openFull);
+  if (fullBackdrop) fullBackdrop.addEventListener("click", closeFull);
+  if (fullCloseBtn) fullCloseBtn.addEventListener("click", closeFull);
+
+  window.addEventListener("message", (e) => {
+    if (e.origin !== window.location.origin) return;
+    const d = e.data;
+    if (!d || typeof d !== "object") return;
+    if (d.kind === "nc-crm-edit-lead-saved" || d.kind === "nc-crm-edit-lead-cancel") {
+      close();
+      // Refresh quick-view fields after edit.
+      try { window.location.reload(); } catch (err) {}
+    }
+    if (d.kind === "nc-crm-full-profile-close") {
+      closeFull();
+    }
+  });
+})();
+</script>
+{% endblock %}

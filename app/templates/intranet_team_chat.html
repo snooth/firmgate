@@ -1,0 +1,181 @@
+{% extends "intranet_base.html" %}
+{% block title %}{{ portal_shell_name }} — Team Chat{% endblock %}
+
+{% block intranet_body %}
+<div class="nc-intranet-hero">
+  <div>
+    <h1>Team Chat</h1>
+  </div>
+</div>
+<div
+  class="nc-tc"
+  id="nc-team-chat-root"
+  data-me-id="{{ current_user.id }}"
+  data-me-name="{{ (current_user.full_name or current_user.username or 'You')|e }}"
+  data-me-initials="{{ ((current_user.full_name or current_user.username or 'You')[:2])|upper|e }}"
+  data-time-zone="{{ app_time_zone|default('')|e }}"
+  data-time-offset-ms="{{ app_time_offset_ms|default(0) }}"
+  data-webrtc-stun="{{ webrtc_stun_url|default('')|e }}"
+  data-voice-mode="{{ voice_call_mode|default('webrtc')|e }}"
+  data-jitsi-base="{{ jitsi_base_url|default('https://meet.jit.si')|e }}"
+  data-portal-admin="{{ '1' if chat_portal_admin else '0' }}"
+>
+  <aside class="nc-tc-left" aria-label="Chats list">
+    <button type="button" class="nc-btn nc-btn-primary nc-tc-new" id="tc-new">+ New chat</button>
+
+    <div class="nc-tc-search">
+      <input type="search" class="nc-tc-search-input" id="tc-search" placeholder="Search messages…" aria-label="Search messages" />
+    </div>
+
+    <div class="nc-tc-list" id="tc-list" role="list"></div>
+
+    <button type="button" class="nc-tc-arch" id="tc-arch" aria-label="Archived chats">
+      <span class="nc-tc-arch-ic" aria-hidden="true">▾</span>
+      <span class="nc-tc-arch-arrow" aria-hidden="true">›</span>
+    </button>
+  </aside>
+
+  <section class="nc-tc-mid" aria-label="Conversation">
+    <div class="nc-tc-mid-top">
+      <div class="nc-tc-mid-head">
+        <div class="nc-tc-mid-avatar" id="tc-chat-avatar" aria-hidden="true">M</div>
+        <div>
+          <div class="nc-tc-mid-title" id="tc-chat-title">—</div>
+          <div class="nc-tc-mid-sub" id="tc-chat-sub">—</div>
+        </div>
+      </div>
+      <div class="nc-tc-mid-actions">
+        <button type="button" class="nc-tc-icbtn" title="Video" aria-label="Video">📹</button>
+        <button type="button" class="nc-tc-icbtn" title="Call" aria-label="Call" id="tc-call">📞</button>
+        <button type="button" class="nc-tc-icbtn" title="Add" aria-label="Add member">＋</button>
+        <button type="button" class="nc-tc-icbtn" title="Info" aria-label="Chat details" id="tc-toggle-details">ⓘ</button>
+      </div>
+    </div>
+
+    <div class="nc-tc-mid-scroll" id="tc-thread" role="log" aria-live="polite" aria-relevant="additions"></div>
+
+    <form class="nc-tc-compose" id="tc-compose" autocomplete="off">
+      <div class="nc-tc-pending" id="tc-pending" hidden></div>
+      <div class="nc-tc-compose-tools">
+        <button type="button" class="nc-tc-icbtn" title="Attach" aria-label="Attach" id="tc-attach">📎</button>
+        <button type="button" class="nc-tc-icbtn" title="Emoji" aria-label="Emoji" id="tc-emoji">☺︎</button>
+        <button type="button" class="nc-tc-icbtn" title="GIF" aria-label="GIF" id="tc-gif">GIF</button>
+      </div>
+      <input class="nc-tc-compose-input" id="tc-msg" type="text" placeholder="Type a message…" aria-label="Message" />
+      <button class="nc-tc-send" type="submit" id="tc-send" aria-label="Send">
+        <span aria-hidden="true">➤</span>
+      </button>
+    </form>
+  </section>
+
+  <aside class="nc-tc-right" id="tc-right" aria-label="Chat details">
+    <div class="nc-tc-right-top">
+      <div class="nc-tc-right-title">Chat details</div>
+      <button type="button" class="nc-tc-x" id="tc-details-close" aria-label="Close details">×</button>
+    </div>
+
+    <div class="nc-tc-right-card">
+      <div class="nc-tc-right-chat">
+        <div class="nc-tc-right-avatar" id="tc-right-avatar" aria-hidden="true">M</div>
+        <div class="nc-tc-right-meta">
+          <div class="nc-tc-right-name" id="tc-right-name">—</div>
+          <div class="nc-tc-right-sub" id="tc-right-sub">—</div>
+        </div>
+        <button type="button" class="nc-tc-icbtn" title="Edit" aria-label="Edit" id="tc-title-edit">✎</button>
+      </div>
+    </div>
+
+    <div class="nc-tc-right-card">
+      <div class="nc-tc-right-row">
+        <div class="nc-tc-right-h">Members</div>
+        <button type="button" class="nc-tc-add" id="tc-members-add">+ Add</button>
+      </div>
+      <div class="nc-tc-members nc-tc-members-scroll" id="tc-members"></div>
+    </div>
+
+    <div class="nc-tc-right-card">
+      <div class="nc-tc-right-row">
+        <div class="nc-tc-right-h">Shared file</div>
+        <button type="button" class="nc-tc-viewall" id="tc-files-viewall">View all</button>
+      </div>
+      <div class="nc-tc-files" id="tc-files"></div>
+    </div>
+
+    <div class="nc-tc-right-card" id="tc-admin-actions" hidden>
+      <button type="button" class="nc-btn nc-btn-secondary nc-tc-delete-room" id="tc-delete-room">Delete chat</button>
+    </div>
+
+    <div class="nc-tc-right-card">
+      <div class="nc-tc-right-row">
+        <div class="nc-tc-right-h">Notifications</div>
+        <label class="nc-tc-switch" title="Toggle notifications">
+          <input type="checkbox" id="tc-notify" checked>
+          <span class="nc-tc-slider" aria-hidden="true"></span>
+        </label>
+      </div>
+    </div>
+  </aside>
+
+  <dialog class="nc-tc-invite-dialog" id="tc-invite-dialog" aria-labelledby="tc-invite-title">
+    <div class="nc-tc-invite-head">
+      <h2 class="nc-tc-invite-title" id="tc-invite-title">Add people</h2>
+      <button type="button" class="nc-tc-invite-close" id="tc-invite-x" aria-label="Close">&times;</button>
+    </div>
+    <p class="nc-tc-invite-sub">Invite colleagues who aren’t in this chat yet.</p>
+    <input type="search" class="nc-tc-invite-search" id="tc-invite-search" placeholder="Search by name…" autocomplete="off" aria-label="Search users" />
+    <div class="nc-tc-invite-list" id="tc-invite-list" role="listbox"></div>
+    <p class="nc-tc-invite-empty" id="tc-invite-empty" hidden>No one matches.</p>
+  </dialog>
+
+  <dialog class="nc-tc-details-pop" id="tc-details-dialog" aria-label="Chat details">
+    <div class="nc-tc-right-top">
+      <div class="nc-tc-right-title">Chat details</div>
+      <button type="button" class="nc-tc-x" id="tc-details-x2" aria-label="Close details">×</button>
+    </div>
+
+    <div class="nc-tc-right-card">
+      <div class="nc-tc-right-chat">
+        <div class="nc-tc-right-avatar" id="tc-dlg-avatar" aria-hidden="true">M</div>
+        <div class="nc-tc-right-meta">
+          <div class="nc-tc-right-name" id="tc-dlg-name">—</div>
+          <div class="nc-tc-right-sub" id="tc-dlg-sub">—</div>
+        </div>
+        <button type="button" class="nc-tc-icbtn" title="Edit" aria-label="Edit" id="tc-dlg-title-edit">✎</button>
+      </div>
+    </div>
+
+    <div class="nc-tc-right-card">
+      <div class="nc-tc-right-row">
+        <div class="nc-tc-right-h">Members</div>
+      </div>
+      <div class="nc-tc-members nc-tc-members-scroll" id="tc-dlg-members"></div>
+    </div>
+  </dialog>
+
+  <dialog id="tc-call-dialog" class="nc-tc-call-dialog" aria-labelledby="tc-call-title">
+    <header class="nc-tc-call-dialog-head">
+      <h2 id="tc-call-title" class="nc-tc-call-dialog-title">Call</h2>
+      <button type="button" class="nc-viewer-close" id="tc-call-close" aria-label="Close call">&times;</button>
+    </header>
+    <div class="nc-tc-call-body">
+      <p class="nc-tc-call-lead" id="tc-call-lead">Join a voice call for this chat.</p>
+      <p id="tc-call-status" class="nc-tc-call-status" role="status">Ready</p>
+      <ul id="tc-call-participants" class="nc-tc-call-participants" aria-label="Participants" hidden></ul>
+      <div id="tc-call-remote-audio" class="nc-tc-call-remote-audio" hidden aria-hidden="true"></div>
+      <div id="tc-call-jitsi-wrap" class="nc-tc-call-jitsi-wrap" hidden>
+        <iframe id="tc-call-jitsi-frame" class="nc-tc-call-jitsi-frame" title="Voice call" allow="microphone; autoplay"></iframe>
+      </div>
+      <div class="nc-tc-call-actions">
+        <button type="button" class="nc-btn nc-btn-secondary" id="tc-call-mute" hidden>Mute</button>
+        <button type="button" class="nc-btn nc-btn-primary" id="tc-call-hangup">Leave call</button>
+      </div>
+    </div>
+  </dialog>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script src="{{ url_for('static', filename='team_chat_call.js') }}?v=4" defer></script>
+<script src="{{ url_for('static', filename='team_chat.js') }}?v=26" defer></script>
+{% endblock %}

@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Set up two-factor — {{ portal_shell_name }}{% endblock %}
+{% block body_class %}nc-page-auth{% endblock %}
+{% block main_class %}main{% endblock %}
+{% block content %}
+<div class="nc-auth-wrap">
+  <div class="nc-auth-card nc-auth-card--wide" role="region" aria-label="Set up two-factor authentication">
+    <div class="nc-auth-brand">
+      {% include "_auth_logo.html" %}
+      <div>
+        <div class="nc-auth-title">Set up authenticator</div>
+        <div class="nc-auth-sub">Scan the QR code with Google Authenticator or Microsoft Authenticator.</div>
+      </div>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for category, message in messages %}
+        <p class="flash {{ category }}">{{ message }}</p>
+      {% endfor %}
+    {% endwith %}
+
+    <p class="nc-auth-mfa-account">Account: <strong>{{ email }}</strong> · Issuer: <strong>{{ issuer }}</strong></p>
+
+    <div class="nc-auth-mfa-setup">
+      <img src="{{ qr_src }}" width="200" height="200" alt="QR code for authenticator app" class="nc-auth-mfa-qr">
+      <div class="nc-auth-mfa-setup-help">
+        <p>Can’t scan? Enter this key manually in your app:</p>
+        <code class="nc-auth-mfa-secret">{{ secret }}</code>
+      </div>
+    </div>
+
+    <form method="post" class="nc-auth-form">
+      <label class="nc-auth-label">
+        Confirm with a 6-digit code
+        <div class="nc-auth-field">
+          <span class="nc-auth-ic" aria-hidden="true">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+          </span>
+          <input name="code" type="text" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" required placeholder="000000" autofocus>
+        </div>
+      </label>
+
+      <button type="submit" class="nc-auth-submit">Complete setup and sign in</button>
+    </form>
+
+    <p class="nc-auth-mfa-foot">
+      <a href="{{ url_for('auth.login') }}">Cancel and return to sign in</a>
+    </p>
+  </div>
+</div>
+{% endblock %}

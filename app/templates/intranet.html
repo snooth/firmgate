@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}{{ portal_shell_name }} — Documents{% endblock %}
+{% block body_class %}nc-page-intranet{% endblock %}
+{% block main_class %}main main--files{% endblock %}
+{% block content %}
+<div class="nc-files-layout">
+  <div class="nc-files-app">
+    <div class="nc-files-inner" style="padding: 1.25rem 1.25rem 1.35rem;">
+      <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:1rem;">
+        <div>
+          <h1 class="nc-admin-title" style="margin:0 0 0.25rem;">{{ portal_shell_name }}</h1>
+          <p class="hint" style="margin:0;">Quick links and portal entry point.</p>
+        </div>
+      </div>
+
+      <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 0.9rem; margin-top: 1rem;">
+        <a class="nc-admin-section" href="{{ url_for('files.browser') }}" style="text-decoration:none; color:inherit;">
+          <div class="nc-admin-section-head" style="border-bottom:none; padding-bottom:0.25rem;">
+            <div>
+              <h2 class="nc-admin-section-title" style="margin:0;">Files</h2>
+              <p class="nc-detail-muted" style="margin:0.25rem 0 0;">Browse, upload, share, and manage documents.</p>
+            </div>
+          </div>
+        </a>
+
+        {% if can_view_audit %}
+        <a class="nc-admin-section" href="{{ url_for('audit.audit_page') }}" style="text-decoration:none; color:inherit;">
+          <div class="nc-admin-section-head" style="border-bottom:none; padding-bottom:0.25rem;">
+            <div>
+              <h2 class="nc-admin-section-title" style="margin:0;">Activity</h2>
+              <p class="nc-detail-muted" style="margin:0.25rem 0 0;">Audit log of auth and file operations.</p>
+            </div>
+          </div>
+        </a>
+        {% endif %}
+
+        {% if can_view_admin %}
+        <a class="nc-admin-section" href="{{ url_for('admin.admin_page') }}" style="text-decoration:none; color:inherit;">
+          <div class="nc-admin-section-head" style="border-bottom:none; padding-bottom:0.25rem;">
+            <div>
+              <h2 class="nc-admin-section-title" style="margin:0;">Administration</h2>
+              <p class="nc-detail-muted" style="margin:0.25rem 0 0;">Users, roles, portal settings, integrations.</p>
+            </div>
+          </div>
+        </a>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+

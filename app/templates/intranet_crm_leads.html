@@ -1,0 +1,173 @@
+{% extends "intranet_base.html" %}
+{% block title %}{{ portal_shell_name }} — CRM — Leads{% endblock %}
+
+{% block intranet_body %}
+{% set crm_emb = '?embed=1' if request.args.get('embed') == '1' else '' %}
+{% set crm_nav_active = 'leads' %}
+<div class="nc-crm2 nc-crm2--leads" id="nc-crm-root">
+  {% include "_intranet_crm_sidebar.html" %}
+
+  <main class="nc-crm2-main" aria-label="CRM content">
+    <div class="nc-crm2-head">
+      <div>
+        <div class="nc-crm2-h1">Leads</div>
+        <div class="nc-crm2-hsub">Manage and track your leads in one place.</div>
+      </div>
+      <div class="nc-crm2-head-actions">
+        <button type="button" class="nc-crm2-dd"><span>Views</span><span aria-hidden="true">▾</span></button>
+        <button type="button" class="nc-crm2-dd"><span>Filters</span><span aria-hidden="true">▾</span></button>
+        {% if crm_can_create %}<button type="button" class="nc-btn nc-btn-primary" data-crm-open="/intranet/crm/leads/new">＋ New lead</button>{% endif %}
+      </div>
+    </div>
+
+    <section class="nc-crm2-kpis" aria-label="Leads summary">
+      <div class="nc-crm2-kpi">
+        <div class="nc-crm2-kpi-top">
+          <div class="nc-crm2-kpi-label">Total leads</div>
+          <div class="nc-crm2-kpi-ic" aria-hidden="true">👥</div>
+        </div>
+        <div class="nc-crm2-kpi-val">156</div>
+        <div class="nc-crm2-kpi-sub"><span class="nc-crm2-kpi-up">↑ 18%</span> vs last 30 days</div>
+      </div>
+      <div class="nc-crm2-kpi">
+        <div class="nc-crm2-kpi-top">
+          <div class="nc-crm2-kpi-label">New leads</div>
+          <div class="nc-crm2-kpi-ic" aria-hidden="true">＋</div>
+        </div>
+        <div class="nc-crm2-kpi-val">42</div>
+        <div class="nc-crm2-kpi-sub"><span class="nc-crm2-kpi-up">↑ 12%</span> vs last 30 days</div>
+      </div>
+      <div class="nc-crm2-kpi">
+        <div class="nc-crm2-kpi-top">
+          <div class="nc-crm2-kpi-label">Contacted</div>
+          <div class="nc-crm2-kpi-ic" aria-hidden="true">📞</div>
+        </div>
+        <div class="nc-crm2-kpi-val">64</div>
+        <div class="nc-crm2-kpi-sub"><span class="nc-crm2-kpi-up">↑ 8%</span> vs last 30 days</div>
+      </div>
+      <div class="nc-crm2-kpi">
+        <div class="nc-crm2-kpi-top">
+          <div class="nc-crm2-kpi-label">Qualified</div>
+          <div class="nc-crm2-kpi-ic" aria-hidden="true">★</div>
+        </div>
+        <div class="nc-crm2-kpi-val">28</div>
+        <div class="nc-crm2-kpi-sub"><span class="nc-crm2-kpi-up">↑ 25%</span> vs last 30 days</div>
+      </div>
+      <div class="nc-crm2-kpi">
+        <div class="nc-crm2-kpi-top">
+          <div class="nc-crm2-kpi-label">Converted</div>
+          <div class="nc-crm2-kpi-ic" aria-hidden="true">✓</div>
+        </div>
+        <div class="nc-crm2-kpi-val">22</div>
+        <div class="nc-crm2-kpi-sub"><span class="nc-crm2-kpi-up">↑ 15%</span> vs last 30 days</div>
+      </div>
+    </section>
+
+    <section class="nc-crm2-card nc-crm2-leads" aria-label="Leads list">
+      <div class="nc-crm2-leads-top">
+        <label class="nc-crm2-search" aria-label="Search leads">
+          <span class="nc-crm2-search-ic" aria-hidden="true">⌕</span>
+          <input class="nc-crm2-search-in" id="crm-leads-q" type="search" placeholder="Search leads..." />
+        </label>
+
+        <div class="nc-crm2-leads-filters" aria-label="Leads filters">
+          <button type="button" class="nc-crm2-dd nc-crm2-dd--mini"><span>Lead owner</span><span aria-hidden="true">▾</span></button>
+          <button type="button" class="nc-crm2-dd nc-crm2-dd--mini"><span>Lead status</span><span aria-hidden="true">▾</span></button>
+          <button type="button" class="nc-crm2-dd nc-crm2-dd--mini"><span>More filters</span><span aria-hidden="true">▾</span></button>
+          <button type="button" class="nc-crm2-iconbtn" aria-label="Table settings">⚙</button>
+        </div>
+      </div>
+
+      <div class="nc-crm2-tablewrap" role="region" aria-label="Leads table" tabindex="0">
+        <table class="nc-crm2-table">
+          <thead>
+            <tr>
+              <th class="nc-crm2-colcheck"><input type="checkbox" aria-label="Select all leads" /></th>
+              <th>Lead</th>
+              <th>Company</th>
+              <th>Lead status</th>
+              <th>Lead owner</th>
+              <th>Source</th>
+              <th>Created</th>
+              <th class="nc-crm2-colscore">Score</th>
+              <th class="nc-crm2-colmenu" aria-label="Actions"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for l in (leads or []) %}
+            <tr class="nc-crm2-row">
+              <td class="nc-crm2-colcheck"><input type="checkbox" aria-label="Select lead {{ l.name }}" /></td>
+              <td>
+                <a class="nc-crm2-leadcell" href="{{ url_for('intranet.crm_lead_panel_page', lead_id=l.id) }}{% if crm_emb %}{{ crm_emb }}&inline=1{% else %}?embed=1&inline=1{% endif %}"
+                   data-crm-lead-panel=""
+                   data-lead-id="{{ l.id }}"
+                   data-lead-name="{{ l.name }}"
+                   aria-label="Open {{ l.name }}">
+                  <span class="nc-crm2-avatar" aria-hidden="true">{{ (l.name or "L")[0:1] }}</span>
+                  <span class="nc-crm2-leadmeta">
+                    <span class="nc-crm2-leadname">{{ l.name }}</span>
+                    <span class="nc-crm2-leademail">{{ l.email }}</span>
+                  </span>
+                </a>
+              </td>
+              <td>
+                <div class="nc-crm2-companycell">
+                  <span class="nc-crm2-companyic" aria-hidden="true">🏢</span>
+                  <span>{{ l.company }}</span>
+                </div>
+              </td>
+              <td>
+                <span class="nc-crm2-pill nc-crm2-pill--{{ (l.status or 'New')|lower }}">{{ l.status }}</span>
+              </td>
+              <td>
+                <div class="nc-crm2-ownercell">
+                  <span class="nc-crm2-ownerpic" aria-hidden="true"></span>
+                  <span>{{ l.owner }}</span>
+                </div>
+              </td>
+              <td>{{ l.source }}</td>
+              <td>{{ l.created }}</td>
+              <td class="nc-crm2-colscore">
+                <span class="nc-crm2-score nc-crm2-score--{{ 'hi' if (l.score|int) >= 80 else ('mid' if (l.score|int) >= 60 else 'lo') }}">{{ l.score }}</span>
+              </td>
+              <td class="nc-crm2-colmenu"><button type="button" class="nc-crm2-kebab" aria-label="More actions">⋯</button></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="nc-crm2-pager" aria-label="Pagination">
+        <div class="nc-crm2-pager-left">Showing 1 to 7 of 156 leads</div>
+        <div class="nc-crm2-pager-right" role="navigation" aria-label="Pages">
+          <button type="button" class="nc-crm2-pagebtn" aria-label="Previous page">‹</button>
+          <button type="button" class="nc-crm2-pagebtn is-active" aria-current="page">1</button>
+          <button type="button" class="nc-crm2-pagebtn">2</button>
+          <button type="button" class="nc-crm2-pagebtn">3</button>
+          <span class="nc-crm2-pagegap" aria-hidden="true">…</span>
+          <button type="button" class="nc-crm2-pagebtn">22</button>
+          <button type="button" class="nc-crm2-pagebtn" aria-label="Next page">›</button>
+        </div>
+      </div>
+    </section>
+    {% include "_intranet_crm_new_lead_drawer.html" %}
+    {% include "_intranet_crm_lead_detail_drawer.html" %}
+  </main>
+</div>
+
+{% include "_intranet_crm_coming_soon_dialog.html" %}
+
+<div id="crm-viewer" class="nc-viewer-shell" hidden aria-label="CRM viewer">
+  <div class="nc-viewer-topbar">
+    <div class="nc-viewer-topbar-title" id="crm-title">CRM</div>
+    <button type="button" class="nc-viewer-close" id="crm-close" aria-label="Close CRM viewer">&times;</button>
+  </div>
+  <iframe id="crm-frame" class="nc-viewer-frame" title="CRM viewer" loading="lazy"></iframe>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script src="{{ url_for('static', filename='crm.js') }}?v=8"></script>
+{% endblock %}
+

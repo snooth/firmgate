@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Registration submitted — {{ portal_shell_name }}{% endblock %}
+{% block body_class %}nc-page-auth{% endblock %}
+{% block main_class %}main{% endblock %}
+{% block content %}
+<div class="nc-auth-wrap">
+  <div class="nc-auth-card" role="region" aria-label="Registration pending approval">
+    <div class="nc-auth-brand">
+      {% include "_auth_logo.html" %}
+      <div>
+        <div class="nc-auth-title">Awaiting approval</div>
+        <div class="nc-auth-sub">Your registration is complete. An administrator must approve your account before you can sign in.</div>
+      </div>
+    </div>
+
+    <p class="nc-auth-mfa-account">Account: <strong>{{ email }}</strong></p>
+    <p class="nc-detail-muted" style="margin:0 0 1rem;">Two-factor authentication is set up. You will receive access once approved.</p>
+
+    <a href="{{ url_for('auth.login') }}" class="nc-auth-submit" style="display:block;text-align:center;text-decoration:none;">Return to sign in</a>
+  </div>
+</div>
+{% endblock %}

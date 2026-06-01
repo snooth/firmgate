@@ -1,0 +1,7 @@
+# in .gitignore replace instance/ with:
+instance/secure_browser.db
+instance/uploads/*
+!instance/uploads/.gitkeep
+
+# then create the placeholder
+touch instance/uploads/.gitkeep

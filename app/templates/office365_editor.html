@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Microsoft 365 — {{ portal_shell_name }}{% endblock %}
+{% block body_class %}nc-page-onlyoffice nc-page-office365{% endblock %}
+{% block content %}
+<div id="office365-shell" class="nc-onlyoffice-shell">
+  <div class="nc-onlyoffice-topbar" role="toolbar" aria-label="Document actions">
+    <div class="nc-onlyoffice-topbar-title">{{ doc_title }}</div>
+    <a class="nc-onlyoffice-close" href="{{ close_url }}" data-turbo="false" aria-label="Close editor" title="Close"
+       data-sync-url="{{ sync_url }}" data-sync-token="{{ sync_token }}" data-can-sync="{{ '1' if can_sync else '0' }}">
+      Close
+    </a>
+  </div>
+  <iframe class="nc-onlyoffice-editor nc-office365-frame" title="{{ doc_title }}" src="{{ edit_url }}" allow="fullscreen"></iframe>
+</div>
+<script src="{{ url_for('static', filename='office365_editor_boot.js') }}?v=1"></script>
+{% endblock %}

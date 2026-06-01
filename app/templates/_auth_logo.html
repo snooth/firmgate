@@ -1,0 +1,7 @@
+{% if portal_logo_url %}
+<img class="nc-auth-logo nc-auth-logo--img" src="{{ portal_logo_url }}" alt="{{ portal_shell_name }}" width="48" height="48">
+{% else %}
+<div class="nc-auth-logo" aria-hidden="true">
+  <svg width="28" height="28" viewBox="0 0 24 24" fill="none"><path d="M3 6h8l2 3h8v12H3V6z" fill="currentColor" opacity=".9"/><path d="M3 8h7.5L12 11h9v9H3V8z" fill="currentColor" opacity=".35"/></svg>
+</div>
+{% endif %}
