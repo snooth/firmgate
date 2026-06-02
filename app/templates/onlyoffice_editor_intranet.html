@@ -1,0 +1,31 @@
+{% extends "intranet_base.html" %}
+{% block body_class %}nc-page-intranet nc-intranet-onlyoffice-page{% endblock %}
+{% block title %}{{ doc_title }} — {{ portal_shell_name }}{% endblock %}
+
+{% block extrahead %}
+{{ super() }}
+<meta name="turbo-visit-control" content="reload">
+{% endblock %}
+
+{% block intranet_body %}
+<div class="nc-intranet-documents nc-intranet-onlyoffice">
+  <div id="onlyoffice-shell" class="nc-onlyoffice-shell">
+    <div class="nc-onlyoffice-topbar" role="toolbar" aria-label="Document actions">
+      <div class="nc-onlyoffice-topbar-title">{{ doc_title }}</div>
+      <a class="nc-onlyoffice-close" href="{{ close_url }}" data-turbo="false" aria-label="Close editor" title="Close">
+        &times;
+      </a>
+    </div>
+    <div id="onlyoffice-editor" class="nc-onlyoffice-editor"></div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script src="{{ onlyoffice_url }}/web-apps/apps/api/documents/api.js"></script>
+<script>
+  window.__ncOnlyOfficeConfig = {{ doc_config|safe }};
+</script>
+<script src="{{ url_for('static', filename='onlyoffice_editor_boot.js') }}?v=3"></script>
+{% endblock %}

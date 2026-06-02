@@ -1,0 +1,17 @@
+instance/
+# Generated export trees (rebuilt by scripts/sync-public-private.sh)
+PUBLIC/
+ENTERPRISE/
+PRIVATE/
+# Vendor-only premium license key generator (keep private; never push to public GitHub)
+firmgate-premium-licensing/
+**/enterprise_license_private.pem
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+# Release ZIPs (PRIVATE/RELEASE/ and dist/ — built by scripts/build_*_package*.sh)
+dist/*.zip
+PRIVATE/RELEASES/*.zip
+PRIVATE/RELEASE/**/*.zip

@@ -1,0 +1,21 @@
+{% extends "intranet_base.html" %}
+{% block title %}{{ portal_shell_name }} — Documents{% endblock %}
+
+{% block intranet_body %}
+<div class="nc-intranet-page-hero">
+  <h1>Documents</h1>
+  <p class="nc-intranet-muted">Upload, organize, and share files.</p>
+</div>
+<div class="nc-intranet-documents">
+  {% set upload_progress_in_header = true %}
+  {% set upload_conflict_in_shell = true %}
+  {% set upload_worker_url = url_for('intranet.documents_upload_worker') %}
+  {% include "_files_content.html" %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script src="{{ url_for('static', filename='file_browser.js') }}?v=21" defer></script>
+{% endblock %}
+

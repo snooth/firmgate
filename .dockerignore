@@ -1,0 +1,13 @@
+.git
+.gitignore
+.venv
+venv
+__pycache__
+*.py[cod]
+instance
+.env
+.env.local
+dist
+.cursor
+.DS_Store
+.agent-transcripts

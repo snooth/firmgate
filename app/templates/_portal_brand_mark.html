@@ -1,0 +1,19 @@
+{# Portal logo mark (custom upload or default Firmgate). #}
+{% set _variant = brand_variant|default('sidebar') %}
+{% if portal_has_custom_logo and portal_logo_url %}
+  {% if _variant == 'sidebar' %}
+  <img class="nc-intranet-brand-logo nc-intranet-sidebar-logo nc-intranet-sidebar-logo--custom" src="{{ portal_logo_url }}" alt="{{ portal_shell_name }}">
+  {% elif _variant == 'header' %}
+  <img class="nc-portal-logo nc-portal-logo--custom" src="{{ portal_logo_url }}" alt="{{ portal_shell_name }} logo">
+  {% else %}
+  <img class="nc-auth-logo nc-auth-logo--img nc-auth-logo--custom" src="{{ portal_logo_url }}" alt="{{ portal_shell_name }}">
+  {% endif %}
+{% elif portal_logo_url %}
+  {% if _variant == 'sidebar' %}
+  <img class="nc-intranet-brand-logo nc-intranet-sidebar-logo" src="{{ portal_logo_url }}" alt="" width="40" height="40">
+  {% elif _variant == 'header' %}
+  <img class="nc-portal-logo" src="{{ portal_logo_url }}" alt="{{ portal_shell_name }} logo" width="48" height="48">
+  {% else %}
+  <img class="nc-auth-logo nc-auth-logo--img" src="{{ portal_logo_url }}" alt="{{ portal_shell_name }}" width="48" height="48">
+  {% endif %}
+{% endif %}

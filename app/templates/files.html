@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}All files — {{ portal_shell_name }}{% endblock %}
+{% block body_class %}nc-page-files{% endblock %}
+{% block main_class %}main main--files{% endblock %}
+{% block content %}
+{% include "_files_content.html" %}
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='upload_summary.js') }}?v=2" defer></script>
+<script src="{{ url_for('static', filename='file_browser.js') }}?v=21" defer></script>
+{% endblock %}

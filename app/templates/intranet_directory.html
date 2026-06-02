@@ -1,0 +1,470 @@
+{% extends "intranet_base.html" %}
+{% block title %}{{ portal_shell_name }} — Workforce{% endblock %}
+
+{% block intranet_body %}
+<script type="application/json" id="directory-project-members-seed">{{ project_members_seed | tojson }}</script>
+<script type="application/json" id="directory-user-id-aliases">{{ directory_user_id_aliases | tojson }}</script>
+<script type="application/json" id="directory-can-edit-projects">{{ workforce_can_manage | tojson }}</script>
+<script type="application/json" id="directory-can-delete-projects">{{ workforce_can_delete | tojson }}</script>
+<div class="nc-dir-page">
+  <div class="nc-dir-main">
+    <div class="nc-intranet-hero nc-dir-hero">
+      <div class="nc-dir-hero-head">
+        <h1>Workforce</h1>
+        <div class="nc-dir-hero-toolbar">
+          <div class="nc-dir-view-controls">
+            <div class="nc-dir-tag-size" role="group" aria-label="Tag size">
+              <button type="button" class="nc-dir-tag-size-btn is-active" data-tag-size="large" aria-pressed="true">Large Tags</button>
+              <button type="button" class="nc-dir-tag-size-btn" data-tag-size="small" aria-pressed="false">Small Tags</button>
+            </div>
+            <div class="nc-dir-tag-layout" role="group" aria-label="Project layout">
+              <button type="button" class="nc-dir-tag-layout-btn is-active" data-tag-layout="horizontal" aria-pressed="true" title="Projects side by side">Horizontal</button>
+              <button type="button" class="nc-dir-tag-layout-btn" data-tag-layout="vertical" aria-pressed="false" title="Projects stacked vertically">Vertical</button>
+            </div>
+          </div>
+          {% if workforce_can_manage %}
+          <div class="nc-dir-hero-cta">
+            <button type="button" class="nc-btn nc-btn-secondary" id="nc-dir-create-project">Create New Project</button>
+            <button type="button" class="nc-btn nc-btn-primary" id="nc-dir-add-new">Add New Resource</button>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <section class="nc-dir-sectionblock">
+      <h2 class="nc-dir-h2">Workforce Directory</h2>
+      <div class="nc-dir-sub">Find people by name, email, department or phone.</div>
+
+      <div class="nc-dir-project nc-dir-project--bench" data-bench="1" aria-label="Employees & Bench Contractors (drop here to unassign from projects)">
+        <div class="nc-dir-project-head">
+          <div class="nc-dir-project-title">
+            <span class="nc-dir-project-ic" aria-hidden="true">📁</span>
+            <span class="nc-dir-project-name">Employees &amp; Bench Contractors</span>
+          </div>
+          <div class="nc-dir-project-meta">
+            <span class="nc-detail-muted" id="nc-bench-count"></span>
+          </div>
+        </div>
+        <div class="nc-dir-project-body">
+          <div class="nc-dir-grid nc-dir-grid--employees" id="nc-dir-grid" role="list">
+            {% if directory_entries %}
+              {% for e in directory_entries %}
+              <article class="nc-dir-card {% if e.is_contractor %}is-contractor{% else %}is-employee{% endif %}" draggable="true" data-person-id="{{ e.id }}" role="button" tabindex="0" aria-haspopup="dialog" aria-label="Open profile for {{ e.name|e }}">
+                <div class="nc-dir-avatar" data-tone="{{ e.tone }}" aria-hidden="true">{{ e.initials }}</div>
+                <div class="nc-dir-card-name">{{ e.name }}</div>
+                <div class="nc-dir-card-title">{{ e.job_title }}</div>
+                {% if e.email %}
+                <a class="nc-dir-card-email" href="mailto:{{ e.email }}" onclick="event.stopPropagation();">{{ e.email }}</a>
+                {% else %}
+                <div class="nc-dir-card-email">{{ e.email_display }}</div>
+                {% endif %}
+                {% if e.phone %}<div class="nc-dir-card-phone">{{ e.phone }}</div>{% endif %}
+              </article>
+              {% endfor %}
+            {% else %}
+              <p class="nc-detail-muted nc-dir-empty">No resources to show.</p>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="nc-dir-sectionblock nc-dir-sectionblock--contractors">
+      <h2 class="nc-dir-h2">Project &amp; Contractor Directory</h2>
+      <div class="nc-dir-sub">Find contractors by name, company, role, email or phone.</div>
+
+      {% if contractor_groups %}
+        <div class="nc-dir-projects">
+          {% for g in contractor_groups %}
+            {% set pm = directory_projects_meta_lc.get(g.project.lower(), {}) %}
+            {% set pm_dir = pm.director if pm else '' %}
+            {% set pm_end = pm.contract_end if pm else '' %}
+            <section class="nc-dir-project" data-project="{{ g.project|e }}">
+              <div class="nc-dir-project-head">
+                <div class="nc-dir-project-title nc-dir-project-title--stack">
+                  <span class="nc-dir-project-ic" aria-hidden="true">📁</span>
+                  <div class="nc-dir-project-fields">
+                    <div class="nc-dir-project-fieldline">
+                      <span class="nc-dir-project-field-label">Project:</span>
+                      <span class="nc-dir-project-field-value" data-project-name="1">{{ g.project }}</span>
+                    </div>
+                    <div class="nc-dir-project-fieldline">
+                      <span class="nc-dir-project-field-label">Director:</span>
+                      <span class="nc-dir-project-field-value{% if not pm_dir %} nc-dir-project-field-value--muted{% endif %}" data-project-director="1">{{ pm_dir or '—' }}</span>
+                    </div>
+                    <div class="nc-dir-project-fieldline">
+                      <span class="nc-dir-project-field-label">Contract End:</span>
+                      <span class="nc-dir-project-field-value{% if not pm_end %} nc-dir-project-field-value--muted{% endif %}" data-project-contract-end="1">{{ pm_end or '—' }}</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="nc-dir-project-actions">
+                  {% if workforce_can_manage %}
+                  <button type="button" class="nc-dir-project-edit" data-project-edit="1" aria-label="Edit project details">Edit project</button>
+                  {% endif %}
+                  <div class="nc-dir-project-meta">
+                    <span class="nc-detail-muted">0 resources</span>
+                    <button type="button" class="nc-dir-project-toggle" data-toggle="1" aria-label="Collapse project">▾</button>
+                  </div>
+                </div>
+              </div>
+              <div class="nc-dir-project-body">
+                <div class="nc-dir-grid nc-dir-grid--contractors" role="list">
+                  {# Cards are filled client-side (assignments + server seed). #}
+                  {% if workforce_can_manage %}
+                  <p class="nc-detail-muted nc-dir-empty">Drop resources here to assign.</p>
+                  {% else %}
+                  <p class="nc-detail-muted nc-dir-empty">No resources in this project yet.</p>
+                  {% endif %}
+                </div>
+              </div>
+            </section>
+          {% endfor %}
+        </div>
+      {% else %}
+        <p class="nc-detail-muted nc-dir-empty">No contractors match these filters.</p>
+      {% endif %}
+    </section>
+  </div>
+
+  {# Removed legacy right-side profile panel; we use the full-screen viewer instead. #}
+
+  {% if workforce_can_manage %}
+  <div id="nc-dir-edit-dlg" class="nc-viewer-shell nc-dir-edit-shell" hidden aria-label="Edit employee">
+    <div class="nc-viewer-topbar">
+      <div class="nc-viewer-topbar-title" id="nc-dir-edit-top-title">Edit Resource</div>
+      <button type="button" class="nc-viewer-close" id="nc-dir-edit-x" aria-label="Close editor">&times;</button>
+    </div>
+    <div class="nc-dir-edit-body">
+      <form class="nc-dir-edit-form" id="nc-dir-edit-form">
+        <div class="nc-dir-edit-layout">
+          <div class="nc-dir-edit-left">
+            <div class="nc-dir-photo" style="margin-top:0.15rem;">
+              <label class="nc-detail-label">Profile photo</label>
+              <div class="nc-dir-photo-row">
+                <div class="nc-dir-photo-preview" id="nc-dir-photo-preview" aria-label="Profile photo preview" role="button" tabindex="0" title="Click to view"></div>
+                <div class="nc-dir-photo-actions">
+                  <input type="file" id="nc-dir-photo-input" accept="image/*" class="visually-hidden">
+                  <button type="button" class="nc-btn nc-btn-secondary" id="nc-dir-photo-choose">Upload photo</button>
+                  <button type="button" class="nc-btn nc-btn-secondary" id="nc-dir-photo-remove">Remove</button>
+                  <div class="nc-detail-muted" style="margin-top:0.35rem;">PNG/JPG/WebP · stored in this browser.</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="nc-dir-edit-grid2">
+              <div>
+                <label class="nc-detail-label" for="nc-dir-edit-firstname">First name</label>
+                <input class="nc-detail-input" type="text" id="nc-dir-edit-firstname" autocomplete="given-name">
+              </div>
+              <div>
+                <label class="nc-detail-label" for="nc-dir-edit-surname">Surname</label>
+                <input class="nc-detail-input" type="text" id="nc-dir-edit-surname" autocomplete="family-name">
+              </div>
+            </div>
+
+            <div class="nc-dir-edit-grid2" style="margin-top:0.75rem;">
+              <div>
+                <label class="nc-detail-label" for="nc-dir-edit-phone">Phone</label>
+                <input class="nc-detail-input" type="text" id="nc-dir-edit-phone" autocomplete="tel">
+              </div>
+              <div>
+                <label class="nc-detail-label" for="nc-dir-edit-email">Email</label>
+                <input class="nc-detail-input" type="email" id="nc-dir-edit-email" autocomplete="email" required>
+                <div class="nc-detail-muted" style="margin-top:0.35rem;">Unique identifier for this resource. Sign-in uses this email when an intranet account is created.</div>
+              </div>
+            </div>
+
+            <div class="nc-dir-contractor-account-row" style="margin-top:0.85rem; display:flex; flex-wrap:wrap; align-items:center; gap:0.75rem 1.5rem;">
+              <div id="nc-dir-create-account-wrap" class="nc-dir-create-account-wrap" hidden>
+                <span class="nc-detail-label" style="display:inline; margin-right:0.5rem; font-size:0.9rem;">Create User Firmgate Account</span>
+                <label class="nc-inline-radio"><input type="radio" name="nc-dir-create-account" value="no" checked autocomplete="off"> No</label>
+                <label class="nc-inline-radio"><input type="radio" name="nc-dir-create-account" value="yes" autocomplete="off"> Yes</label>
+              </div>
+            </div>
+
+            <div id="nc-dir-intranet-account-fields" class="nc-dir-intranet-account-fields" style="margin-top:0.85rem; padding:0.85rem 1rem; border-radius:14px; border:1px solid rgba(148,163,184,.28); background:rgba(248,250,252,.85);" hidden>
+              <div class="nc-modal-section-title" style="margin-bottom:0.65rem; font-size:0.72rem; letter-spacing:0.04em;">New intranet login</div>
+              <div class="nc-detail-muted" style="margin-bottom:0.55rem;">Uses the resource email above as the login ID. Standard User role, active account.</div>
+              <div class="nc-dir-edit-grid2">
+                <div>
+                  <label class="nc-detail-label" for="nc-dir-account-email">Email (login)</label>
+                  <input class="nc-detail-input" type="email" id="nc-dir-account-email" autocomplete="off" placeholder="Same as resource email" readonly style="opacity:0.92;">
+                </div>
+                <div>
+                  <label class="nc-detail-label" for="nc-dir-account-name">Display name</label>
+                  <input class="nc-detail-input" type="text" id="nc-dir-account-name" autocomplete="off" placeholder="First and surname">
+                </div>
+              </div>
+              <div style="margin-top:0.65rem;">
+                <label class="nc-detail-label" for="nc-dir-account-phone-display">Phone / SIP label (optional)</label>
+                <input class="nc-detail-input" type="text" id="nc-dir-account-phone-display" autocomplete="off" placeholder="Copied from display name">
+              </div>
+              <div style="margin-top:0.65rem;">
+                <label class="nc-detail-label">Temporary password</label>
+                <div style="display:flex; flex-wrap:wrap; align-items:center; gap:0.5rem; margin-top:0.25rem;">
+                  <code id="nc-dir-account-password-display" class="nc-dir-account-password-display" aria-live="polite" style="flex:1; min-width:12rem; display:block; padding:0.45rem 0.6rem; border-radius:10px; background:rgba(15,23,42,.06); font-size:0.9rem; font-weight:700; word-break:break-all;">—</code>
+                  <button type="button" class="nc-btn nc-btn-secondary" id="nc-dir-account-password-copy" style="flex-shrink:0;">Copy</button>
+                </div>
+              </div>
+              <div class="nc-toggle-row" style="margin-top:0.75rem;">
+                <div>
+                  <div class="nc-toggle-title">Require password change on first login</div>
+                  <div class="nc-toggle-sub">User must set a new password when they first sign in</div>
+                </div>
+                <label class="nc-switch">
+                  <input type="checkbox" id="nc-dir-account-require-pw" checked>
+                  <span class="nc-switch-ui"></span>
+                </label>
+              </div>
+            </div>
+
+            <div class="nc-dir-contractor-account-row" style="margin-top:0.85rem; display:flex; flex-wrap:wrap; align-items:center; gap:0.75rem 1.5rem;">
+              <label class="nc-dir-contractor-cb-label" for="nc-dir-edit-is-contractor">
+                <input type="checkbox" id="nc-dir-edit-is-contractor" class="nc-dir-checkbox-lg" autocomplete="off">
+                <span>Contractor</span>
+              </label>
+            </div>
+
+            <div id="nc-dir-company-fields" style="margin-top:0.85rem;" hidden>
+              <div class="nc-detail-muted" style="margin-bottom:0.5rem;">Company details are shared across everyone linked to the same organisation (upload PI/PL and Workcover once per company).</div>
+              <div class="nc-dir-edit-grid2">
+                <div style="grid-column: 1 / -1;">
+                  <label class="nc-detail-label" for="nc-dir-company-select">Company name</label>
+                  <select class="nc-detail-input" id="nc-dir-company-select" autocomplete="off">
+                    <option value="">— Select company —</option>
+                  </select>
+                </div>
+              </div>
+              <div id="nc-dir-company-name-row" style="margin-top:0.65rem;" hidden>
+                <label class="nc-detail-label" for="nc-dir-company-name-new">New company legal name</label>
+                <input class="nc-detail-input" type="text" id="nc-dir-company-name-new" autocomplete="off" placeholder="Registered business name">
+              </div>
+              <div class="nc-dir-edit-grid2" style="margin-top:0.65rem;">
+                <div>
+                  <label class="nc-detail-label" for="nc-dir-company-abn">ABN</label>
+                  <input class="nc-detail-input" type="text" id="nc-dir-company-abn" autocomplete="off">
+                </div>
+                <div>
+                  <label class="nc-detail-label" for="nc-dir-company-acn">ACN</label>
+                  <input class="nc-detail-input" type="text" id="nc-dir-company-acn" autocomplete="off">
+                </div>
+              </div>
+              <div style="margin-top:0.65rem;">
+                <label class="nc-detail-label" for="nc-dir-company-rep">Company rep</label>
+                <input class="nc-detail-input" type="text" id="nc-dir-company-rep" autocomplete="off" placeholder="Primary contact name">
+              </div>
+
+              <div id="nc-dir-company-docs" style="margin-top:1rem; padding-top:0.85rem; border-top:1px solid rgba(148,163,184,.22);">
+                <div class="nc-detail-label" style="margin-bottom:0.45rem;">Compliance documents</div>
+                <div class="nc-detail-muted" style="margin-bottom:0.65rem;">Stored once per company; all contractors under this company see the same files.</div>
+                <div class="nc-dir-doc-row" style="display:flex; flex-wrap:wrap; align-items:center; gap:0.5rem; margin-bottom:0.55rem;">
+                  <span style="font-weight:750; min-width:9rem;">PI/PL Insurance</span>
+                  <input type="file" id="nc-dir-doc-pipl" class="visually-hidden" accept=".pdf,.png,.jpg,.jpeg,.webp,.doc,.docx">
+                  <button type="button" class="nc-btn nc-btn-secondary nc-dir-doc-upload" data-doc-kind="pi_pl_insurance">Upload</button>
+                  <span class="nc-detail-muted nc-dir-doc-status" id="nc-dir-doc-pipl-status"></span>
+                  <a href="#" class="nc-dir-doc-link" id="nc-dir-doc-pipl-link" hidden target="_blank" rel="noopener">Download</a>
+                </div>
+                <div class="nc-dir-doc-row" style="display:flex; flex-wrap:wrap; align-items:center; gap:0.5rem;">
+                  <span style="font-weight:750; min-width:9rem;">Workcover</span>
+                  <input type="file" id="nc-dir-doc-wc" class="visually-hidden" accept=".pdf,.png,.jpg,.jpeg,.webp,.doc,.docx">
+                  <button type="button" class="nc-btn nc-btn-secondary nc-dir-doc-upload" data-doc-kind="workcover">Upload</button>
+                  <span class="nc-detail-muted nc-dir-doc-status" id="nc-dir-doc-wc-status"></span>
+                  <a href="#" class="nc-dir-doc-link" id="nc-dir-doc-wc-link" hidden target="_blank" rel="noopener">Download</a>
+                </div>
+              </div>
+            </div>
+
+            <div style="margin-top:0.85rem;">
+              <label class="nc-detail-label" for="nc-dir-edit-project">Project</label>
+              <select class="nc-detail-input" id="nc-dir-edit-project" autocomplete="off">
+                <option value="">— None —</option>
+              </select>
+              <div id="nc-dir-new-project-fields" class="nc-dir-new-project-fields" hidden style="margin-top:0.65rem; padding:0.75rem 1rem; border-radius:12px; border:1px solid rgba(148,163,184,.35); background:rgba(248,250,252,.92);">
+                <div class="nc-modal-section-title" style="margin-bottom:0.55rem; font-size:0.72rem; letter-spacing:0.04em;">New project</div>
+                <div style="margin-bottom:0.55rem;">
+                  <label class="nc-detail-label" for="nc-dir-new-project-name">Project name</label>
+                  <input class="nc-detail-input" type="text" id="nc-dir-new-project-name" autocomplete="off" placeholder="e.g. Project Orion">
+                </div>
+                <div class="nc-dir-edit-grid2" style="margin-top:0.5rem;">
+                  <div>
+                    <label class="nc-detail-label" for="nc-dir-new-project-director">Director</label>
+                    <input class="nc-detail-input" type="text" id="nc-dir-new-project-director" autocomplete="off">
+                  </div>
+                  <div>
+                    <label class="nc-detail-label" for="nc-dir-new-project-contract-end">Contract end date</label>
+                    <input class="nc-detail-input" type="date" id="nc-dir-new-project-contract-end" autocomplete="off">
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="nc-dir-edit-grid2" style="margin-top:0.75rem;">
+              <div>
+                <label class="nc-detail-label" for="nc-dir-edit-dept">Department</label>
+                <input class="nc-detail-input" type="text" id="nc-dir-edit-dept" autocomplete="organization">
+              </div>
+              <div></div>
+            </div>
+
+            <div class="nc-dir-edit-grid2" style="margin-top:0.75rem;">
+              <div>
+                <label class="nc-detail-label" for="nc-dir-edit-title">Job title</label>
+                <input class="nc-detail-input" type="text" id="nc-dir-edit-title" autocomplete="off">
+              </div>
+              <div>
+                <label class="nc-detail-label" for="nc-dir-edit-location-select">Location</label>
+                <select class="nc-detail-input" id="nc-dir-edit-location-select" autocomplete="off">
+                  <option value="">— Select —</option>
+                  <option value="Melbourne">Melbourne</option>
+                  <option value="Sydney">Sydney</option>
+                  <option value="Canberra">Canberra</option>
+                  <option value="South Australia">South Australia</option>
+                  <option value="Queensland">Queensland</option>
+                  <option value="Other">Other</option>
+                </select>
+                <div id="nc-dir-edit-location-other-wrap" style="margin-top:0.5rem;" hidden>
+                  <label class="nc-detail-label" for="nc-dir-edit-location-other">Specify other location</label>
+                  <input class="nc-detail-input" type="text" id="nc-dir-edit-location-other" autocomplete="off" placeholder="e.g. Perth office">
+                </div>
+              </div>
+            </div>
+
+            <div class="nc-dir-edit-grid2" style="margin-top:0.75rem;">
+              <div>
+                <label class="nc-detail-label">Reports to</label>
+                <input class="nc-detail-input" type="text" id="nc-dir-edit-reports" autocomplete="off">
+              </div>
+              <div>
+                <label class="nc-detail-label" for="nc-dir-edit-start">Start date</label>
+                <input class="nc-detail-input" type="date" id="nc-dir-edit-start" autocomplete="off">
+              </div>
+            </div>
+
+            <div id="nc-dir-contract-fields" style="margin-top:0.75rem;" hidden>
+              <div class="nc-dir-edit-grid2">
+                <div>
+                  <label class="nc-detail-label" for="nc-dir-edit-contract-sign">Contract sign date</label>
+                  <input class="nc-detail-input" type="date" id="nc-dir-edit-contract-sign" autocomplete="off">
+                </div>
+                <div>
+                  <label class="nc-detail-label" for="nc-dir-edit-contract-start">Contract start date</label>
+                  <input class="nc-detail-input" type="date" id="nc-dir-edit-contract-start" autocomplete="off">
+                </div>
+              </div>
+              <div class="nc-dir-edit-grid2" style="margin-top:0.75rem;">
+                <div>
+                  <label class="nc-detail-label" for="nc-dir-edit-contract-end">Contract end date</label>
+                  <input class="nc-detail-input" type="date" id="nc-dir-edit-contract-end" autocomplete="off">
+                </div>
+                <div></div>
+              </div>
+            </div>
+
+            <div style="margin-top:0.75rem;">
+              <label class="nc-detail-label">Timezone</label>
+              <input class="nc-detail-input" type="text" id="nc-dir-edit-tz" placeholder="Australia/Melbourne" autocomplete="off">
+            </div>
+
+            <p class="nc-detail-muted" id="nc-dir-edit-status" style="margin-top:0.75rem;"></p>
+
+            <div class="nc-dir-edit-actions">
+              <button type="button" class="nc-btn nc-btn-primary" id="nc-dir-mode-edit" hidden>Edit</button>
+              <button class="nc-btn nc-btn-primary" type="button" id="nc-dir-edit-cancel">Cancel</button>
+              <button class="nc-btn nc-btn-primary" type="submit" id="nc-dir-edit-save">Save</button>
+            </div>
+          </div>
+
+          <div class="nc-dir-edit-right">
+            <div class="nc-sc2-chat" aria-label="Employee notes">
+              <div class="nc-sc2-chat-head">
+                <div class="nc-sc2-chat-title">Notes</div>
+                <div class="nc-sc2-chat-meta" id="nc-dir-chat-meta">Posting as {{ current_user.full_name or current_user.username or 'Member' }}</div>
+              </div>
+              <div class="nc-sc2-chat-list" id="nc-dir-notes-list" aria-live="polite"></div>
+              <div class="nc-sc2-chat-compose" id="nc-dir-note-compose">
+                <div class="nc-sc2-chat-compose-main">
+                  <div class="nc-sc2-chat-attach" id="nc-dir-note-attach" hidden>
+                    <img class="nc-sc2-chat-attach-img" id="nc-dir-note-attach-img" alt="">
+                    <button type="button" class="nc-sc2-chat-attach-x" id="nc-dir-note-attach-x" aria-label="Remove attached image">&times;</button>
+                  </div>
+                  <div class="nc-sc2-chat-pending" id="nc-dir-note-pending" hidden aria-label="Attachment ready to post with your note"></div>
+                  <textarea class="nc-sc2-chat-textarea" id="nc-dir-note-text" rows="3" placeholder="Write a note… (paste a screenshot here too)" disabled></textarea>
+                </div>
+                <button type="button" class="nc-btn nc-btn-primary" id="nc-dir-note-send" disabled>Post</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div
+    id="nc-dir-create-project-dlg"
+    class="nc-dir-create-project-dlg"
+    hidden
+    aria-modal="true"
+    role="dialog"
+    aria-labelledby="nc-dir-create-project-title"
+  >
+    <button type="button" class="nc-dir-create-project-scrim" id="nc-dir-create-project-scrim" tabindex="-1" aria-label="Close dialog"></button>
+    <div class="nc-dir-create-project-card">
+      <div class="nc-dir-create-project-head">
+        <h2 id="nc-dir-create-project-title" class="nc-dir-create-project-heading">New project</h2>
+        <button type="button" class="nc-viewer-close" id="nc-dir-create-project-x" aria-label="Close">&times;</button>
+      </div>
+      <form id="nc-dir-create-project-form" class="nc-dir-create-project-form">
+        <p class="nc-dir-create-project-err" id="nc-dir-create-project-err" hidden></p>
+        <div style="margin-bottom: 0.55rem">
+          <label class="nc-detail-label" for="nc-dir-modal-new-project-name">Project name</label>
+          <input
+            class="nc-detail-input"
+            type="text"
+            id="nc-dir-modal-new-project-name"
+            autocomplete="off"
+            placeholder="e.g. Project Orion"
+            maxlength="120"
+          />
+        </div>
+        <div class="nc-dir-edit-grid2" style="margin-top: 0.5rem">
+          <div>
+            <label class="nc-detail-label" for="nc-dir-modal-new-project-director">Director</label>
+            <input class="nc-detail-input" type="text" id="nc-dir-modal-new-project-director" autocomplete="off" maxlength="120" />
+          </div>
+          <div>
+            <label class="nc-detail-label" for="nc-dir-modal-new-project-contract-end">Contract end date</label>
+            <input class="nc-detail-input" type="date" id="nc-dir-modal-new-project-contract-end" autocomplete="off" />
+          </div>
+        </div>
+        <div class="nc-dir-create-project-actions">
+          <button type="button" class="nc-btn nc-btn-secondary" id="nc-dir-create-project-cancel">Cancel</button>
+          <button type="submit" class="nc-btn nc-btn-primary" id="nc-dir-create-project-submit">Create project</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="nc-dir-img-viewer" class="nc-viewer-shell" hidden aria-label="Image viewer">
+    <div class="nc-viewer-topbar">
+      <div class="nc-viewer-topbar-title" id="nc-dir-img-title">Image</div>
+      <button type="button" class="nc-viewer-close" id="nc-dir-img-close" aria-label="Close image viewer">&times;</button>
+    </div>
+    <div class="nc-sc2-img-viewer-body">
+      <img id="nc-dir-img-el" class="nc-sc2-img-viewer-img" alt="Full image">
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script type="application/json" id="directory-people-data">{{ directory_entries | tojson }}</script>
+<script type="application/json" id="directory-people-resolve">{{ directory_resolve_entries | tojson }}</script>
+<script type="application/json" id="directory-contractor-companies-data">{{ contractor_companies | tojson }}</script>
+<script type="application/json" id="workforce-project-options">{{ workforce_project_options | tojson }}</script>
+<script type="application/json" id="directory-projects-catalog">{{ workforce_projects_catalog | tojson }}</script>
+<script src="{{ url_for('static', filename='directory_panel.js') }}?v=31"></script>
+{% endblock %}

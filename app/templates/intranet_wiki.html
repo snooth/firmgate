@@ -1,0 +1,227 @@
+{% extends "intranet_base.html" %}
+{% block title %}{{ portal_shell_name }} — Wiki{% endblock %}
+{% block intranet_body %}
+<div
+  class="nc-wiki"
+  id="nc-wiki-root"
+  data-can-edit="{{ '1' if wiki_can_edit else '0' }}"
+  data-can-delete="{{ '1' if wiki_can_delete else '0' }}"
+  data-can-feedback="{{ '1' if wiki_can_feedback else '0' }}"
+  data-api-pages="{{ url_for('intranet.api_wiki_pages_list') }}"
+  data-api-watches="{{ url_for('intranet.api_wiki_watches_list') }}"
+  data-api-upload="{{ url_for('intranet.api_wiki_upload_image') }}"
+>
+  <div class="nc-wiki-mobile-bar" aria-label="Wiki navigation (mobile)">
+    <div class="nc-wiki-mobile-fields">
+      <div class="nc-wiki-mobile-field">
+        <label class="nc-wiki-mobile-label" for="wiki-mobile-nav-select">View</label>
+        <select id="wiki-mobile-nav-select" class="nc-detail-select nc-wiki-mobile-select" aria-label="Wiki view">
+          <option value="all">All pages</option>
+          <option value="recent">Recently updated</option>
+          <option value="watchlist">My watchlist</option>
+        </select>
+      </div>
+      <div class="nc-wiki-mobile-field">
+        <label class="nc-wiki-mobile-label" for="wiki-mobile-page-select">Page</label>
+        <select id="wiki-mobile-page-select" class="nc-detail-select nc-wiki-mobile-select" aria-label="Wiki page"></select>
+      </div>
+    </div>
+    <div class="nc-wiki-mobile-actions">
+      <button type="button" class="nc-btn nc-btn-primary nc-wiki-mobile-new" id="wiki-mobile-new" hidden>+ New page</button>
+    </div>
+  </div>
+
+  <aside class="nc-wiki-sidebar" aria-label="Wiki navigation">
+    <div class="nc-wiki-brand-row">
+      <div class="nc-wiki-brand">Wiki</div>
+      <button type="button" class="nc-btn nc-btn-primary nc-wiki-new-inline" id="wiki-new-rail" hidden>+ New page</button>
+    </div>
+    <nav class="nc-wiki-sidebar-nav" aria-label="Browse wiki">
+      <button type="button" class="nc-wiki-nav-item is-active" id="wiki-nav-all" data-wiki-nav="all">
+        <span class="nc-wiki-nav-ic" aria-hidden="true"></span>
+        All pages
+      </button>
+      <button type="button" class="nc-wiki-nav-item" id="wiki-nav-recent" data-wiki-nav="recent">
+        <span class="nc-wiki-nav-ic nc-wiki-nav-ic--recent" aria-hidden="true"></span>
+        Recently updated
+      </button>
+      <button type="button" class="nc-wiki-nav-item" id="wiki-nav-watch" data-wiki-nav="watchlist">
+        <span class="nc-wiki-nav-ic nc-wiki-nav-ic--watch" aria-hidden="true"></span>
+        My watchlist
+      </button>
+    </nav>
+
+    <div class="nc-wiki-search" role="search">
+      <label class="nc-sr-only" for="wiki-search">Search pages</label>
+      <span class="nc-wiki-search-ic" aria-hidden="true">⌕</span>
+      <input
+        type="search"
+        id="wiki-search"
+        class="nc-wiki-search-input"
+        placeholder="Search pages…"
+        autocomplete="off"
+        spellcheck="false"
+      />
+    </div>
+
+    <div class="nc-wiki-categories">
+      <div class="nc-wiki-cat-label">Categories</div>
+      <details class="nc-wiki-cat" id="wiki-cat-pages" open>
+        <summary class="nc-wiki-cat-summary">
+          <span class="nc-wiki-cat-ic" aria-hidden="true"></span>
+          <span>All pages</span>
+          <span class="nc-wiki-pages-count" id="wiki-pages-count" aria-live="polite"></span>
+        </summary>
+        <div class="nc-wiki-list-host">
+          <div class="nc-wiki-list" id="wiki-list" role="list">
+            <div class="nc-wiki-loading" id="wiki-loading">Loading…</div>
+          </div>
+        </div>
+      </details>
+    </div>
+
+    <div class="nc-wiki-sidebar-foot">
+      <button type="button" class="nc-btn nc-btn-secondary nc-wiki-create-page" id="wiki-new" hidden>+ Create wiki page</button>
+    </div>
+  </aside>
+
+  <main class="nc-wiki-main" aria-label="Article">
+    <article class="nc-wiki-article">
+      <nav class="nc-wiki-breadcrumbs" id="wiki-breadcrumbs" aria-label="Breadcrumb"></nav>
+      <header class="nc-wiki-article-head">
+        <h1 class="nc-wiki-view-title" id="wiki-title">—</h1>
+        <div class="nc-wiki-article-meta-row">
+          <div class="nc-wiki-view-meta" id="wiki-meta"></div>
+          <span class="nc-wiki-tag" id="wiki-tag-pill">Wiki</span>
+        </div>
+      </header>
+
+      <div class="nc-st-view-body nc-wiki-view-body">
+        <div class="nc-wiki-scroll">
+          <div class="nc-wiki-prose nc-about-prose" id="wiki-body"></div>
+          <div id="wiki-editor-wrap" class="nc-wiki-editor-wrap" hidden>
+            <div class="nc-wiki-title-edit-wrap" id="wiki-title-edit-wrap" hidden>
+              <label class="nc-wiki-title-edit-label" for="wiki-title-edit">Page title</label>
+              <input type="text" id="wiki-title-edit" class="nc-wiki-title-edit" maxlength="255" autocomplete="off" />
+            </div>
+            <div id="wiki-quill-editor" class="nc-wiki-quill-editor"></div>
+          </div>
+        </div>
+      </div>
+    </article>
+  </main>
+
+  <aside class="nc-wiki-rail" aria-label="Page tools">
+    <div class="nc-wiki-rail-actions">
+      <button type="button" class="nc-wiki-rail-btn nc-wiki-rail-watch" id="wiki-watch" aria-pressed="false" disabled>
+        <span class="nc-wiki-rail-btn-ic" aria-hidden="true">☆</span>
+        <span id="wiki-watch-label">Watch</span>
+      </button>
+      <button type="button" class="nc-wiki-rail-btn" id="wiki-edit" hidden>Edit</button>
+      <button type="button" class="nc-wiki-rail-btn nc-wiki-rail-primary" id="wiki-save" hidden>Save</button>
+      <button type="button" class="nc-wiki-rail-btn" id="wiki-cancel" hidden>Cancel</button>
+      <div class="nc-wiki-more">
+        <button
+          type="button"
+          class="nc-wiki-rail-btn nc-wiki-more-trigger"
+          id="wiki-more-btn"
+          aria-expanded="false"
+          aria-haspopup="true"
+          title="More actions"
+        >
+          ···
+        </button>
+        <div class="nc-wiki-more-menu" id="wiki-more-menu" hidden role="menu">
+          <button type="button" class="nc-wiki-more-item" id="wiki-delete" hidden role="menuitem">Delete page</button>
+        </div>
+      </div>
+    </div>
+
+    <section class="nc-wiki-rail-card">
+      <h2 class="nc-wiki-rail-card-title">On this page</h2>
+      <nav class="nc-wiki-toc" id="wiki-toc" aria-label="On this page"></nav>
+    </section>
+
+    <section class="nc-wiki-rail-card">
+      <h2 class="nc-wiki-rail-card-title">Related pages</h2>
+      <div class="nc-wiki-related" id="wiki-related"></div>
+    </section>
+
+
+    <section class="nc-wiki-rail-card nc-wiki-notes-card" id="wiki-notes-section">
+      <h2 class="nc-wiki-rail-card-title">Notes</h2>
+      <p class="nc-wiki-rail-hint nc-wiki-notes-intro">Comments for everyone on this page. Paste screenshots and use emoji — only the author can edit the article.</p>
+      <div class="nc-wiki-notes-list" id="wiki-notes-list" aria-live="polite"></div>
+      <div class="nc-wiki-notes-compose" id="wiki-notes-compose">
+        <div
+          id="wiki-notes-editor"
+          class="nc-wiki-notes-editor"
+          contenteditable="true"
+          role="textbox"
+          aria-multiline="true"
+          aria-label="Add a note"
+          data-placeholder="Write a note… Paste screenshots with Ctrl+V"
+        ></div>
+        <div class="nc-wiki-notes-emoji-bar" id="wiki-notes-emoji-bar" aria-label="Insert emoji"></div>
+        <div class="nc-wiki-notes-compose-actions">
+          <button type="button" class="nc-btn nc-btn-primary nc-wiki-notes-post" id="wiki-notes-post">Post note</button>
+          <span class="nc-wiki-notes-status" id="wiki-notes-status" role="status"></span>
+        </div>
+      </div>
+    </section>
+
+    <section class="nc-wiki-rail-card nc-wiki-rail-card-muted">
+      <h2 class="nc-wiki-rail-card-title">Was this page helpful?</h2>
+      <div class="nc-wiki-helpful">
+        <button type="button" class="nc-wiki-helpful-btn" id="wiki-feedback-up" aria-label="Helpful">
+          <span class="nc-wiki-helpful-inner">
+            <span class="nc-wiki-helpful-ic" aria-hidden="true">👍</span>
+            <span class="nc-wiki-helpful-num" id="wiki-feedback-up-count">0</span>
+          </span>
+        </button>
+        <button type="button" class="nc-wiki-helpful-btn" id="wiki-feedback-down" aria-label="Not helpful">
+          <span class="nc-wiki-helpful-inner">
+            <span class="nc-wiki-helpful-ic" aria-hidden="true">👎</span>
+            <span class="nc-wiki-helpful-num" id="wiki-feedback-down-count">0</span>
+          </span>
+        </button>
+      </div>
+      <p class="nc-wiki-rail-hint" id="wiki-feedback-hint"></p>
+    </section>
+  </aside>
+
+  <div class="nc-modal-backdrop" id="wiki-newpage-modal" hidden aria-hidden="true">
+    <div class="nc-modal nc-wiki-newpage-modal" role="dialog" aria-modal="true" aria-labelledby="wiki-newpage-title">
+      <div class="nc-modal-card">
+        <div class="nc-modal-head">
+          <div class="nc-modal-title" id="wiki-newpage-title">New wiki page</div>
+          <button type="button" class="nc-modal-close" id="wiki-newpage-close" aria-label="Close">×</button>
+        </div>
+        <div class="nc-modal-body">
+          <label class="nc-modal-label" for="wiki-newpage-input">Page title</label>
+          <input
+            type="text"
+            id="wiki-newpage-input"
+            class="nc-detail-input"
+            placeholder="Untitled"
+            autocomplete="off"
+            maxlength="255"
+          />
+          <p class="nc-modal-help nc-wiki-newpage-hint">This becomes the page heading. You can rename it later.</p>
+        </div>
+        <div class="nc-modal-foot">
+          <button type="button" class="nc-btn nc-btn-secondary" id="wiki-newpage-cancel">Cancel</button>
+          <button type="button" class="nc-btn nc-btn-primary" id="wiki-newpage-create">Create page</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css" crossorigin="anonymous">
+<script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js" crossorigin="anonymous"></script>
+<script src="{{ url_for('static', filename='intranet_wiki.js') }}?v=16" defer></script>
+{% endblock %}

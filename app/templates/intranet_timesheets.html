@@ -1,0 +1,130 @@
+{% extends "intranet_base.html" %}
+{% block title %}{{ portal_shell_name }} — Timesheets{% endblock %}
+
+{% block intranet_body %}
+<div class="nc-intranet-hero">
+  <div>
+    <h1>Timesheets</h1>
+    <p class="nc-intranet-muted">Fill out and submit your monthly timesheet.</p>
+  </div>
+</div>
+
+<div class="nc-intranet-card">
+  <div class="nc-ts-sheet nc-ts-sheet--xlsx" id="nc-ts" data-user="{{ (current_user.full_name or current_user.username)|e }}">
+    <div class="nc-ts-head">
+      <div class="nc-ts-actions">
+        <button type="button" class="nc-btn nc-btn-secondary" id="nc-ts-print">Print</button>
+        <button type="button" class="nc-btn nc-btn-primary" id="nc-ts-submit">Submit</button>
+      </div>
+    </div>
+
+    <div class="nc-ts-printhead" aria-hidden="true">
+      <div class="nc-ts-brand">{{ portal_shell_name }}</div>
+      <div class="nc-ts-company">
+        <div>Your company name</div>
+        <div>Registration details (optional)</div>
+        <div>Company address</div>
+      </div>
+    </div>
+
+    {# Keep month as an internal control for generation; hidden to match XLSX look. #}
+    <input class="nc-detail-input" type="month" id="nc-ts-month" hidden>
+
+    <table class="nc-ts-topgrid" aria-label="Timesheet header">
+      <colgroup>
+        <col class="nc-ts-col-date">
+        <col class="nc-ts-col-consultant">
+        <col class="nc-ts-col-role">
+        <col class="nc-ts-col-hours">
+        <col class="nc-ts-col-project">
+      </colgroup>
+      <tbody>
+        <tr>
+          <td class="nc-ts-toplabel">Time Sheet for Period:</td>
+          <td class="nc-ts-topcell">
+            <input class="nc-ts-topin" type="date" id="nc-ts-start" aria-label="Start date">
+          </td>
+          <td class="nc-ts-topcell">
+            <input class="nc-ts-topin" type="date" id="nc-ts-end" aria-label="End date">
+          </td>
+          <td class="nc-ts-topcell" colspan="2"></td>
+        </tr>
+        <tr>
+          <td class="nc-ts-toplabel" colspan="5">
+            <span class="nc-ts-projlabel">PROJECT:</span>
+            <input class="nc-ts-topin nc-ts-topin--proj" type="text" id="nc-ts-project" placeholder="ESD Branch">
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <input class="nc-ts-hidden" type="text" id="nc-ts-role" value="Lead Engineer" hidden>
+    <input class="nc-ts-hidden" type="number" id="nc-ts-hours" min="0" step="0.25" value="11" hidden>
+
+    <div class="nc-ts-screen-tools" aria-label="Timesheet helpers">
+      <label class="nc-ts-toggle">
+        <input type="checkbox" id="nc-ts-show-weekends">
+        Show weekends / holidays
+      </label>
+      <button type="button" class="nc-btn nc-btn-secondary" id="nc-ts-fill-weekdays">Auto-fill weekdays</button>
+      <span class="nc-detail-muted" style="margin-left:auto;">Tip: leave weekends blank — they still print with the green bands.</span>
+    </div>
+
+    <div class="nc-ts-gridwrap" role="region" aria-label="Timesheet grid">
+      <table class="nc-ts-grid" id="nc-ts-grid">
+        <colgroup>
+          <col class="nc-ts-col-date">
+          <col class="nc-ts-col-consultant">
+          <col class="nc-ts-col-role">
+          <col class="nc-ts-col-hours">
+          <col class="nc-ts-col-project">
+        </colgroup>
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Consultant</th>
+            <th>Role</th>
+            <th>Hours</th>
+            <th>Project</th>
+          </tr>
+        </thead>
+        <tbody id="nc-ts-body"></tbody>
+        <tfoot>
+          <tr class="nc-ts-total">
+            <td></td>
+            <td></td>
+            <td class="nc-ts-total-label">TOTAL Hours</td>
+            <td class="nc-ts-total-hours" id="nc-ts-total-hours">0</td>
+            <td></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+
+    <div class="nc-ts-foot">
+      <div class="nc-ts-decl" id="nc-ts-decl">
+        Declaration: I <span class="nc-ts-decl-name" id="nc-ts-decl-name">{{ current_user.full_name or current_user.username }}</span> certify that the above time sheet is correct.
+      </div>
+
+      <div class="nc-ts-sigs">
+        <div class="nc-ts-sig">
+          <div class="nc-detail-label">Employee Signature</div>
+          <input class="nc-detail-input" type="text" id="nc-ts-sig-emp" placeholder="Type name…">
+        </div>
+        <div class="nc-ts-sig">
+          <div class="nc-detail-label">Supervisor Signature</div>
+          <input class="nc-detail-input" type="text" id="nc-ts-sig-sup" placeholder="Type name…">
+        </div>
+      </div>
+
+      <p class="nc-detail-muted" id="nc-ts-status" style="margin:0.75rem 0 0;"></p>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script src="{{ url_for('static', filename='timesheets.js') }}?v=1" defer></script>
+{% endblock %}
+

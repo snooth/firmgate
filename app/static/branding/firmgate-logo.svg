@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48" role="img" aria-label="Firmgate">
+  <defs>
+    <linearGradient id="fg-grad" x1="6" y1="8" x2="42" y2="40" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#14b8a6"/>
+      <stop offset="52%" stop-color="#0ea5e9"/>
+      <stop offset="100%" stop-color="#0284c7"/>
+    </linearGradient>
+    <linearGradient id="fg-shine" x1="24" y1="10" x2="24" y2="34" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.45"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <!-- Stable base -->
+  <rect x="9" y="37.5" width="30" height="4.5" rx="2.25" fill="#0f172a"/>
+  <rect x="11" y="39" width="26" height="1.5" rx="0.75" fill="#ffffff" opacity="0.22"/>
+  <!-- Gate arch + pillars -->
+  <path
+    d="M13.5 37.5V21.5a10.5 10.5 0 0 1 21 0V37.5"
+    fill="none"
+    stroke="url(#fg-grad)"
+    stroke-width="3.75"
+    stroke-linecap="round"
+  />
+  <path
+    d="M13.5 37.5V21.5a10.5 10.5 0 0 1 21 0V37.5"
+    fill="none"
+    stroke="url(#fg-shine)"
+    stroke-width="3.75"
+    stroke-linecap="round"
+    opacity="0.55"
+  />
+  <!-- Portal threshold -->
+  <path
+    d="M17.5 28.5h13"
+    stroke="#0f172a"
+    stroke-width="2.75"
+    stroke-linecap="round"
+    opacity="0.88"
+  />
+  <!-- Secure entry -->
+  <circle cx="24" cy="24.5" r="4.1" fill="url(#fg-grad)"/>
+  <circle cx="24" cy="24.5" r="1.55" fill="#ffffff" opacity="0.92"/>
+</svg>

@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Administration — {{ portal_shell_name }}{% endblock %}
+{% block body_class %}nc-page-admin{% if request.args.get('embed') == '1' %} nc-embed{% endif %}{% endblock %}
+{% block main_class %}main main--files{% endblock %}
+{% block content %}
+{% if request.args.get('embed') != '1' %}
+<div class="nc-admin-page-hero">
+  <h1 class="nc-admin-page-hero-title">Administration</h1>
+  <p class="nc-admin-page-hero-sub">Users, groups, roles, integrations, and audit activity.</p>
+</div>
+{% endif %}
+{% include "_admin_content.html" %}
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='admin.js') }}?v=47" defer></script>
+{% endblock %}

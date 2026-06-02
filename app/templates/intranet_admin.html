@@ -1,0 +1,18 @@
+{% extends "intranet_base.html" %}
+{% block title %}{{ portal_shell_name }} — Administration{% endblock %}
+
+{% block intranet_body %}
+<div class="nc-intranet-page-hero">
+  <h1>Administration</h1>
+  <p class="nc-intranet-muted">Users, groups, roles, integrations, and audit activity.</p>
+</div>
+<div class="nc-intranet-admin">
+  {% include "_admin_content.html" %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script src="{{ url_for('static', filename='admin.js') }}?v=47" defer></script>
+{% endblock %}
+

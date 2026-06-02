@@ -1,0 +1,240 @@
+{% extends "base.html" %}
+{% block body_class %}nc-page-intranet{% endblock %}
+{% block main_class %}main nc-intranet-main{% endblock %}
+
+{% block extrahead %}
+{{ super() }}
+<script>
+  try {
+    if (window.localStorage.getItem("firmgate.intranetSidebarCollapsed") === "1") {
+      document.documentElement.classList.add("nc-intranet-sidebar-collapsed");
+    }
+  } catch (_e) {}
+</script>
+{# Turbo Drive: intranet navigations without full document unload (keeps in-page XHR alive). #}
+<script src="https://cdn.jsdelivr.net/npm/@hotwired/turbo@8.0.13/dist/turbo.es2017-umd.min.js" defer></script>
+{% endblock %}
+
+{% block content %}
+{% set _embed = (request.args.get('embed') == '1') %}
+{% if not _embed %}
+<div class="nc-intranet-shell"{% if intranet_profile_modal %} data-profile-api="{{ url_api_me_profile }}"{% endif %}>
+  <div
+    class="nc-intranet-app"
+    id="nc-intranet-app"
+    data-intranet-nav-active="{{ nav.get('active', '') if nav else '' }}"
+  >
+    <aside class="nc-intranet-sidebar" id="nc-intranet-sidebar" data-turbo-permanent aria-label="{{ portal_shell_name }} navigation">
+      <a class="nc-intranet-sidebar-brand{% if portal_has_custom_logo %} nc-intranet-sidebar-brand--custom{% endif %}" href="{{ url_for('intranet.intranet_page') }}" aria-label="{{ portal_shell_name }} home">
+        {% if portal_logo_url %}
+          {% with brand_variant='sidebar' %}{% include "_portal_brand_mark.html" %}{% endwith %}
+        {% else %}
+          <span class="nc-intranet-sidebar-logo-fallback" aria-hidden="true">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M3 6h8l2 3h8v12H3V6z" fill="currentColor" opacity=".9"/></svg>
+          </span>
+        {% endif %}
+        {% if not portal_has_custom_logo %}
+        <span class="nc-intranet-sidebar-brand-text">
+          <span class="nc-intranet-brand-name">{{ portal_shell_name }}</span>
+        </span>
+        {% endif %}
+      </a>
+
+      <nav class="nc-intranet-sidebar-nav nc-intranet-tabs" aria-label="{{ portal_shell_name }} sections">
+        {% for key, label, endpoint in (nav['items'] if nav and nav.get('items') else []) %}
+          {% if key != 'admin' or can_view_admin %}
+            <a
+              class="nc-intranet-tab{% if nav.get('active') == key %} is-active{% endif %}"
+              href="{{ url_for(endpoint) }}"
+              data-nav-key="{{ key }}"
+              title="{{ label }}"
+              {% if nav.get('active') == key %}aria-current="page"{% endif %}
+            >
+              <span class="nc-intranet-tab-ic" aria-hidden="true">{% include "_intranet_nav_icon.html" %}</span>
+              <span class="nc-intranet-tab-label">{{ label }}</span>
+              {% if key == 'team_chat' %}
+              <span class="nc-intranet-tab-badge" id="nc-intranet-tab-badge-team-chat" hidden aria-label="">0</span>
+              {% elif key == 'game' %}
+              <span class="nc-intranet-tab-badge" id="nc-intranet-tab-badge-game" hidden aria-label="">0</span>
+              {% endif %}
+            </a>
+          {% endif %}
+        {% endfor %}
+      </nav>
+
+      <div class="nc-intranet-sidebar-foot">
+        <button
+          type="button"
+          class="nc-intranet-sidebar-toggle"
+          id="nc-intranet-sidebar-toggle"
+          aria-expanded="true"
+          aria-controls="nc-intranet-sidebar"
+          title="Collapse navigation"
+        >
+          <span class="nc-intranet-sidebar-toggle-ic" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+          </span>
+          <span class="nc-intranet-sidebar-toggle-label">Collapse menu</span>
+        </button>
+      </div>
+    </aside>
+
+    <div class="nc-intranet-stage">
+      <header class="nc-intranet-top nc-intranet-topbar" data-turbo-permanent id="nc-intranet-top-permanent">
+        <div class="nc-intranet-top-mid">
+          <form class="nc-intranet-search" action="{{ url_for('intranet.intranet_search') }}" method="get" role="search">
+            <input type="search" name="q" value="{{ q|default('') }}" placeholder="Search {{ portal_shell_name }}" aria-label="Search {{ portal_shell_name }}">
+            <button type="submit" aria-label="Search">⌕</button>
+          </form>
+          {% set upload_progress_class_modifier = "nc-upload-progress--intranet-bar" %}
+          {% include "_upload_progress.html" %}
+        </div>
+
+        <div class="nc-intranet-top-right">
+          <button type="button" class="nc-intranet-user" id="intranet-user-btn" aria-haspopup="menu" aria-expanded="false">
+            <span class="nc-intranet-user-avatar">{{ (current_user.username or '?')[:2]|upper }}</span>
+            <span class="nc-intranet-user-meta">
+              <span class="nc-intranet-user-name">{{ current_user.full_name or current_user.username }}</span>
+              {% if current_user.roles %}
+              <span class="nc-intranet-user-role">{{ current_user.roles[0].name }}</span>
+              {% endif %}
+            </span>
+          </button>
+          <div class="nc-intranet-usermenu" id="intranet-user-menu" role="menu" hidden>
+            <div class="nc-intranet-usermenu-head">
+              <div class="nc-intranet-usermenu-title">{{ current_user.full_name or current_user.username }}</div>
+              <div class="nc-intranet-usermenu-sub">{{ current_user.email or current_user.username }}</div>
+            </div>
+            <div class="nc-intranet-usermenu-items">
+              {% if intranet_profile_modal %}
+              <button type="button" class="nc-intranet-usermenu-item nc-intranet-usermenu-item--action" id="intranet-profile-open" role="menuitem">Edit profile</button>
+              {% else %}
+              <a class="nc-intranet-usermenu-item" role="menuitem" href="{{ url_for('intranet.admin_page') }}?edit_user_id={{ current_user.id }}">Edit profile</a>
+              {% endif %}
+            </div>
+            <div class="nc-intranet-usermenu-foot">
+              <a class="nc-btn nc-btn-primary" role="menuitem" href="{{ url_for('auth.logout') }}" data-turbo="false">Log out</a>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <div class="nc-intranet-body">
+        {{ self.intranet_body() }}
+      </div>
+    </div>
+  </div>
+
+  {% if intranet_profile_modal %}
+  <div class="nc-modal-backdrop" id="intranet-profile-modal" hidden style="z-index: 80;">
+    <div class="nc-modal" role="dialog" aria-modal="true" aria-labelledby="intranet-profile-title">
+      <div class="nc-modal-card">
+        <div class="nc-modal-head">
+          <div class="nc-modal-title" id="intranet-profile-title">Edit profile</div>
+          <button type="button" class="nc-modal-close" id="intranet-profile-close" aria-label="Close">×</button>
+        </div>
+        <div class="nc-modal-body">
+          <p id="intranet-profile-status" class="nc-status" role="status"></p>
+          <div class="nc-modal-section">
+            <div class="nc-modal-section-title">IDENTITY</div>
+            <div class="nc-modal-grid2">
+              <div>
+                <label class="nc-modal-label" for="intranet-profile-email">Email address <span class="nc-req">*</span></label>
+                <input type="email" id="intranet-profile-email" class="nc-detail-input" autocomplete="email" required>
+                <div class="nc-modal-help">Used to sign in, and for notifications and password resets.</div>
+              </div>
+              <div>
+                <label class="nc-modal-label" for="intranet-profile-full-name">Display name</label>
+                <input type="text" id="intranet-profile-full-name" class="nc-detail-input" autocomplete="name">
+              </div>
+            </div>
+            <div style="margin-top:0.6rem;">
+              <label class="nc-modal-label" for="intranet-profile-username">Username</label>
+              <input type="text" id="intranet-profile-username" class="nc-detail-input" autocomplete="username" required>
+              <div class="nc-modal-help">Your sign-in name: use the same email as above, or letters, numbers, dots, underscores, and hyphens only.</div>
+            </div>
+            <div style="margin-top:0.6rem;">
+              <label class="nc-modal-label" for="intranet-profile-phone">Phone number</label>
+              <input type="tel" id="intranet-profile-phone" class="nc-detail-input" autocomplete="tel">
+            </div>
+          </div>
+          <div class="nc-modal-section">
+            <div class="nc-modal-section-title">SECURITY</div>
+            <div class="nc-modal-grid2">
+              <div>
+                <label class="nc-modal-label" for="intranet-profile-password">New password</label>
+                <input type="password" id="intranet-profile-password" class="nc-detail-input" placeholder="Min 8 characters" autocomplete="new-password">
+              </div>
+              <div>
+                <label class="nc-modal-label" for="intranet-profile-password2">Confirm new password</label>
+                <input type="password" id="intranet-profile-password2" class="nc-detail-input" placeholder="Repeat password" autocomplete="new-password">
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="nc-modal-foot">
+          <button type="button" class="nc-btn nc-btn-primary" id="intranet-profile-save">Save</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  {% include "_upload_conflict_dialog.html" %}
+</div>
+{% else %}
+  {{ self.intranet_body() }}
+{% endif %}
+{% endblock %}
+
+{% block intranet_body %}{% endblock %}
+
+{% block body_persistent %}{% endblock %}
+
+{% block scripts %}
+<script>
+  (function () {
+    const btn = document.getElementById("intranet-user-btn");
+    const menu = document.getElementById("intranet-user-menu");
+    if (!btn || !menu) return;
+
+    function close() {
+      menu.hidden = true;
+      btn.setAttribute("aria-expanded", "false");
+    }
+
+    function open() {
+      menu.hidden = false;
+      btn.setAttribute("aria-expanded", "true");
+    }
+
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (menu.hidden) open();
+      else close();
+    });
+
+    document.addEventListener("click", (e) => {
+      if (menu.hidden) return;
+      if (menu.contains(e.target) || btn.contains(e.target)) return;
+      close();
+    });
+
+    window.addEventListener("keydown", (e) => {
+      if (e.key !== "Escape") return;
+      const pm = document.getElementById("intranet-profile-modal");
+      if (pm && !pm.hidden) return;
+      close();
+    });
+  })();
+</script>
+{% if intranet_profile_modal %}
+<script src="{{ url_for('static', filename='intranet_profile_modal.js') }}?v=2" defer></script>
+{% endif %}
+<script src="{{ url_for('static', filename='intranet_sidebar.js') }}?v=6" defer></script>
+<script src="{{ url_for('static', filename='intranet_chat_badge.js') }}?v=1" defer></script>
+<script src="{{ url_for('static', filename='intranet_chess_badge.js') }}?v=2" defer></script>
+<script src="{{ url_for('static', filename='upload_summary.js') }}?v=2" defer></script>
+<script src="{{ url_for('static', filename='intranet_upload_manager.js') }}?v=1" defer></script>
+<script src="{{ url_for('static', filename='intranet_upload_progress_bridge.js') }}?v=7" defer></script>
+{% endblock %}
