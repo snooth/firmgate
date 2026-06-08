@@ -61,6 +61,7 @@ RSYNC_COMMON_EXCLUDES=(
   --exclude 'venv/'
   --exclude '.env'
   --exclude '.env.local'
+  --exclude '.solstak-backup.env'
   --exclude '__pycache__/'
   --exclude '*.pyc'
   --exclude '.DS_Store'
