@@ -1,94 +1,98 @@
 # Firmgate
 
-**Self-hosted intranet for teams** — news, wiki, chat, documents, workforce directory, and security workflows in one stack you run on **your** hardware. No mandatory SaaS, no per-seat cloud tax.
+**Self-hosted intranet for teams** — news, wiki, chat, documents, workforce directory, CRM, compliance workflows, and optional AI assistants in one stack you run on **your** hardware. No mandatory SaaS, no per-seat cloud tax.
 
-> **This GitHub repository contains Community Edition only.**  
-> It does not include enterprise application code (`app/enterprise/`), CRM, Security Clearance, Resource Pool, AI assistants, or Microsoft 365 / LDAP integrations.  
-> To **upgrade to Enterprise Edition**, you need a **separate codebase** from your supplier plus a **vendor-issued licence key** — see [Upgrading to Enterprise Edition](#upgrading-to-enterprise-edition) below.
+Firmgate ships in two editions:
 
-This tree is **Firmgate Community Edition** — open source under [Apache 2.0](LICENSE). It ships a focused module set for internal portals.
+| Edition | Source | Licence |
+|---------|--------|---------|
+| **Community Edition** | [GitHub — open source](https://github.com/snooth/firmgate) | [Apache 2.0](LICENSE) |
+| **Enterprise Edition** | Vendor release package (`app/enterprise/`) | FG2 subscription key from your supplier |
 
 ![Firmgate — home with navigation and announcements](docs/screenshots/home.png)
 
 ---
 
-## Community Edition at a glance
+## At a glance
 
-Community Edition is the default when `COMMUNITY_EDITION=1` (see [`.env.example`](.env.example)). The app enforces a **fixed module allowlist** — enterprise modules are not present in this repository and cannot be enabled from the UI.
+| Capability | Community Edition | Enterprise Edition |
+|------------|-------------------|---------------------|
+| Home, blogs, events, wiki, chat | ✓ | ✓ |
+| Workforce directory & dashboard | ✓ | ✓ |
+| Documents + OnlyOffice | ✓ | ✓ |
+| Security training | ✓ | ✓ |
+| Games, about company, admin | ✓ | ✓ |
+| CRM, resource pool, casual calculator | — | ✓ (licensed) |
+| Security clearance & security officer | — | ✓ (licensed) |
+| Timesheets | — | ✓ (licensed) |
+| AI assistants (search, chatbot, policy, CV, tender) | — | ✓ (licensed) |
+| Microsoft 365 editing, LDAP, self-registration | — | ✓ (licensed) |
+| Security encryption at rest, officer PDF export | — | ✓ (licensed) |
 
-### Included modules (Community Edition)
-
-| Module | Description |
-|--------|-------------|
-| **Home** | Configurable landing page and announcements |
-| **Blogs** | Internal posts (admin authoring) |
-| **Events** | Shared calendar (day / month / year), public holidays |
-| **Wiki** | Knowledge base with sanitised HTML |
-| **Team Chat** | Rooms, messaging, optional WebRTC / Jitsi voice |
-| **Workforce** | Employee directory, presence, admin editing |
-| **Workforce Dashboard** | Workforce metrics and views |
-| **Security Training** | Training content library |
-| **Security Officer** | Security dashboard (PDF export is Enterprise Edition only) |
-| **Documents** | Folders, uploads, sharing, viewers, OnlyOffice when configured |
-| **About Company** | Editable company profile |
-| **Games** | Chess, Lemmings, Sky Control |
-| **Administration** | Users, groups, roles, modules, backups, branding |
-
-### Enterprise Edition (not in this repository)
-
-The following are part of the **commercial Enterprise Edition** — a **separate codebase** from your supplier, not this GitHub tree:
-
-| Module / capability | Description |
-|---------------------|-------------|
-| **CRM** | Leads, pipeline, companies, contacts, activities |
-| **Security Clearance** | Clearance records, import/export, compliance summaries |
-| **Resource Pool** | Resource and CV pool workflows |
-| **AI assistants** | Document search, chatbot, policy / CV / tender assistants |
-| **Microsoft 365** | Office Online document editor |
-| **LDAP** | Active Directory / LDAP integration |
-| **Other add-ons** | Self-registration, security encryption, officer PDF export, etc. |
-
-Enterprise features require both the **enterprise application package** and a **valid FG2 licence key** from your supplier. A licence key alone does not turn this Community Edition clone into Enterprise.
+Community Edition is the default when `COMMUNITY_EDITION=1` (see [`.env.example`](.env.example)). Enterprise modules require both the **enterprise codebase** and a valid **FG2 licence key** under **Administration → Enterprise Features**.
 
 Commercial terms: [COMMERCIAL.md](COMMERCIAL.md).
 
 ---
 
-## Upgrading to Enterprise Edition
+## Modules and functions
 
-If you are running Community Edition from this repository and want Enterprise capabilities:
+### Community Edition modules
 
-1. **Contact your supplier** for:
-   - An **Enterprise Edition release package** (application ZIP with `app/enterprise/` and related assets), and  
-   - A **licence key** (FG2 format) for the features you purchased.
-2. **Deploy the enterprise codebase** on your server (package upgrade via **Administration → Software version**, or a fresh install). This is **not** a `git pull` from this public repo — the enterprise code is distributed separately.
-3. **Apply your licence key** under **Administration → Enterprise Features** on the enterprise build.
-4. **Keep your data:** on the same server, a package upgrade usually preserves `instance/` (database and uploads). When moving to a new host, download a backup on Community Edition and restore it on the Enterprise deployment (see below).
+These modules are included in the open-source tree and appear in the sidebar when enabled under **Administration → Modules**.
 
-**Community Edition backup → Enterprise:** A Community Edition backup can be restored into an Enterprise deployment. The backup is **runtime data** (database, uploads, branding), not application code, and both editions use the **same backup format**.
+| Module | What it does |
+|--------|----------------|
+| **Home** | Configurable landing page — hero banner, announcement cards, quick links, and “at a glance” stats edited by admins. |
+| **Blogs** | Internal news posts with categories; admins (or permitted authors) create and publish articles. |
+| **Events** | Shared calendar with **day**, **month**, and **year** views; supports public holidays and team events. |
+| **Wiki** | Knowledge base with sanitised HTML pages, sidebar navigation, search, and versioned content. |
+| **Team Chat** | Chat **rooms**, member lists, file attachments, unread badges, and optional **WebRTC / Jitsi** voice calls. |
+| **Workforce** | Employee **directory** — search, tags, presence, local time, profile pages, optional photos, manager editing. |
+| **Workforce Dashboard** | Workforce **metrics** and summary views for managers (when enabled). |
+| **Security Training** | Training **content library** — assign and track security awareness material. |
+| **Documents** | Folder tree, **upload** (drag-and-drop), **sharing**, favourites, move/copy, trash, and in-browser **previews** (PDF, images, `.eml`). **OnlyOffice** editing when Document Server is configured. |
+| **About Company** | Editable **company profile** — mission, contacts, and glance figures on the intranet. |
+| **Games** | Built-in **Chess**, **Lemmings**, and **Sky Control** for informal team engagement. |
+| **Administration** | Full **control plane** — see [Administration](#administration) below. |
 
-This open-source repository remains Community Edition only and will not receive enterprise module source code.
+### Enterprise Edition modules
 
----
+Distributed in the commercial release package. Each module is gated by an FG2 licence feature (or the **enterprise intranet pack**).
 
-## Why self-hosted?
+| Module | Licence feature | What it does |
+|--------|-----------------|--------------|
+| **CRM** | `crm` | **Dashboard**, **pipeline**, **leads** — sales workflow (companies, contacts, activities, deals planned). |
+| **Resource Pool** | `resource_pool` | Contractor and CV **resource pool** — search, profiles, and allocation workflows. |
+| **Casual Calculator** | `resource_calculator` | Australian **contractor daily rate** calculator — super, payroll tax, workers comp by state; printable breakdown. |
+| **Security Clearance** | `security_clearance` | Clearance **records**, import/export, compliance summaries. |
+| **Security Officer** | `security_officer` | Security operations **dashboard**; PDF report export with `security_officer_export`. |
+| **Timesheets** | `timesheets` | **My Timesheet** entry and **Timesheet Collection** for managers. |
+| **AI Document Search** | `ai_document_search` | Chat over indexed **documents** using an OpenAI-compatible LLM. |
+| **AI Chatbot** | `ai_chatbot` | General-purpose **intranet chatbot** with configurable prompts and models. |
+| **AI Docs and Policy** | `ai_policy_assistant` | Policy and document **Q&A** assistant. |
+| **AI CV Builder** | `ai_cv_builder` | Structured **CV generation** from workforce/resource data. |
+| **AI Tender Assistant** | `ai_tender_assistant` | **Tender response** drafting assistant. |
 
-| Benefit | What it means |
-|---------|----------------|
-| **Your infrastructure** | SQLite (default), uploads, and config stay on **your** servers |
-| **One system** | Intranet, documents, workforce, and compliance tools in one deployable app |
-| **Air-gap friendly** | LAN, VPN, or regulated networks where data must not leave the site |
-| **Apache 2.0** | Use and modify Community Edition freely; optional paid support is separate |
-| **Full admin control** | Users, roles, modules, backups, factory reset, and branding from **Administration** |
+### Platform integrations (Enterprise, licensed)
+
+| Integration | Licence feature | What it does |
+|-------------|-----------------|--------------|
+| **Microsoft 365 / Office Online** | `office365` | Edit Office documents in the browser via Microsoft Graph. |
+| **LDAP / Active Directory** | `ldap` | Directory sync and LDAP authentication. |
+| **Self registration** | `self_registration` | Extranet **self-service sign-up** with admin approval. |
+| **Security encryption** | `security_encryption` | **Encryption at rest** settings for sensitive deployments. |
+
+Licence keys use the **FG2** format (Ed25519). Paste under **Administration → Enterprise Features**. Revoked keys are blocked by fingerprint. A licence alone does not add enterprise code — you need the enterprise application package from your supplier.
 
 ---
 
 ## Screenshots
 
-Gallery captured from Community Edition (`COMMUNITY_EDITION=1`). Regenerate after UI changes:
+Gallery images live in [`docs/screenshots/`](docs/screenshots/). Regenerate after UI changes:
 
 ```bash
-python run.py   # http://127.0.0.1:5001
+python run.py   # http://127.0.0.1:5001 — use enterprise build + licence for all shots
 python3 -m pip install playwright && python3 -m playwright install chromium
 python3 scripts/capture_readme_screenshots.py
 python3 scripts/update_readme_screenshots.py   # optional branding pass
@@ -136,31 +140,107 @@ Employee directory with search, tags, and presence.
 
 ![Firmgate — workforce directory](docs/screenshots/workforce.png)
 
-### Security Officer
-
-Security operations dashboard (Community Edition; PDF export is a licensed add-on).
-
-![Firmgate — security officer](docs/screenshots/security-officer.png)
-
 ### Games
 
 Built-in games for informal team engagement.
 
 ![Firmgate — games](docs/screenshots/games.png)
 
-### Administration
+### Enterprise — CRM
 
-User management, roles, integrations, backups, and module toggles.
+Sales dashboard and pipeline (Enterprise Edition, CRM licence).
+
+![Firmgate — CRM dashboard](docs/screenshots/crm-dashboard.png)
+
+### Enterprise — Security Clearance
+
+Clearance records and compliance views (Enterprise Edition).
+
+![Firmgate — security clearance](docs/screenshots/security-clearance.png)
+
+### Enterprise — Security Officer
+
+Security operations dashboard (Enterprise Edition, Security Officer licence).
+
+![Firmgate — security officer](docs/screenshots/security-officer.png)
+
+### Administration — Users
+
+User accounts, roles, groups, and access control.
 
 ![Firmgate — administration users](docs/screenshots/administration-users.png)
 
-![Firmgate — administration modules (Community Edition allowlist)](docs/screenshots/administration-modules.png)
+### Administration — Modules
+
+Enable or restrict intranet modules per role and user.
+
+![Firmgate — administration modules](docs/screenshots/administration-modules.png)
+
+### Administration — Enterprise Features
+
+Activate FG2 licence keys and view licensed capabilities.
+
+![Firmgate — enterprise features](docs/screenshots/enterprise-features.png)
+
+---
+
+## Administration
+
+Available to users with admin access from **Administration** in the sidebar (or `/intranet/admin`).
+
+| Section | Functions |
+|---------|-----------|
+| **Users** | Create, edit, deactivate accounts; assign roles; reset passwords; MFA settings. |
+| **Groups** | Bulk role assignment via groups. |
+| **Roles & permissions** | Fine-grained RBAC — module access, document rights, admin capabilities. |
+| **Registrations** | Approve or reject self-service sign-ups (requires `self_registration` licence). |
+| **Modules** | Show/hide sidebar modules; restrict modules to specific users. |
+| **Enterprise Features** | Paste **FG2 licence keys**, view active features, revoke keys, import revocation list. |
+| **Integrations** | **OnlyOffice** (CE), **Microsoft 365** (EE), **LDAP** (EE), document editor provider selection. |
+| **AI settings** | Per-assistant LLM endpoints, API keys, index folders (Enterprise AI modules). |
+| **Email Settings** | Outbound **SMTP** — custom, Microsoft 365, or Google Workspace. |
+| **Portal customisation** | Logo, tab title, theme colours, home page content and images. |
+| **Timesheet settings** | Branding and notification rules (Timesheets licence). |
+| **Backup and restore** | **Download backup** (zip), **restore**, **factory reset**, optional **demo data**. |
+| **Software version** | Display version, **Git pull** upgrade, **package ZIP** upgrade, rollback history. |
+
+### Backup and factory reset
+
+| Action | Effect |
+|--------|--------|
+| **Download backup** | Zip of database, uploads, branding, and settings |
+| **Restore** | Replace runtime data from zip (destructive) |
+| **Factory reset** | Wipe portal; restore bootstrap admin (`admin@example.com` / `admin`) |
+| **Add demo data** | Sample content across modules (~20% fill) |
+
+Backups are **edition-agnostic runtime data** — a Community Edition backup can be restored on an Enterprise deployment (same backup format). Factory reset requires typing `FACTORY RESET`.
+
+---
+
+## Upgrading to Enterprise Edition
+
+1. **Contact your supplier** for an Enterprise release package and FG2 licence key(s).
+2. **Deploy the enterprise codebase** — **Administration → Software version → Upgrade from package**, or fresh install. Not a `git pull` from the public GitHub repo alone.
+3. **Apply your licence** under **Administration → Enterprise Features**.
+4. **Preserve data** — package upgrades keep `instance/` on the same server; use backup/restore when moving hosts.
+
+The public GitHub repository remains **Community Edition only** and does not contain `app/enterprise/` source.
+
+---
+
+## Why self-hosted?
+
+| Benefit | What it means |
+|---------|----------------|
+| **Your infrastructure** | SQLite (default), uploads, and config stay on **your** servers |
+| **One system** | Intranet, documents, workforce, CRM, and compliance in one deployable app |
+| **Air-gap friendly** | LAN, VPN, or regulated networks where data must not leave the site |
+| **Apache 2.0 CE** | Use and modify Community Edition freely; enterprise is separately licensed |
+| **Full admin control** | Users, roles, modules, backups, factory reset, and branding from Administration |
 
 ---
 
 ## Requirements
-
-### Server / development machine
 
 | Requirement | Notes |
 |-------------|--------|
@@ -168,54 +248,38 @@ User management, roles, integrations, backups, and module toggles.
 | **Git** | Clone and deploy updates |
 | **SQLite** | Default database (bundled with Python) |
 | **Disk space** | Depends on document uploads (`UPLOAD_ROOT`) |
-| **Docker** (optional) | Docker Engine + Compose v2 for container deploy |
-
-### Python dependencies
+| **Docker** (optional) | Docker Engine + Compose v2 |
 
 ```bash
 pip install -r requirements.txt
 ```
 
-Production also uses **Gunicorn** (installed by `scripts/update.sh` if missing).
+Production uses **Gunicorn** (installed by `scripts/update.sh` if missing).
 
 ### Optional (by feature)
 
 | Feature | What you need |
 |---------|----------------|
-| **HTTPS reverse proxy** | nginx, Caddy, or similar (strongly recommended in production) |
-| **OnlyOffice** | Document Server + reachable callback URL (Community Edition) |
-| **Microsoft 365 editing** | Enterprise Edition only (Azure app + supplier licence) |
-| **Outbound email** | SMTP (custom, Microsoft 365, or Google Workspace) |
-| **LDAP / AD** | Enterprise Edition only (directory server + supplier licence) |
+| **HTTPS reverse proxy** | nginx, Caddy, or similar (strongly recommended) |
+| **OnlyOffice** | Document Server + reachable callback URL |
+| **Microsoft 365 editing** | Enterprise licence + Azure app registration |
+| **Outbound email** | SMTP (custom, M365, or Google Workspace) |
+| **LDAP / AD** | Enterprise licence + directory server |
+| **AI assistants** | Enterprise licence + OpenAI-compatible API endpoint |
 | **Large uploads** | `MAX_UPLOAD_MB` and proxy `client_max_body_size` |
 
 ---
 
-## Default administrator (factory bootstrap)
+## Install
 
-On a **fresh install** (empty database):
+### Default administrator (factory bootstrap)
 
 | Field | Value |
 |-------|--------|
 | **Email** | `admin@example.com` |
 | **Password** | `admin` |
 
-**Change this password before production.**
-
-Once **any other active user** has `admin.all`, the bootstrap account is **automatically deactivated**. **Factory reset** restores the same credentials on a wiped portal.
-
----
-
-## Install in minutes
-
-Clone the repository, set a secret key, and run with **Docker Compose** — or use a [release ZIP](#release-zip-air-gapped-servers) for air-gapped servers.
-
-1. Copy `.env.example` to `.env` and set `SECRET_KEY`
-2. Run `docker compose up -d --build`
-3. Open the portal and sign in with the factory bootstrap admin
-4. Create your real administrator and change passwords before production
-
-**Default bootstrap** (fresh install only): `admin@example.com` / `admin` — deactivated automatically once another admin exists.
+Change before production. Bootstrap admin is **deactivated** once another user has full admin rights. **Factory reset** restores it.
 
 ### Docker Compose (recommended)
 
@@ -223,11 +287,11 @@ Clone the repository, set a secret key, and run with **Docker Compose** — or u
 git clone https://github.com/snooth/firmgate.git
 cd firmgate
 cp .env.example .env
-# Set SECRET_KEY (openssl rand -hex 32)
+# Set SECRET_KEY: openssl rand -hex 32
 docker compose up -d --build
 ```
 
-Open **http://127.0.0.1:5001/** (or the host port from `FIRMGATE_HTTP_PORT` in `.env`). Put **nginx** or **Caddy** in front for HTTPS in production.
+Open **http://127.0.0.1:5001/** (or `FIRMGATE_HTTP_PORT`). Use nginx/Caddy for HTTPS in production.
 
 | Item | Location |
 |------|----------|
@@ -239,69 +303,60 @@ Open **http://127.0.0.1:5001/** (or the host port from `FIRMGATE_HTTP_PORT` in `
 
 ```bash
 python3 -m venv .venv
-source .venv/bin/activate   # Windows: .venv\Scripts\activate
+source .venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env        # set SECRET_KEY; COMMUNITY_EDITION=1 is the default
-python run.py
-# http://127.0.0.1:5001/
+cp .env.example .env        # COMMUNITY_EDITION=1 by default; set SECRET_KEY
+python run.py               # http://127.0.0.1:5001/
 ```
 
-Optional: `python seed_data.py` on an empty database (bootstrap admin only, no demo data).
+Optional: `python seed_data.py` on an empty database.
 
 ### Release ZIP (air-gapped servers)
 
-Community Edition release packages can be built from this tree with `scripts/build_release_package.sh` (maintainer workflow). **Enterprise release packages** are supplied by your vendor and include the full application with `app/enterprise/`.
+Build edition packages (maintainer workspace):
 
-**First install:** unzip on the server, create `.env`, virtualenv, `pip install -r requirements.txt`, run Gunicorn ([production deployment](#production-deployment-start-to-finish)).
+```bash
+./sync.sh
+./scripts/build_edition_packages.sh
+# → PRIVATE/RELEASE/COMMUNITY/ and PRIVATE/RELEASE/ENTERPRISE/ (+ package.zip)
+```
 
-**In-place upgrade (same edition):** **Administration → Software version → Upgrade from package** when `ENABLE_SOFTWARE_PACKAGE_UPGRADE=1`. Use an enterprise package from your supplier to move from Community Edition to Enterprise — not a package built from this public repository alone.
+Upload via **Administration → Software version → Upgrade from package** when `ENABLE_SOFTWARE_PACKAGE_UPGRADE=1`.
 
 ---
 
 ## Using the application
 
-### Navigation (Community Edition)
+### Navigation
 
-After sign-in, the sidebar lists modules enabled for your account. Community Edition never shows **CRM**, **Security Clearance**, or **Resource Pool** in the nav.
+After sign-in, the **sidebar** lists modules enabled for your account. Enterprise modules appear under an **Enterprise Features** section when licensed.
 
-Typical end-user flow:
+Typical flows:
 
-1. **Home** — announcements  
-2. **Documents** — files and sharing  
-3. **Events** / **Wiki** / **Team Chat** — collaboration  
-4. **Workforce** — find colleagues  
+1. **Home** — announcements and links  
+2. **Documents** — files, sharing, editing  
+3. **Events / Wiki / Team Chat** — collaboration  
+4. **Workforce** — find colleagues and profiles  
+5. **CRM / Clearance / AI** — enterprise workflows when licensed  
 
 ### Roles and permissions
 
-Built-in roles include **Standard**, **Power**, and **admin**. Fine-grained permissions are under **Administration → Roles & permissions**. **Groups** grant roles in bulk.
-
-### Administration
-
-| Section | Purpose |
-|---------|---------|
-| **Users / Groups / Roles** | Accounts and access |
-| **Registrations** | Approve Extranet self-sign-ups (licensed add-on) |
-| **Integrations** | OnlyOffice (Community Edition) |
-| **Email Settings** | Outbound SMTP |
-| **Portal customisation** | Logo, theme, home content |
-| **Modules** | Show/hide Community Edition nav items |
-| **Backup and restore** | Download backup, restore, factory reset |
-| **Software version** | Git or package upgrade |
+Built-in roles include **Standard**, **Power**, and **admin**. Fine-grained permissions live under **Administration → Roles & permissions**. **Groups** grant roles in bulk.
 
 ### Documents and editing
 
 - Upload via **Documents** or drag-and-drop  
-- **OnlyOffice** works in Community Edition when configured  
-- **Microsoft 365** requires an enterprise license  
+- **OnlyOffice** — Community Edition when Document Server is configured  
+- **Microsoft 365** — Enterprise Edition when licensed and configured  
 - PDFs, images, and `.eml` use built-in viewers  
 
 ### End-user documentation
 
-[`docs/User_Manual.html`](docs/User_Manual.html) — regenerate figures with `scripts/generate_manual_figure_images.py` and `scripts/build_user_manual_docx.py`.
+[`docs/User_Manual.html`](docs/User_Manual.html) — regenerate with `scripts/generate_manual_figure_images.py` and `scripts/build_user_manual_docx.py`.
 
 ---
 
-## Production deployment (start to finish)
+## Production deployment
 
 ```
 Internet → nginx (TLS) → Gunicorn → Flask
@@ -310,40 +365,20 @@ Internet → nginx (TLS) → Gunicorn → Flask
                     .env (secrets)
 ```
 
-Recommended layout:
-
 | Path | Purpose |
 |------|---------|
-| `/root/intranet` | Git checkout (application code) |
+| `/root/intranet` | Application code |
 | `/root/intranet_instance` | Database + uploads (symlink as `instance/`) |
 | `/root/intranet-backups` | Pre-upgrade backups |
 
-### Steps (summary)
-
-1. Install Python 3, git, nginx  
-2. Clone `https://github.com/snooth/firmgate.git`  
-3. Symlink external `instance/`  
-4. Create `.env` with `SECRET_KEY`, `FLASK_DEBUG=0`, `DATABASE_URL`, `UPLOAD_ROOT`, `COMMUNITY_EDITION=1`  
-5. `python3 -m venv .venv && pip install -r requirements.txt gunicorn`  
-6. Initialise DB: `.venv/bin/python -c "from app import create_app; create_app()"`  
-7. systemd unit running Gunicorn on `127.0.0.1:5001`  
-8. nginx TLS reverse proxy with large `client_max_body_size`  
-9. Sign in, create real admin, configure integrations  
-
-Example systemd and nginx blocks are unchanged from prior releases — see git history or your vendor runbook if you need the full snippets.
-
-Install the server update helper:
+**Summary:** Python 3 + venv → `pip install -r requirements.txt gunicorn` → initialise DB → systemd Gunicorn on `127.0.0.1:5001` → nginx TLS with large `client_max_body_size`.
 
 ```bash
 sudo cp /root/intranet/scripts/root-update.sh /root/update.sh
 sudo chmod +x /root/update.sh
 ```
 
----
-
-## Updating production
-
-**Server:**
+**Update on server:**
 
 ```bash
 sudo /root/update.sh
@@ -356,45 +391,17 @@ sudo /root/update.sh
 | Variable | Purpose | Default |
 |----------|---------|---------|
 | `SECRET_KEY` | Flask sessions | `dev-change-me-in-production` |
-| `COMMUNITY_EDITION` | Enforce CE module allowlist | `1` |
-| `FIRMGATE_LICENSE_PUBLIC_KEY` | Optional override for FG2 license verification (base64) | (uses `app/enterprise_license_public.b64`) |
+| `COMMUNITY_EDITION` | CE module allowlist | `1` |
+| `FIRMGATE_LICENSE_PUBLIC_KEY` | Override FG2 public key (base64) | `app/enterprise_license_public.b64` |
 | `DATABASE_URL` | SQLAlchemy URI | `sqlite:///instance/secure_browser.db` |
 | `UPLOAD_ROOT` | Document storage | `instance/uploads` |
 | `MAX_UPLOAD_MB` | Max upload size | `4096` |
 | `PORT` | Dev server port | `5001` |
-| `ONLYOFFICE_APP_URL` | Callback base URL for Document Server | (request root) |
+| `ONLYOFFICE_APP_URL` | Document Server callback base | (request root) |
 | `ENABLE_SOFTWARE_GIT_UPGRADE` | Admin Git upgrade | enabled |
 | `ENABLE_SOFTWARE_PACKAGE_UPGRADE` | Admin ZIP upgrade | enabled |
 
-See [`config.py`](config.py) and [`.env.example`](.env.example) for the full list.
-
----
-
-## Integrations
-
-Configure under **Administration → Integrations**.
-
-- **OnlyOffice** — available in Community Edition when Document Server is configured  
-- **Microsoft 365** — requires enterprise license  
-- **LDAP** — requires enterprise license  
-- **Email** — SMTP under **Email Settings**  
-
----
-
-## Backup and factory reset
-
-**Administration → Backup and restore**
-
-| Action | Effect |
-|--------|--------|
-| **Download backup** | Zip of database, uploads, branding |
-| **Restore** | Replace from zip (destructive) |
-| **Factory reset** | Wipe portal; restore bootstrap admin |
-| **Add demo data** | Sample content (~20% per module) |
-
-Backups are edition-agnostic runtime data: a zip created on Community Edition can be restored on an Enterprise deployment (and vice versa), as long as the target install uses the same backup format.
-
-Factory reset requires typing `FACTORY RESET`. If the database file is locked, stop extra workers and retry; the server can fall back to an in-place schema wipe.
+See [`config.py`](config.py) and [`.env.example`](.env.example) for AI, email, and integration variables.
 
 ---
 
@@ -402,48 +409,60 @@ Factory reset requires typing `FACTORY RESET`. If the database file is locked, s
 
 | Symptom | What to check |
 |---------|----------------|
-| **CRM / AI / Clearance missing from nav** | Expected — this repo is Community Edition only; contact your supplier for Enterprise |
-| **Enterprise features still locked** | Enterprise **codebase** + valid **FG2 licence** from supplier required |
+| **CRM / AI / Clearance missing** | Enterprise **codebase** + valid **FG2 licence** required |
+| **Module greyed out in admin** | Community Edition allowlist or missing licence feature |
 | **Cannot sign in as bootstrap** | Use real admin or factory reset |
-| **Upload HTTP 413** | `MAX_UPLOAD_MB` and nginx body size |
+| **Upload HTTP 413** | `MAX_UPLOAD_MB` and nginx `client_max_body_size` |
 | **OnlyOffice won’t save** | App URL reachable from Document Server |
-| **Factory reset fails** | Stop Gunicorn/reloader workers; retry |
+| **Factory reset fails** | Stop extra Gunicorn workers; retry |
 | **Package upgrade rejected** | ZIP must include `firmgate/manifest.json` |
+| **Licence key rejected** | Check expiry, revocation, and feature list |
 
 ---
 
 ## Repository layout
 
 ```
-app/                 Flask application
-config.py            Defaults
-run.py               Dev entrypoint / Gunicorn target
-requirements.txt     Dependencies
-scripts/             Build, update, screenshot, sync helpers
-docs/screenshots/    README gallery (Community Edition)
-instance/            Runtime data (gitignored)
-LICENSE              Apache 2.0
-COMMERCIAL.md        Optional commercial terms
+app/                      Flask application (community + enterprise/)
+app/enterprise/           Enterprise modules (not in public GitHub export)
+config.py                 Defaults
+run.py                    Dev entrypoint / Gunicorn target
+requirements.txt          Dependencies
+scripts/                  Build, sync, screenshots, release, backup
+docs/screenshots/         README gallery
+PRIVATE/                  Vendor ops, release ZIPs (maintainer sync)
+PUBLIC/                   Community Edition export → GitHub
+ENTERPRISE/               Full app export snapshot
+instance/                 Runtime data (gitignored)
+version                   Display version (e.g. v2.44)
+LICENSE                   Apache 2.0 (Community Edition)
+COMMERCIAL.md             Commercial terms
 ```
 
 ---
 
-## Maintainer notes (full workspace only)
+## Maintainer workflow
 
-This section applies to the **private maintainer workspace**, not the published GitHub tree.
+This section applies to the **private maintainer workspace**, not the published GitHub tree alone.
 
 | Folder | Contents |
 |--------|----------|
-| **`PUBLIC/`** | Community Edition export for GitHub (`README.public.md` → `README.md`) |
+| **`PUBLIC/`** | Community Edition export for GitHub |
 | **`ENTERPRISE/`** | Full application including `app/enterprise/` |
-| **`PRIVATE/`** | Licence signing, release ZIPs, secrets |
+| **`PRIVATE/`** | Licence signing, release ZIPs, `.env` snapshots |
+| **`firmgate-premium-licensing/`** | FG2 key generation (never publish) |
 
 ```bash
-./sync.sh                  # rebuild ENTERPRISE/, PUBLIC/, and PRIVATE/
-./gitpush.sh "message"     # push PUBLIC/ to GitHub
+./sync.sh                              # rebuild ENTERPRISE/, PUBLIC/, PRIVATE/
+./gitpush.sh "message"                 # push PUBLIC/ to GitHub
+./scripts/build_edition_packages.sh    # build COMMUNITY + ENTERPRISE ZIPs
+./scripts/release-and-backup.sh        # bump version, build, push full backup to Gitea
+./scripts/solstak-backup-push.sh     # manual full backup to git.solstak.com.au
 ```
 
-See **`PRIVATE/AGENTS.md`** for maintainer workflow.
+**Gitea full backup:** copy `.solstak-backup.env.example` → `.solstak-backup.env`, set `SOLSTAK_GIT_PASSWORD`. Backup runs automatically after `build_edition_packages.sh`.
+
+See **`PRIVATE/AGENTS.md`** for the full file map.
 
 ---
 
@@ -452,6 +471,7 @@ See **`PRIVATE/AGENTS.md`** for maintainer workflow.
 - **Backend:** Flask, Flask-Login, Flask-SQLAlchemy  
 - **Database:** SQLite (default)  
 - **Frontend:** Jinja2, vanilla JavaScript, Turbo Drive  
+- **Licencing:** Ed25519 FG2 keys (enterprise features)  
 - **Production:** Gunicorn + nginx  
 
 ---
@@ -460,4 +480,4 @@ See **`PRIVATE/AGENTS.md`** for maintainer workflow.
 
 **Community Edition** is licensed under the [Apache License 2.0](LICENSE).
 
-Optional support, hosting, and enterprise offerings are described in [COMMERCIAL.md](COMMERCIAL.md).
+Enterprise modules, FG2 licence keys, and optional support are described in [COMMERCIAL.md](COMMERCIAL.md).

@@ -14773,6 +14773,56 @@ body.nc-page-intranet .nc-modal-body > .nc-status:first-child {
   margin: 0.2rem 0;
 }
 
+.nc-sw-zip-drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  margin-top: 0.35rem;
+  padding: 1.35rem 1rem;
+  border: 2px dashed rgba(148, 163, 184, 0.55);
+  border-radius: 14px;
+  background: rgba(248, 250, 252, 0.9);
+  cursor: pointer;
+  text-align: center;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.nc-sw-zip-drop:hover {
+  border-color: rgba(59, 130, 246, 0.55);
+  background: rgba(59, 130, 246, 0.06);
+}
+
+.nc-sw-zip-drop.is-drag {
+  border-color: rgba(37, 99, 235, 0.75);
+  background: rgba(59, 130, 246, 0.1);
+}
+
+.nc-sw-zip-drop.is-disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.nc-sw-zip-drop-ic {
+  font-size: 1.5rem;
+  color: #2563eb;
+  font-weight: 900;
+}
+
+.nc-sw-zip-drop-label {
+  font-weight: 800;
+  color: #0f172a;
+  font-size: 0.95rem;
+}
+
+.nc-sw-zip-drop-hint {
+  font-size: 0.78rem;
+  color: rgba(15, 23, 42, 0.45);
+  font-weight: 650;
+}
+
 .nc-admin-subhead {
   margin: 0 0 0.35rem;
   font-size: 0.95rem;
