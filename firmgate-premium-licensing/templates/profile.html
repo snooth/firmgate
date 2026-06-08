@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}Profile — Firmgate{% endblock %}
+
+{% block body %}
+  <div class="fg-hero-banner fg-hero-banner--compact">
+    <div class="fg-hero-inner">
+      <div class="fg-hero-copy fg-profile-hero-copy">
+        <div class="fg-profile-avatar" aria-hidden="true">{{ profile.initials }}</div>
+        <div>
+          <p class="fg-kicker">Vendor</p>
+          <h1>{{ profile.display_name }}</h1>
+          <p class="fg-hero-muted">{{ profile.role_label }} · {{ profile.organization }}</p>
+        </div>
+      </div>
+      <div class="fg-hero-actions">
+        <a class="fg-btn fg-btn-ghost-light" href="{{ licensing_url_account }}">Account settings</a>
+        <a class="fg-btn fg-btn-ghost-light" href="{{ url_for('index') }}">All licenses</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="fg-page-stack fg-page-stack--2col">
+    <section class="fg-card">
+      <div class="fg-card-head">
+        <h2>Public profile</h2>
+        <p class="fg-muted">How you appear in this licensing console (not customer-facing).</p>
+      </div>
+      <form method="post" action="{{ licensing_url_profile }}">
+        <label for="display_name">Display name</label>
+        <input class="fg-input" id="display_name" name="display_name" value="{{ profile.display_name }}" autocomplete="name" />
+
+        <label for="email">Contact email</label>
+        <input class="fg-input" id="email" name="email" type="email" value="{{ profile.email }}" autocomplete="email" />
+
+        <label for="phone">Phone</label>
+        <input class="fg-input" id="phone" name="phone" type="tel" value="{{ profile.phone }}" autocomplete="tel" />
+
+        <label for="timezone">Timezone</label>
+        <input class="fg-input" id="timezone" name="timezone" value="{{ profile.timezone }}" placeholder="Australia/Melbourne" />
+
+        <label for="organization">Organization</label>
+        <input class="fg-input" id="organization" name="organization" value="{{ profile.organization }}" />
+
+        <div class="fg-actions-bar">
+          <button class="fg-btn fg-btn-primary" type="submit">Save profile</button>
+        </div>
+      </form>
+    </section>
+
+    <aside class="fg-card">
+      <div class="fg-card-head">
+        <h2>Summary</h2>
+      </div>
+      <ul class="fg-detail-list">
+        <li><strong>Sign-in username</strong> — <code>{{ profile.username }}</code></li>
+        <li><strong>Portal role</strong> — {{ profile.role_label }}</li>
+        <li><strong>Last updated</strong> — <code>{{ profile.updated_at or "—" }}</code></li>
+      </ul>
+      <p class="fg-muted fg-profile-hint">
+        To change your username or password, use
+        <a href="{{ licensing_url_account }}">Account settings</a>.
+      </p>
+    </aside>
+  </div>
+{% endblock %}

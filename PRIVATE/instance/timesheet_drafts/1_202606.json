@@ -1,0 +1,323 @@
+{
+  "month": "2026-06",
+  "saved_at": "2026-06-06T11:37:22.856446+00:00",
+  "payload": {
+    "month": "2026-06",
+    "state": "ACT",
+    "period_start": "2026-06-01",
+    "period_end": "2026-06-30",
+    "project_branch": "1DD",
+    "default_name": "John Smithsd",
+    "default_role": "Lead Architectsd",
+    "default_hours": "8",
+    "default_project": "JP2150ert  adsfaasdfasdf sdfs",
+    "consultant_name": "John Smithsd",
+    "declaration_text": "Declaration: I John Smithsd certify that the hours shown accurately represent my total hours worked for 1DD.",
+    "employee_signature": "John Smithsd",
+    "employee_signature_image": "data:image/png;base64,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",
+    "supervisor_signature": "",
+    "locked": true,
+    "rows": [
+      {
+        "date": "2026-06-01",
+        "consultant": "",
+        "role": "",
+        "hours": "",
+        "project": "Reconciliation Day",
+        "is_weekend": false,
+        "is_holiday": true,
+        "holiday_override": false
+      },
+      {
+        "date": "2026-06-02",
+        "consultant": "John Smithsd",
+        "role": "Lead Architectsd",
+        "hours": "8.25",
+        "project": "JP2150ert  adsfaasdfasdf sdfs",
+        "is_weekend": false,
+        "is_holiday": false,
+        "holiday_override": false
+      },
+      {
+        "date": "2026-06-03",
+        "consultant": "John Smithsd",
+        "role": "Lead Architectsd",
+        "hours": "8",
+        "project": "JP2150ert  adsfaasdfasdf sdfs",
+        "is_weekend": false,
+        "is_holiday": false,
+        "holiday_override": false
+      },
+      {
+        "date": "2026-06-04",
+        "consultant": "John Smithsd",
+        "role": "Lead Architectsd",
+        "hours": "8",
+        "project": "JP2150ert  adsfaasdfasdf sdfs",
+        "is_weekend": false,
+        "is_holiday": false,
+        "holiday_override": false
+      },
+      {
+        "date": "2026-06-05",
+        "consultant": "John Smithsd",
+        "role": "Lead Architectsd",
+        "hours": "8",
+        "project": "JP2150ert  adsfaasdfasdf sdfs",
+        "is_weekend": false,
+        "is_holiday": false,
+        "holiday_override": false
+      },
+      {
+        "date": "2026-06-06",
+        "consultant": "",
+        "role": "",
+        "hours": "",
+        "project": "",
+        "is_weekend": true,
+        "is_holiday": false,
+        "holiday_override": false
+      },
+      {
+        "date": "2026-06-07",
+        "consultant": "",
+        "role": "",
+        "hours": "",
+        "project": "",
+        "is_weekend": true,
+        "is_holiday": false,
+        "holiday_override": false
+      },
+      {
+        "date": "2026-06-08",
+        "consultant": "",
+        "role": "",
+        "hours": "",
+        "project": "King's Birthday",
+        "is_weekend": false,
+        "is_holiday": true,
+        "holiday_override": true
+      },
+      {
+        "date": "2026-06-09",
+        "consultant": "John Smithsd",
+        "role": "Lead Architectsd",
+        "hours": "8",
+        "project": "JP2150ert  adsfaasdfasdf sdfs",
+        "is_weekend": false,
+        "is_holiday": false,
+        "holiday_override": false
+      },
+      {
+        "date": "2026-06-10",
+        "consultant": "John Smithsd",
+        "role": "Lead Architectsd",
+        "hours": "8",
+        "project": "JP2150ert  adsfaasdfasdf sdfs",
+        "is_weekend": false,
+        "is_holiday": false,
+        "holiday_override": false
+      },
+      {
+        "date": "2026-06-11",
+        "consultant": "John Smithsd",
+        "role": "Lead Architectsd",
+        "hours": "8",
+        "project": "JP2150ert  adsfaasdfasdf sdfs",
+        "is_weekend": false,
+        "is_holiday": false,
+        "holiday_override": false
+      },
+      {
+        "date": "2026-06-12",
+        "consultant": "John Smithsd",
+        "role": "Lead Architectsd",
+        "hours": "8",
+        "project": "JP2150ert  adsfaasdfasdf sdfs",
+        "is_weekend": false,
+        "is_holiday": false,
+        "holiday_override": false
+      },
+      {
+        "date": "2026-06-13",
+        "consultant": "",
+        "role": "",
+        "hours": "",
+        "project": "",
+        "is_weekend": true,
+        "is_holiday": false,
+        "holiday_override": false
+      },
+      {
+        "date": "2026-06-14",
+        "consultant": "",
+        "role": "",
+        "hours": "",
+        "project": "",
+        "is_weekend": true,
+        "is_holiday": false,
+        "holiday_override": false
+      },
+      {
+        "date": "2026-06-15",
+        "consultant": "John Smithsd",
+        "role": "Lead Architectsd",
+        "hours": "8",
+        "project": "JP2150ert  adsfaasdfasdf sdfs",
+        "is_weekend": false,
+        "is_holiday": false,
+        "holiday_override": false
+      },
+      {
+        "date": "2026-06-16",
+        "consultant": "John Smithsd",
+        "role": "Lead Architectsd",
+        "hours": "8",
+        "project": "JP2150ert  adsfaasdfasdf sdfs",
+        "is_weekend": false,
+        "is_holiday": false,
+        "holiday_override": false
+      },
+      {
+        "date": "2026-06-17",
+        "consultant": "John Smithsd",
+        "role": "Lead Architectsd",
+        "hours": "8",
+        "project": "JP2150ert  adsfaasdfasdf sdfs",
+        "is_weekend": false,
+        "is_holiday": false,
+        "holiday_override": false
+      },
+      {
+        "date": "2026-06-18",
+        "consultant": "John Smithsd",
+        "role": "Lead Architectsd",
+        "hours": "8",
+        "project": "JP2150ert  adsfaasdfasdf sdfs",
+        "is_weekend": false,
+        "is_holiday": false,
+        "holiday_override": false
+      },
+      {
+        "date": "2026-06-19",
+        "consultant": "John Smithsd",
+        "role": "Lead Architectsd",
+        "hours": "8",
+        "project": "JP2150ert  adsfaasdfasdf sdfs",
+        "is_weekend": false,
+        "is_holiday": false,
+        "holiday_override": false
+      },
+      {
+        "date": "2026-06-20",
+        "consultant": "",
+        "role": "",
+        "hours": "",
+        "project": "",
+        "is_weekend": true,
+        "is_holiday": false,
+        "holiday_override": false
+      },
+      {
+        "date": "2026-06-21",
+        "consultant": "",
+        "role": "",
+        "hours": "",
+        "project": "",
+        "is_weekend": true,
+        "is_holiday": false,
+        "holiday_override": false
+      },
+      {
+        "date": "2026-06-22",
+        "consultant": "John Smithsd",
+        "role": "Lead Architectsd",
+        "hours": "8",
+        "project": "JP2150ert  adsfaasdfasdf sdfs",
+        "is_weekend": false,
+        "is_holiday": false,
+        "holiday_override": false
+      },
+      {
+        "date": "2026-06-23",
+        "consultant": "John Smithsd",
+        "role": "Lead Architectsd",
+        "hours": "8",
+        "project": "JP2150ert  adsfaasdfasdf sdfs",
+        "is_weekend": false,
+        "is_holiday": false,
+        "holiday_override": false
+      },
+      {
+        "date": "2026-06-24",
+        "consultant": "John Smithsd",
+        "role": "Lead Architectsd",
+        "hours": "8",
+        "project": "JP2150ert  adsfaasdfasdf sdfs",
+        "is_weekend": false,
+        "is_holiday": false,
+        "holiday_override": false
+      },
+      {
+        "date": "2026-06-25",
+        "consultant": "John Smithsd",
+        "role": "Lead Architectsd",
+        "hours": "8",
+        "project": "JP2150ert  adsfaasdfasdf sdfs",
+        "is_weekend": false,
+        "is_holiday": false,
+        "holiday_override": false
+      },
+      {
+        "date": "2026-06-26",
+        "consultant": "John Smithsd",
+        "role": "Lead Architectsd",
+        "hours": "8",
+        "project": "JP2150ert  adsfaasdfasdf sdfs",
+        "is_weekend": false,
+        "is_holiday": false,
+        "holiday_override": false
+      },
+      {
+        "date": "2026-06-27",
+        "consultant": "",
+        "role": "",
+        "hours": "",
+        "project": "",
+        "is_weekend": true,
+        "is_holiday": false,
+        "holiday_override": false
+      },
+      {
+        "date": "2026-06-28",
+        "consultant": "",
+        "role": "",
+        "hours": "",
+        "project": "",
+        "is_weekend": true,
+        "is_holiday": false,
+        "holiday_override": false
+      },
+      {
+        "date": "2026-06-29",
+        "consultant": "John Smithsd",
+        "role": "Lead Architectsd",
+        "hours": "8",
+        "project": "JP2150ert  adsfaasdfasdf sdfs",
+        "is_weekend": false,
+        "is_holiday": false,
+        "holiday_override": false
+      },
+      {
+        "date": "2026-06-30",
+        "consultant": "John Smithsd",
+        "role": "Lead Architectsd",
+        "hours": "8",
+        "project": "JP2150ert  adsfaasdfasdf sdfs",
+        "is_weekend": false,
+        "is_holiday": false,
+        "holiday_override": false
+      }
+    ]
+  }
+}

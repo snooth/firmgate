@@ -1,0 +1,11 @@
+{# Same shell as New lead drawer — full main panel iframe. Include only where lead rows open quick view (e.g. Leads page). #}
+<div id="crm-lead-detail-drawer" class="nc-crm-new-lead-drawer" hidden>
+  <div id="crm-lead-detail-backdrop" class="nc-crm-new-lead-backdrop" aria-hidden="true"></div>
+  <div class="nc-crm-new-lead-sheet" role="dialog" aria-modal="true" aria-labelledby="crm-lead-detail-sheet-title">
+    <div class="nc-crm-new-lead-top">
+      <div id="crm-lead-detail-sheet-title" class="nc-crm-new-lead-title">Lead</div>
+      <button type="button" class="nc-viewer-close" id="crm-lead-detail-close" aria-label="Close">×</button>
+    </div>
+    <iframe id="crm-lead-detail-frame" class="nc-crm-new-lead-frame" title="Lead details"></iframe>
+  </div>
+</div>

@@ -1,0 +1,20 @@
+{
+  "tag": "firmgate-release-package",
+  "edition": "enterprise",
+  "version": "v2.44-26-g92dabc8",
+  "build_date": "2026-06-08",
+  "created_at": "2026-06-08T01:38:16Z",
+  "includes": [
+    "application source",
+    "requirements.txt",
+    "static assets",
+    "templates",
+    "Dockerfile",
+    "docker-compose.yml"
+  ],
+  "preserved_on_server": [
+    "instance/",
+    ".env",
+    ".venv/"
+  ]
+}

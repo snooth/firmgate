@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Shared: {{ root.name }}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='file_browser.css') }}">
+</head>
+<body class="plain">
+  <div class="panel wide">
+    <h1>Shared: {{ root.name }}{% if root.is_folder and parent.id != root.id %} / {{ parent.name }}{% endif %}</h1>
+    <p class="hint">Permission: {{ permission }}. Downloads are audited.</p>
+    {% if root.is_folder and parent.id != root.id %}
+    <p>
+      {% if parent.parent_id is not none %}
+      <a href="{{ url_for('shares.public_share', token=token, parent_id=parent.parent_id) }}">Up</a>
+      {% else %}
+      <a href="{{ url_for('shares.public_share', token=token) }}">Up</a>
+      {% endif %}
+    </p>
+    {% endif %}
+    <ul class="share-list">
+      {% for it in items %}
+      <li>
+        {% if it.is_folder %}
+          <a href="{{ url_for('shares.public_share', token=token, parent_id=it.id) }}">{{ it.name }}/</a>
+        {% else %}
+          <a href="{{ url_for('shares.public_download', token=token, node_id=it.id) }}">{{ it.name }}</a>
+        {% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+</body>
+</html>

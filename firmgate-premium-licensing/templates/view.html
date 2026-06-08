@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+{% block title %}{{ row.fingerprint }} — Firmgate{% endblock %}
+
+{% block body %}
+  <div class="fg-hero-banner fg-hero-banner--compact">
+    <div class="fg-hero-inner">
+      <div class="fg-hero-copy">
+        <p class="fg-kicker">License</p>
+        <h1>License code</h1>
+        <p class="fg-hero-muted">
+          <span class="fg-hero-fp">{{ row.subject or "No label" }}</span>
+          <span class="fg-hero-fp-sep">·</span>
+          <code class="fg-hero-fp-code">{{ row.fingerprint }}</code>
+          {% if row.status == "revoked" %}
+            <span class="fg-pill revoked">revoked</span>
+          {% else %}
+            <span class="fg-pill active">active</span>
+          {% endif %}
+        </p>
+      </div>
+      <div class="fg-hero-actions">
+        <a class="fg-btn fg-btn-ghost-light" href="{{ url_for('index') }}">Back to list</a>
+        {% if row.license_key %}
+          <button class="fg-btn fg-btn-ghost-light" type="button" data-copy-license onclick="copyLicenseCode(this)">Copy license code</button>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="fg-page-stack">
+    <section class="fg-card fg-card--focus" id="license-key">
+      <div class="fg-card-head fg-card-head--row">
+        <div>
+          <h2>License code</h2>
+          {% if key_source == "recovered" %}
+            <span class="fg-pill active">recovered</span>
+          {% elif key_source == "stored" %}
+            <span class="fg-pill active">saved</span>
+          {% endif %}
+        </div>
+        {% if row.license_key %}
+          <button class="fg-btn fg-btn-primary" type="button" data-copy-license onclick="copyLicenseCode(this)">Copy license code</button>
+        {% endif %}
+      </div>
+      {% if row.license_key %}
+        <pre id="keybox" class="fg-keybox">{{ row.license_key }}</pre>
+        <p class="fg-muted fg-key-hint">
+          Paste this <code>FG2…</code> string under <strong>Administration → Enterprise Features</strong> on the customer server.
+        </p>
+      {% else %}
+        <p class="fg-muted">
+          No license code available. If this license was issued before key storage was enabled, recovery needs matching
+          features, expiry, and label in the vendor ledger.
+        </p>
+      {% endif %}
+    </section>
+
+    <section class="fg-card">
+      <div class="fg-card-head">
+        <h2>Details</h2>
+      </div>
+      <ul class="fg-detail-list">
+        <li><strong>Label</strong> — {{ row.subject or "—" }}</li>
+        <li><strong>Fingerprint</strong> — <code>{{ row.fingerprint }}</code></li>
+        <li><strong>Expires</strong> — <code>{{ row.expires_at or "—" }}</code></li>
+        <li><strong>Issued</strong> — <code>{{ row.issued_at or "—" }}</code></li>
+        {% if row.revoked_at %}
+          <li><strong>Revoked</strong> — <code>{{ row.revoked_at }}</code></li>
+        {% endif %}
+        {% if row.revoke_reason %}
+          <li><strong>Revoke reason</strong> — {{ row.revoke_reason }}</li>
+        {% endif %}
+      </ul>
+
+      <div class="fg-card-head" style="margin-top:1rem;">
+        <h2>Features</h2>
+      </div>
+      {% if row.features %}
+        <div class="fg-chips">
+          {% for f in row.features %}
+            <span class="fg-chip" title="{{ feature_labels.get(f, f) }}">{{ feature_labels.get(f, f) }}</span>
+          {% endfor %}
+        </div>
+      {% else %}
+        <p class="fg-muted">—</p>
+      {% endif %}
+
+      <div class="fg-actions-bar">
+        {% if row.status != "revoked" %}
+          <form method="post" action="{{ url_for('revoke_license') }}" class="fg-inline-form">
+            <input type="hidden" name="fingerprint" value="{{ row.fingerprint }}" />
+            <input class="fg-input" name="reason" placeholder="Reason (optional)" />
+            <button class="fg-btn fg-btn-danger" type="submit">Revoke</button>
+          </form>
+        {% else %}
+          <form method="post" action="{{ url_for('unrevoke_license') }}">
+            <input type="hidden" name="fingerprint" value="{{ row.fingerprint }}" />
+            <button class="fg-btn fg-btn-primary" type="submit">Unrevoke</button>
+          </form>
+        {% endif %}
+      </div>
+      <div class="fg-actions-bar">
+        <form method="post" action="{{ url_for('delete_license') }}" onsubmit="return confirm('Delete issued entry for {{ row.fingerprint }}? This cannot be undone.');">
+          <input type="hidden" name="fingerprint" value="{{ row.fingerprint }}" />
+          <input type="hidden" name="which" value="issued" />
+          <button class="fg-btn fg-btn-danger" type="submit">Delete issued entry</button>
+        </form>
+        <form method="post" action="{{ url_for('delete_license') }}" onsubmit="return confirm('Delete revoked entry for {{ row.fingerprint }}? This cannot be undone.');">
+          <input type="hidden" name="fingerprint" value="{{ row.fingerprint }}" />
+          <input type="hidden" name="which" value="revoked" />
+          <button class="fg-btn fg-btn-danger" type="submit">Delete revoked entry</button>
+        </form>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    async function copyLicenseCode(btn) {
+      const el = document.getElementById("keybox");
+      const text = (el?.textContent || "").trim();
+      if (!text) return;
+      const setStatus = (label) => {
+        if (!btn) return;
+        const old = btn.dataset.oldLabel || btn.textContent;
+        btn.dataset.oldLabel = old;
+        btn.textContent = label;
+      };
+      try {
+        if (navigator.clipboard?.writeText) {
+          await navigator.clipboard.writeText(text);
+        } else {
+          const ta = document.createElement("textarea");
+          ta.value = text;
+          ta.setAttribute("readonly", "");
+          ta.style.position = "fixed";
+          ta.style.left = "-9999px";
+          document.body.appendChild(ta);
+          ta.select();
+          document.execCommand("copy");
+          document.body.removeChild(ta);
+        }
+        setStatus("Copied");
+        setTimeout(() => setStatus(btn.dataset.oldLabel || "Copy license code"), 1200);
+      } catch (e) {
+        setStatus("Copy failed");
+        setTimeout(() => setStatus(btn.dataset.oldLabel || "Copy license code"), 1500);
+      }
+    }
+    (function () {
+      if (location.hash === "#license-key") {
+        const el = document.getElementById("license-key");
+        if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    })();
+  </script>
+{% endblock %}

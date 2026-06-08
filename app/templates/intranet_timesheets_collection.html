@@ -1,0 +1,106 @@
+{% extends "intranet_base.html" %}
+{% block title %}{{ portal_tab_title }} — Timesheet Collection{% endblock %}
+
+{% block intranet_body %}
+<div class="nc-intranet-hero-banner nc-intranet-hero-banner--compact">
+  <div class="nc-intranet-hero-banner-inner">
+    <div>
+      <h1>Timesheet Collection</h1>
+      <div class="nc-intranet-muted">Signed monthly timesheets from all employees.</div>
+    </div>
+    <div class="nc-ts-hero-nav" aria-label="Timesheet collection month">
+      <button type="button" class="nc-btn nc-btn-secondary nc-intranet-hero-edit nc-ts-col-bulk-btn" id="nc-ts-col-download-all">Download All</button>
+      <button type="button" class="nc-btn nc-btn-secondary nc-intranet-hero-edit nc-ts-col-bulk-btn" id="nc-ts-col-export-pdf">Export all to PDF</button>
+      <button type="button" class="nc-btn nc-btn-secondary nc-intranet-hero-edit nc-ts-col-bulk-btn" id="nc-ts-col-export-docx">Export all to DOCX</button>
+      <button type="button" class="nc-btn nc-btn-secondary nc-intranet-hero-edit" id="nc-ts-col-month-prev">Previous</button>
+      <div class="nc-ts-hero-month" id="nc-ts-col-hero-month" aria-live="polite">{{ ts_collection_month_label }}</div>
+      <button type="button" class="nc-btn nc-btn-secondary nc-intranet-hero-edit" id="nc-ts-col-month-next">Next</button>
+    </div>
+  </div>
+</div>
+
+{% set ns = namespace(has_rows=false) %}
+{% for section in collection_sections %}
+  {% if section.rows %}{% set ns.has_rows = true %}{% endif %}
+{% endfor %}
+
+<div
+  class="nc-intranet-card nc-ts-page-card"
+  id="nc-ts-collection"
+  data-api-url="{{ url_for('intranet.api_timesheets_collection') }}"
+  data-upload-url="{{ url_for('intranet.api_timesheets_collection_upload') }}"
+  data-remove-url="{{ url_for('intranet.api_timesheets_collection_remove') }}"
+  data-download-all-url="{{ url_for('intranet.api_timesheets_collection_download_all') }}"
+  data-export-pdf-url="{{ url_for('intranet.api_timesheets_collection_export_pdf') }}"
+  data-export-docx-url="{{ url_for('intranet.api_timesheets_collection_export_docx') }}"
+  data-can-upload="{{ '1' if ts_collection_can_upload else '0' }}"
+  data-month="{{ ts_collection_month }}"
+>
+  <div class="nc-ts-collection-wrap" id="nc-ts-collection-table-wrap"{% if not ns.has_rows %} hidden{% endif %}>
+    <table class="nc-ts-collection-grid" aria-label="Signed timesheet collection">
+      <thead>
+        <tr>
+          <th scope="col" class="nc-ts-collection-select-col">
+            <input type="checkbox" id="nc-ts-col-select-all" aria-label="Select all employees" checked>
+          </th>
+          <th scope="col">Employee</th>
+          <th scope="col">File</th>
+          <th scope="col">Uploaded</th>
+          <th scope="col">View</th>
+        </tr>
+      </thead>
+      <tbody id="nc-ts-collection-tbody">
+        {% for section in collection_sections %}
+          {% if section.show_header and section.name %}
+          <tr class="nc-ts-collection-group-row">
+            <td colspan="5">{{ section.name }}</td>
+          </tr>
+          {% endif %}
+          {% for row in section.rows %}
+          <tr data-user-id="{{ row.user_id }}">
+            <td class="nc-ts-collection-select">
+              <input type="checkbox" class="nc-ts-collection-select-user" data-user-id="{{ row.user_id }}" checked aria-label="Select {{ row.employee_name }}">
+            </td>
+            <td class="nc-ts-collection-name">{{ row.employee_name }}</td>
+            <td class="nc-ts-collection-file">
+              <div class="nc-ts-collection-file-inner">
+                {% if row.uploaded %}
+                <span class="nc-ts-collection-fname">{{ row.original_name }}</span>
+                {% endif %}
+                {% if ts_collection_can_upload %}
+                <button type="button" class="nc-btn nc-btn-secondary nc-ts-collection-upload" data-user-id="{{ row.user_id }}">{{ 'Replace' if row.uploaded else 'Upload' }}</button>
+                {% if row.uploaded %}
+                <button type="button" class="nc-btn nc-btn-secondary nc-ts-collection-upload nc-ts-collection-remove" data-user-id="{{ row.user_id }}">Remove</button>
+                {% endif %}
+                {% elif not row.uploaded %}
+                <span class="nc-intranet-muted">—</span>
+                {% endif %}
+              </div>
+            </td>
+            <td class="nc-ts-collection-uploaded">{% if row.uploaded %}{{ row.uploaded_label }}{% else %}<span class="nc-intranet-muted">—</span>{% endif %}</td>
+            <td class="nc-ts-collection-action">
+              {% if row.uploaded %}
+              <a class="nc-ts-collection-view" href="{{ row.download_url }}" target="_blank" rel="noopener">View</a>
+              {% else %}
+              <span class="nc-intranet-muted">—</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="nc-intranet-muted nc-ts-collection-empty" id="nc-ts-collection-empty"{% if ns.has_rows %} hidden{% endif %}>
+    No users found.
+  </p>
+  {% if ts_collection_can_upload %}
+  <input type="file" id="nc-ts-collection-file-input" accept="application/pdf,.pdf" hidden>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script src="{{ url_for('static', filename='timesheet_collection.js') }}?v=9" defer></script>
+{% endblock %}

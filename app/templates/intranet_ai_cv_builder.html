@@ -1,0 +1,75 @@
+{% extends "intranet_base.html" %}
+{% block title %}{{ portal_tab_title }} — AI CV Builder{% endblock %}
+
+{% block intranet_body %}
+<div class="nc-intranet-hero">
+  <div>
+    <h1>AI CV Builder</h1>
+    <p class="nc-intranet-muted">Upload your company CV template, add a candidate CV (PDF or Word), and let AI transfer their details into your template.</p>
+  </div>
+</div>
+
+{% if not ai_licensed %}
+<div class="nc-intranet-card" style="margin-bottom:1rem;">
+  <p class="nc-detail-muted" style="margin:0;">
+    <strong>Enterprise feature.</strong> AI CV Builder requires a license with <code>ai_cv_builder</code> (or <code>--ai</code> / <code>ai_document_search</code>).
+    Configure the LLM under <strong>Administration → AI Settings → Document Search</strong>.
+  </p>
+</div>
+{% else %}
+
+<div class="nc-acvb" id="nc-acvb-root">
+  <div class="nc-acvb-grid">
+    <section class="nc-intranet-card nc-acvb-panel nc-acvb-dropzone" id="nc-acvb-template-drop" data-acvb-kind="template">
+      <h2 class="nc-acvb-panel-title">1. Your CV template</h2>
+      <p class="nc-detail-muted">Word (.docx) with your branding, section headings, and layout.</p>
+      <div class="nc-acvb-drop-target">
+        <label class="nc-btn nc-btn-secondary nc-acvb-upload-btn">
+          Upload template
+          <input type="file" id="nc-acvb-template-input" class="nc-acvb-file-input" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" />
+        </label>
+        <p class="nc-acvb-drop-hint nc-detail-muted">or drag and drop your .docx template here</p>
+      </div>
+      <p class="nc-acvb-file-status" id="nc-acvb-template-status" role="status">No template uploaded</p>
+    </section>
+
+    <section class="nc-intranet-card nc-acvb-panel nc-acvb-dropzone" id="nc-acvb-source-drop" data-acvb-kind="source">
+      <h2 class="nc-acvb-panel-title">2. Source CV</h2>
+      <p class="nc-detail-muted">Candidate CV as PDF or Word (.docx).</p>
+      <div class="nc-acvb-drop-target">
+        <label class="nc-btn nc-btn-secondary nc-acvb-upload-btn">
+          Upload source CV
+          <input type="file" id="nc-acvb-source-input" class="nc-acvb-file-input" accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" />
+        </label>
+        <p class="nc-acvb-drop-hint nc-detail-muted">or drag and drop a PDF or Word CV here</p>
+      </div>
+      <p class="nc-acvb-file-status" id="nc-acvb-source-status" role="status">No source CV uploaded</p>
+    </section>
+  </div>
+
+  <section class="nc-intranet-card nc-acvb-build-panel">
+    <h2 class="nc-acvb-panel-title">3. Build CV</h2>
+    <label class="nc-acvb-label" for="nc-acvb-instructions">Optional instructions</label>
+    <textarea id="nc-acvb-instructions" class="nc-acvb-instructions" rows="2" placeholder="e.g. Emphasise cloud and security clearance; keep to two pages…"></textarea>
+    <div class="nc-acvb-build-actions">
+      <button type="button" class="nc-btn nc-btn-primary" id="nc-acvb-build-btn">Build CV with AI</button>
+      <a class="nc-btn nc-btn-secondary" id="nc-acvb-download-btn" href="/intranet/api/ai-cv-builder/download" hidden download>Download .docx</a>
+    </div>
+    <p class="nc-acvb-build-status nc-detail-muted" id="nc-acvb-build-status" role="status"></p>
+  </section>
+
+  <section class="nc-intranet-card nc-acvb-preview-panel" id="nc-acvb-preview-panel" hidden>
+    <h2 class="nc-acvb-panel-title">Preview</h2>
+    <div class="nc-acvb-preview nc-ads-prose" id="nc-acvb-preview"></div>
+  </section>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+{% if ai_licensed %}
+<script src="{{ url_for('static', filename='ai_chat_format.js') }}?v=4"></script>
+<script src="{{ url_for('static', filename='ai_cv_builder.js') }}?v=3" data-turbo-eval="always"></script>
+{% endif %}
+{% endblock %}

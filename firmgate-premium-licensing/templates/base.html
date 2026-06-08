@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{% block title %}Firmgate — Licensing{% endblock %}</title>
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='branding/firmgate-logo.svg') }}">
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="{{ url_for('static', filename='licensing.css') }}" />
+  </head>
+  <body>
+    <div class="fg-shell">
+      <header class="fg-topbar">
+        <a class="fg-brand" href="{{ url_for('index') if licensing_authed else url_for('login') }}" aria-label="Firmgate">
+          <img
+            class="fg-brand-logo"
+            src="{{ url_for('static', filename='branding/firmgate-logo.svg') }}"
+            alt=""
+            width="40"
+            height="40"
+          />
+          <span>
+            <div class="fg-brand-name">Firmgate</div>
+            <div class="fg-brand-sub">Premium licensing · FG2 Ed25519</div>
+          </span>
+        </a>
+        {% if licensing_authed %}
+          <nav class="fg-topnav" aria-label="Licensing navigation">
+            <a class="fg-btn{% if request.endpoint == 'index' %} is-active{% endif %}" href="{{ url_for('index') }}">All licenses</a>
+            <a class="fg-btn fg-btn-primary{% if request.endpoint in ('new_license_form', 'new_license_submit') %} is-active{% endif %}" href="{{ url_for('new_license_form') }}">Generate new</a>
+            {% if licensing_is_admin %}
+            <a class="fg-btn{% if request.endpoint in ('users_page', 'users_delete') %} is-active{% endif %}" href="{{ licensing_url_users }}">Portal users</a>
+            {% endif %}
+            <div class="fg-user-menu">
+              <button type="button" class="fg-user-btn" id="fg-user-btn" aria-haspopup="menu" aria-expanded="false">
+                <span class="fg-user-avatar" aria-hidden="true">{{ licensing_profile.initials if licensing_profile else '?' }}</span>
+                <span class="fg-user-meta">
+                  <span class="fg-user-name">{{ licensing_profile.display_name if licensing_profile else 'Account' }}</span>
+                </span>
+              </button>
+              <div class="fg-user-dropdown" id="fg-user-menu" role="menu" hidden>
+                <div class="fg-user-dropdown-head">
+                  <div class="fg-user-dropdown-title">{{ licensing_profile.display_name if licensing_profile else 'Vendor' }}</div>
+                  <div class="fg-user-dropdown-sub">{{ licensing_profile.username if licensing_profile else '' }}</div>
+                </div>
+                <a class="fg-user-dropdown-item{% if request.endpoint == 'profile_page' %} is-active{% endif %}" role="menuitem" href="{{ licensing_url_profile }}">My profile</a>
+                <a class="fg-user-dropdown-item{% if request.endpoint == 'account_page' %} is-active{% endif %}" role="menuitem" href="{{ licensing_url_account }}">Account settings</a>
+                {% if licensing_is_admin %}
+                <a class="fg-user-dropdown-item{% if request.endpoint in ('users_page', 'users_delete') %} is-active{% endif %}" role="menuitem" href="{{ licensing_url_users }}">Portal users</a>
+                {% endif %}
+                <form method="post" action="{{ url_for('logout') }}" class="fg-user-dropdown-foot">
+                  <button class="fg-btn fg-btn-primary fg-user-logout" type="submit">Log out</button>
+                </form>
+              </div>
+            </div>
+          </nav>
+        {% endif %}
+      </header>
+
+      <main class="fg-main">
+        {% for cat, msg in get_flashed_messages(with_categories=true) %}
+          <div class="fg-flash {{ cat }}">{{ msg }}</div>
+        {% endfor %}
+        {% block body %}{% endblock %}
+      </main>
+    </div>
+    {% if licensing_authed %}
+    <script>
+      (function () {
+        const btn = document.getElementById("fg-user-btn");
+        const menu = document.getElementById("fg-user-menu");
+        if (!btn || !menu) return;
+        function close() {
+          menu.hidden = true;
+          btn.setAttribute("aria-expanded", "false");
+        }
+        function open() {
+          menu.hidden = false;
+          btn.setAttribute("aria-expanded", "true");
+        }
+        btn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          menu.hidden ? open() : close();
+        });
+        document.addEventListener("click", (e) => {
+          if (menu.hidden) return;
+          if (menu.contains(e.target) || btn.contains(e.target)) return;
+          close();
+        });
+        window.addEventListener("keydown", (e) => {
+          if (e.key === "Escape") close();
+        });
+      })();
+    </script>
+    {% endif %}
+  </body>
+</html>

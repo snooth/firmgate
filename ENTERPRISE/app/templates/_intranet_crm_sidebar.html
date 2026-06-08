@@ -1,0 +1,40 @@
+{# Requires: crm_emb, crm_nav_active one of: dashboard | pipeline | leads #}
+<aside class="nc-crm2-side" aria-label="CRM navigation">
+  <div class="nc-crm2-brand">
+    <div class="nc-crm2-brand-ic" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M21 15a4 4 0 0 1-4 4H7l-4 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"/>
+      </svg>
+    </div>
+    <div class="nc-crm2-brand-txt">
+      <div class="nc-crm2-brand-title">CRM</div>
+    </div>
+  </div>
+
+  <nav class="nc-crm2-nav" aria-label="CRM sections">
+    <a class="nc-crm2-navitem {% if crm_nav_active == 'dashboard' %}is-active{% endif %}"
+       href="{{ url_for('intranet.crm_dashboard_page') }}{{ crm_emb }}"
+       {% if crm_nav_active == 'dashboard' %}aria-current="page"{% endif %}>
+      <span class="nc-crm2-navic" aria-hidden="true">▤</span><span>Dashboard</span>
+    </a>
+    <a class="nc-crm2-navitem {% if crm_nav_active == 'pipeline' %}is-active{% endif %}"
+       href="{{ url_for('intranet.crm_page') }}{{ crm_emb }}"
+       {% if crm_nav_active == 'pipeline' %}aria-current="page"{% endif %}>
+      <span class="nc-crm2-navic" aria-hidden="true">▣</span><span>Pipeline</span>
+    </a>
+    <a class="nc-crm2-navitem {% if crm_nav_active == 'leads' %}is-active{% endif %}"
+       href="{{ url_for('intranet.crm_leads_page') }}{{ crm_emb }}"
+       {% if crm_nav_active == 'leads' %}aria-current="page"{% endif %}>
+      <span class="nc-crm2-navic" aria-hidden="true">◎</span><span>Leads</span>
+    </a>
+    <a class="nc-crm2-navitem" href="#" data-crm-coming-soon><span class="nc-crm2-navic" aria-hidden="true">▦</span><span>Companies</span></a>
+    <a class="nc-crm2-navitem" href="#" data-crm-coming-soon><span class="nc-crm2-navic" aria-hidden="true">👤</span><span>Contacts</span></a>
+    <a class="nc-crm2-navitem" href="#" data-crm-coming-soon><span class="nc-crm2-navic" aria-hidden="true">☰</span><span>Activities</span></a>
+    <a class="nc-crm2-navitem" href="#" data-crm-coming-soon><span class="nc-crm2-navic" aria-hidden="true">◇</span><span>Deals</span></a>
+    <a class="nc-crm2-navitem" href="#" data-crm-coming-soon><span class="nc-crm2-navic" aria-hidden="true">▥</span><span>Reports</span></a>
+  </nav>
+
+  <div class="nc-crm2-side-foot">
+    <a class="nc-crm2-navitem" href="#" data-crm-coming-soon><span class="nc-crm2-navic" aria-hidden="true">⚙</span><span>Settings</span></a>
+  </div>
+</aside>

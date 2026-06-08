@@ -1,0 +1,24 @@
+<section class="nc-crm2-pipe" aria-label="Pipeline board">
+  {% set cols = [
+    ("New", "is-blue"),
+    ("Qualified", "is-indigo"),
+    ("Proposal", "is-amber"),
+    ("Negotiation", "is-orange"),
+    ("Won", "is-green"),
+  ] %}
+  {% for name, dot in cols %}
+  <div class="nc-crm2-col">
+    <div class="nc-crm2-col-head">
+      <div class="nc-crm2-col-title">
+        <span class="nc-crm2-dot {{ dot }}" aria-hidden="true"></span>
+        <span>{{ name }}</span>
+      </div>
+      <div class="nc-crm2-col-meta">0 deals</div>
+      <div class="nc-crm2-col-val">$0</div>
+    </div>
+    <div class="nc-crm2-col-body">
+      <p class="nc-crm2-empty">No deals in this stage.</p>
+    </div>
+  </div>
+  {% endfor %}
+</section>

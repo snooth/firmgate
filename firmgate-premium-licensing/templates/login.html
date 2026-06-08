@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Login — Firmgate{% endblock %}
+
+{% block body %}
+  <div class="fg-hero-banner">
+    <div class="fg-hero-inner">
+      <div>
+        <p class="fg-kicker">Vendor</p>
+        <h1>Premium licensing</h1>
+        <p class="fg-hero-muted">Sign in to issue and manage FG2 license keys.</p>
+      </div>
+    </div>
+  </div>
+
+  <section class="fg-card fg-login-wrap">
+    <div class="fg-card-head">
+      <h2>Login</h2>
+      <p class="fg-muted">
+        Default is <code>admin@example.com</code> / <code>admin</code>. Override via
+        <code>LICENSING_WEB_USERNAME</code> and <code>LICENSING_WEB_PASSWORD</code>.
+      </p>
+    </div>
+
+    <form method="post" action="{{ url_for('login_post') }}">
+      <input type="hidden" name="next" value="{{ next or '' }}" />
+      <label for="username">Username</label>
+      <input id="username" class="fg-input" name="username" autocomplete="username" value="{{ default_user or '' }}" />
+      <label for="password">Password</label>
+      <input id="password" class="fg-input" name="password" type="password" autocomplete="current-password" />
+      <div class="fg-actions-bar">
+        <button class="fg-btn fg-btn-primary" type="submit">Sign in</button>
+      </div>
+    </form>
+  </section>
+{% endblock %}

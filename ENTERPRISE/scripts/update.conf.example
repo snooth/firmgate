@@ -1,0 +1,16 @@
+# Copy to /etc/intranet-update.conf on the server (optional).
+# Production pull redeployments always use /root/intranet — see scripts/update.sh.
+
+APP_DIR="/root/intranet"
+INSTANCE_DATA_DIR="/root/intranet_instance"
+INSTANCE_LINK_MODE="symlink"
+BACKUP_ROOT="/root/intranet-backups"
+REPO_URL="https://github.com/your-org/intranet.git"
+GIT_REMOTE="origin"
+GIT_BRANCH="main"
+SERVICE_NAME="intranet"
+VENV_DIR=".venv"
+PYTHON="python3"
+
+# Do not set BACKUP_FULL in config unless you want every update to rsync all uploads.
+# Prefer: sudo /root/update.sh --backup-full   (one-off)

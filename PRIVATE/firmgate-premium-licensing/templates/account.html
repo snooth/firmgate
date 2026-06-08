@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Account — Firmgate{% endblock %}
+
+{% block body %}
+  <div class="fg-hero-banner fg-hero-banner--compact">
+    <div class="fg-hero-inner">
+      <div class="fg-hero-copy">
+        <p class="fg-kicker">Vendor</p>
+        <h1>Account settings</h1>
+        <p class="fg-hero-muted">Sign-in username and password for this licensing console.</p>
+      </div>
+      <div class="fg-hero-actions">
+        <a class="fg-btn fg-btn-ghost-light" href="{{ licensing_url_profile }}">My profile</a>
+        <a class="fg-btn fg-btn-ghost-light" href="{{ url_for('index') }}">All licenses</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="fg-page-stack">
+    <section class="fg-card">
+      <div class="fg-card-head">
+        <h2>Sign-in credentials</h2>
+        <p class="fg-muted">
+          Credentials are stored in <code>vendor_users.json</code> for this portal only.
+          {% if profile.role == 'admin' %}
+            As an administrator you can also manage other portal users.
+          {% endif %}
+        </p>
+      </div>
+
+      <form method="post" action="{{ licensing_url_account }}">
+        <label for="current_password">Current password <span class="fg-req">*</span></label>
+        <input class="fg-input" id="current_password" name="current_password" type="password" autocomplete="current-password" required />
+
+        <label for="new_username">Username</label>
+        <input class="fg-input" id="new_username" name="new_username" value="{{ profile.username }}" autocomplete="username" required />
+        <p class="fg-muted fg-field-hint">Email-style usernames are recommended.</p>
+
+        <label for="new_password">New password</label>
+        <input class="fg-input" id="new_password" name="new_password" type="password" autocomplete="new-password" placeholder="Min 8 characters" />
+        <p class="fg-muted fg-field-hint">Leave blank to keep your current password.</p>
+
+        <label for="new_password2">Confirm new password</label>
+        <input class="fg-input" id="new_password2" name="new_password2" type="password" autocomplete="new-password" />
+
+        <div class="fg-actions-bar">
+          <button class="fg-btn fg-btn-primary" type="submit">Save account</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="fg-card">
+      <div class="fg-card-head">
+        <h2>Security notes</h2>
+      </div>
+      <ul class="fg-detail-list fg-detail-list--prose">
+        <li>Run this app on a trusted network; use HTTPS in production.</li>
+        <li>Set <code>FLASK_SECRET_KEY</code> to a long random value for session security.</li>
+        <li>Environment variables (<code>LICENSING_WEB_*</code>) are only used to seed the first admin when no users file exists.</li>
+      </ul>
+    </section>
+  </div>
+{% endblock %}

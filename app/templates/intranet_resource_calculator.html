@@ -1,0 +1,257 @@
+{% extends "intranet_base.html" %}
+{% block title %}{{ portal_tab_title }} — Casual Calculator{% endblock %}
+
+{% block intranet_body %}
+<div class="nc-rcalc" id="nc-resource-calculator">
+  <header class="nc-rcalc-head nc-rcalc-no-print">
+    <div>
+      <h1 class="nc-rcalc-h1">Casual Calculator</h1>
+      <p class="nc-rcalc-sub">Rate card calculator — enter contractor daily charge rate to work out casual employee rates for Australian state or territory (ACT, NSW, VIC, QLD, SA, WA, NT). Includes indicative super, payroll tax, and workers compensation.</p>
+      <p class="nc-rcalc-notice">From July 1st 2026, SolStak will only accept Independent Contractors (Pty Ltd) or Full Time/Casual Employment.</p>
+    </div>
+    <div class="nc-rcalc-head-actions">
+      <button type="button" class="nc-btn nc-btn-primary" id="rcalc-print">Print rate card</button>
+    </div>
+  </header>
+
+  <section class="nc-rcalc-panel nc-rcalc-no-print" aria-label="Inputs">
+    <h2 class="nc-rcalc-panel-title">Inputs</h2>
+    <div class="nc-rcalc-input-grid">
+      <label>Contractor daily ($)
+        <input type="number" step="1" min="0" id="rcalc-daily" class="nc-detail-input" placeholder="1778" autofocus>
+      </label>
+      <label>Work state
+        <select id="rcalc-state" class="nc-detail-input"></select>
+      </label>
+      <label>Billable days / year
+        <input type="number" step="1" min="1" id="rcalc-days" class="nc-detail-input" value="220">
+      </label>
+    </div>
+  </section>
+
+  <section class="nc-rcalc-print-header" id="rcalc-print-header" hidden aria-hidden="true">
+    <div class="nc-rcalc-print-doc">
+      <div class="nc-rcalc-print-doc-top">
+        <div class="nc-rcalc-print-brand">{{ portal_tab_title }}</div>
+        <div class="nc-rcalc-print-date" id="rcalc-print-date"></div>
+      </div>
+      <h1 class="nc-rcalc-print-title">Casual Rate Card</h1>
+      <p class="nc-rcalc-print-meta" id="rcalc-print-meta"></p>
+    </div>
+  </section>
+
+  <section class="nc-rcalc-kpis" id="rcalc-kpis" aria-label="Selected state summary"></section>
+
+  <section class="nc-rcalc-overrides nc-rcalc-no-print" id="rcalc-overrides" aria-label="Temporary overrides">
+    <div class="nc-rcalc-overrides-head">
+      <span class="nc-rcalc-overrides-title">Temp overrides</span>
+      <span class="nc-rcalc-overrides-hint">Leave blank to use defaults · not saved</span>
+      <button type="button" class="nc-btn nc-btn-secondary nc-rcalc-overrides-reset" id="rcalc-reset-overrides">Reset</button>
+    </div>
+    <div class="nc-rcalc-overrides-grid">
+      <label>Super (%)
+        <input type="number" step="0.01" min="0" id="rcalc-ov-super" class="nc-detail-input" placeholder="12">
+      </label>
+      <label>Payroll tax (%)
+        <input type="number" step="0.01" min="0" id="rcalc-ov-payroll" class="nc-detail-input" placeholder="—">
+      </label>
+      <label>Workers comp (%)
+        <input type="number" step="0.01" min="0" id="rcalc-ov-wc" class="nc-detail-input" placeholder="—">
+      </label>
+      <label>Profit margin (%)
+        <input type="number" step="0.1" min="0" id="rcalc-ov-profit" class="nc-detail-input" placeholder="0">
+      </label>
+    </div>
+  </section>
+
+  <section class="nc-rcalc-panel" id="rcalc-breakdown-panel" aria-label="Breakdown">
+    <h2 class="nc-rcalc-panel-title">Cost breakdown — <span id="rcalc-breakdown-state">—</span></h2>
+    <div class="nc-rcalc-tablewrap">
+      <table class="nc-rcalc-table" id="rcalc-breakdown">
+        <thead>
+          <tr>
+            <th>Component</th>
+            <th>Daily ($)</th>
+            <th>Annual ($)</th>
+            <th>Rate</th>
+          </tr>
+        </thead>
+        <tbody id="rcalc-breakdown-body">
+          <tr><td colspan="4" class="nc-rcalc-empty">Enter a daily rate and select a state.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="nc-rcalc-print-footnote" id="rcalc-print-footnote" hidden aria-hidden="true">Indicative rates only. Confirm payroll tax thresholds, workers compensation classifications, and insurance with your finance team.</p>
+  </section>
+
+  <section class="nc-rcalc-panel nc-rcalc-no-print" aria-label="All states rate card">
+    <h2 class="nc-rcalc-panel-title">Rate card — all states</h2>
+    <p class="nc-rcalc-hint nc-rcalc-no-print">Same loaded charge rate for every state — base salary and on-costs vary by jurisdiction.</p>
+    <div class="nc-rcalc-tablewrap">
+      <table class="nc-rcalc-table" id="rcalc-all-states">
+        <thead>
+          <tr>
+            <th>State</th>
+            <th>Contractor daily</th>
+            <th>Casual daily</th>
+            <th>Super</th>
+            <th>Payroll tax</th>
+            <th>Workers comp</th>
+            <th>Loaded annual</th>
+            <th>Margin</th>
+          </tr>
+        </thead>
+        <tbody id="rcalc-all-body">
+          <tr><td colspan="8" class="nc-rcalc-empty">Enter a contractor daily rate to populate the rate card.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="nc-rcalc-footnote" id="rcalc-footnote">Indicative rates only. Confirm payroll tax thresholds, workers comp classifications, and insurance with your finance team.</p>
+  </section>
+</div>
+
+<style>
+  .nc-rcalc { width: 100%; max-width: none; }
+  .nc-rcalc-head { display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem; align-items: flex-start; }
+  .nc-rcalc-h1 { margin: 0; font-size: 1.55rem; letter-spacing: -.02em; }
+  .nc-rcalc-sub { margin: .35rem 0 0; color: rgba(15,23,42,.55); font-weight: 650; max-width: 46rem; line-height: 1.45; }
+  .nc-rcalc-notice { margin: .55rem 0 0; color: rgba(15,23,42,.62); font-weight: 750; max-width: 46rem; line-height: 1.45; font-size: .88rem; }
+  .nc-rcalc-head-actions { display: flex; gap: .5rem; flex-wrap: wrap; }
+  .nc-rcalc-input-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .75rem; align-items: end; }
+  .nc-rcalc-input-grid label { display: flex; flex-direction: column; gap: .3rem; font-size: .82rem; font-weight: 750; color: rgba(15,23,42,.65); }
+  .nc-rcalc-check { flex-direction: row !important; align-items: center; gap: .5rem !important; padding-top: 1.4rem; }
+  .nc-rcalc-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .85rem; margin-bottom: 1rem; }
+  .nc-rcalc-kpi { background: rgba(255,255,255,.72); border: 1px solid rgba(148,163,184,.25); border-radius: 16px; padding: .85rem .9rem; }
+  .nc-rcalc-kpi-label { font-size: .78rem; font-weight: 800; color: rgba(15,23,42,.55); text-transform: uppercase; letter-spacing: .04em; }
+  .nc-rcalc-kpi-val { margin-top: .25rem; font-size: 1.35rem; font-weight: 950; letter-spacing: -.02em; }
+  .nc-rcalc-kpi-meta { margin-top: .2rem; font-size: .82rem; color: rgba(15,23,42,.5); font-weight: 650; }
+  .nc-rcalc-overrides { background: rgba(255,255,255,.55); border: 1px dashed rgba(148,163,184,.35); border-radius: 12px; padding: .65rem .85rem; margin-bottom: 1rem; }
+  .nc-rcalc-overrides-head { display: flex; align-items: center; gap: .65rem; flex-wrap: wrap; margin-bottom: .55rem; }
+  .nc-rcalc-overrides-title { font-size: .78rem; font-weight: 900; text-transform: uppercase; letter-spacing: .04em; color: rgba(15,23,42,.55); }
+  .nc-rcalc-overrides-hint { font-size: .76rem; color: rgba(15,23,42,.45); font-weight: 650; flex: 1; }
+  .nc-rcalc-overrides-reset { padding: .25rem .55rem !important; font-size: .78rem !important; }
+  .nc-rcalc-overrides-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .55rem; }
+  .nc-rcalc-overrides-grid label { display: flex; flex-direction: column; gap: .25rem; font-size: .74rem; font-weight: 750; color: rgba(15,23,42,.6); }
+  .nc-rcalc-overrides-grid input { border: 1px solid rgba(148,163,184,.25); border-radius: 8px; padding: .3rem .45rem; font: inherit; background: #fff; font-size: .84rem; }
+  .nc-rcalc-panel { background: rgba(255,255,255,.72); border: 1px solid rgba(148,163,184,.25); border-radius: 16px; padding: 1rem; margin-bottom: 1rem; }
+  .nc-rcalc-panel-title { margin: 0 0 .75rem; font-size: 1.05rem; font-weight: 950; }
+  .nc-rcalc-hint { margin: -.35rem 0 .75rem; font-size: .84rem; color: rgba(15,23,42,.5); font-weight: 650; }
+  .nc-rcalc-footnote { margin: .75rem 0 0; font-size: .78rem; color: rgba(15,23,42,.45); font-weight: 650; }
+  .nc-rcalc-table { width: 100%; border-collapse: collapse; font-size: .88rem; }
+  .nc-rcalc-table th, .nc-rcalc-table td { padding: .45rem .5rem; border-bottom: 1px solid rgba(148,163,184,.18); text-align: left; vertical-align: middle; }
+  .nc-rcalc-table th { font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; color: rgba(15,23,42,.55); white-space: nowrap; }
+  .nc-rcalc-table input, .nc-rcalc-table select { width: 100%; border: 1px solid rgba(148,163,184,.25); border-radius: 8px; padding: .35rem .45rem; font: inherit; background: #fff; }
+  .nc-rcalc-loaded { font-weight: 900; color: rgba(14,116,144,.95); white-space: nowrap; }
+  .nc-rcalc-empty { text-align: center; color: rgba(15,23,42,.5); padding: 1.5rem !important; }
+  .nc-rcalc-tablewrap { overflow: auto; }
+  .nc-rcalc-print-header { display: none; margin-bottom: 0; }
+  .nc-rcalc-print-doc { max-width: 100%; }
+  .nc-rcalc-print-doc-top { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; margin-bottom: .35rem; }
+  .nc-rcalc-print-brand { font-size: .82rem; font-weight: 900; letter-spacing: -.01em; color: #0e7490; }
+  .nc-rcalc-print-date { font-size: .78rem; color: #64748b; white-space: nowrap; }
+  .nc-rcalc-print-title { margin: 0; font-size: 1.35rem; font-weight: 900; letter-spacing: -.02em; color: #0f172a; }
+  .nc-rcalc-print-meta { margin: .45rem 0 0; color: #475569; font-size: .82rem; line-height: 1.45; }
+  .nc-rcalc-print-footnote { display: none; margin: .85rem 0 0; font-size: .72rem; color: #64748b; line-height: 1.4; }
+  @media (max-width: 1100px) { .nc-rcalc-kpis, .nc-rcalc-input-grid, .nc-rcalc-overrides-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .nc-rcalc-check { padding-top: 0; } }
+  @media (max-width: 640px) { .nc-rcalc-kpis, .nc-rcalc-input-grid, .nc-rcalc-overrides-grid { grid-template-columns: 1fr; } }
+  @media print {
+    @page { size: A4 portrait; margin: 0; }
+    html, body {
+      width: 100% !important;
+      height: auto !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      background: #fff !important;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    body.rcalc-print-mode .nc-intranet-sidebar,
+    body.rcalc-print-mode .nc-intranet-top,
+    body.rcalc-print-mode .nc-header,
+    body.rcalc-print-mode .nc-footer,
+    body.rcalc-print-mode .nc-rcalc-no-print {
+      display: none !important;
+    }
+    body.rcalc-print-mode .nc-intranet-shell,
+    body.rcalc-print-mode .nc-intranet-app,
+    body.rcalc-print-mode .nc-intranet-stage,
+    body.rcalc-print-mode .nc-intranet-body,
+    body.rcalc-print-mode .nc-intranet-main,
+    body.rcalc-print-mode main,
+    body.rcalc-print-mode .main {
+      display: block !important;
+      width: 100% !important;
+      max-width: none !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      border: 0 !important;
+      box-shadow: none !important;
+      background: #fff !important;
+    }
+    body.rcalc-print-mode #nc-resource-calculator {
+      position: static !important;
+      width: 100% !important;
+      max-width: 100% !important;
+      padding: 12mm !important;
+      margin: 0 !important;
+      box-sizing: border-box;
+    }
+    body.rcalc-print-mode .nc-rcalc-print-header,
+    body.rcalc-print-mode .nc-rcalc-print-footnote {
+      display: block !important;
+      visibility: visible !important;
+    }
+    body.rcalc-print-mode .nc-rcalc-print-header {
+      border-bottom: 2px solid #0e7490;
+      padding-bottom: 7px;
+      margin-bottom: 10px;
+    }
+    body.rcalc-print-mode .nc-rcalc-kpis {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 7px;
+      margin-bottom: 10px;
+      page-break-inside: avoid;
+    }
+    body.rcalc-print-mode .nc-rcalc-kpi {
+      background: #fff !important;
+      border: 1px solid #cbd5e1 !important;
+      border-radius: 8px;
+      padding: 7px 8px;
+      box-shadow: none !important;
+    }
+    body.rcalc-print-mode .nc-rcalc-kpi-label { font-size: .62rem; }
+    body.rcalc-print-mode .nc-rcalc-kpi-val { font-size: 1.05rem; margin-top: .15rem; }
+    body.rcalc-print-mode .nc-rcalc-kpi-meta { font-size: .68rem; margin-top: .12rem; }
+    body.rcalc-print-mode #rcalc-breakdown-panel {
+      background: #fff !important;
+      border: 1px solid #cbd5e1 !important;
+      border-radius: 8px;
+      padding: 8px 10px 6px;
+      margin: 0 !important;
+      page-break-inside: avoid;
+    }
+    body.rcalc-print-mode .nc-rcalc-panel-title { font-size: .92rem; margin-bottom: 6px; }
+    body.rcalc-print-mode .nc-rcalc-table { font-size: .76rem; }
+    body.rcalc-print-mode .nc-rcalc-table th,
+    body.rcalc-print-mode .nc-rcalc-table td {
+      padding: .32rem .4rem;
+      border-bottom: 1px solid #cbd5e1;
+    }
+    body.rcalc-print-mode .nc-rcalc-table th { font-size: .62rem; }
+    body.rcalc-print-mode .nc-rcalc-loaded { color: #0e7490 !important; font-weight: 800; }
+    body.rcalc-print-mode .nc-rcalc-print-footnote {
+      border-top: 1px solid #e2e8f0;
+      padding-top: 6px;
+      margin-top: 8px;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+  window.__RCALC__ = {{ rc_json | safe }};
+</script>
+<script src="{{ url_for('static', filename='resource_calculator.js') }}?v=28" defer></script>
+{% endblock %}

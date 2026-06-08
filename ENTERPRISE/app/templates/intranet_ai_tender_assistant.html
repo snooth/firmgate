@@ -1,0 +1,89 @@
+{% extends "intranet_base.html" %}
+{% block title %}{{ portal_tab_title }} — AI Tender Assistant{% endblock %}
+
+{% block intranet_body %}
+<div class="nc-intranet-hero">
+  <div>
+    <h1>AI Tender Assistant</h1>
+    <p class="nc-intranet-muted">Upload RFT, ATM, or RFQ documents — then automatically extract requirements, build compliance matrices, identify risks, and draft responses.</p>
+  </div>
+</div>
+
+{% if not ai_licensed %}
+<div class="nc-intranet-card" style="margin-bottom:1rem;">
+  <p class="nc-detail-muted" style="margin:0;">
+    <strong>Enterprise feature.</strong> AI Tender Assistant requires a license with <code>ai_tender_assistant</code> (or <code>--ai</code> / <code>ai_document_search</code>).
+    Configure the LLM under <strong>Administration → AI Settings → Document Search</strong>.
+  </p>
+</div>
+{% else %}
+
+<div class="nc-ata" id="nc-ata-root">
+  <section class="nc-intranet-card nc-ata-upload-panel nc-ata-dropzone" id="nc-ata-upload-drop">
+    <h2 class="nc-ata-panel-title">Tender documents</h2>
+    <p class="nc-detail-muted">Upload one or more packs: RFT (Request for Tender), ATM (Approach to Market), or RFQ (Request for Quotation). PDF or Word preferred.</p>
+    <div class="nc-ata-drop-target">
+      <div class="nc-ata-upload-row">
+        <label class="nc-ata-label" for="nc-ata-doc-type">Document type</label>
+        <select id="nc-ata-doc-type" class="nc-ata-select">
+          <option value="rft">RFT — Request for Tender</option>
+          <option value="atm">ATM — Approach to Market</option>
+          <option value="rfq">RFQ — Request for Quotation</option>
+          <option value="other">Other</option>
+        </select>
+        <label class="nc-btn nc-btn-secondary nc-ata-upload-btn">
+          Upload document
+          <input type="file" id="nc-ata-file-input" class="nc-ata-file-input" accept=".pdf,.docx,.txt,.md,application/pdf" multiple />
+        </label>
+      </div>
+      <p class="nc-ata-drop-hint nc-detail-muted">or drag and drop files into this box</p>
+    </div>
+    <ul class="nc-ata-doc-list" id="nc-ata-doc-list" aria-label="Uploaded tender documents"></ul>
+  </section>
+
+  <section class="nc-intranet-card nc-ata-analyze-panel">
+    <h2 class="nc-ata-panel-title">Analyse with AI</h2>
+    <label class="nc-ata-label" for="nc-ata-instructions">Optional instructions</label>
+    <textarea id="nc-ata-instructions" class="nc-ata-instructions" rows="2" placeholder="e.g. Focus on security and insurance clauses; we are a 50-person MSP…"></textarea>
+    <div class="nc-ata-analyze-actions">
+      <button type="button" class="nc-btn nc-btn-primary" id="nc-ata-analyze-btn">Analyse tender pack</button>
+    </div>
+    <p class="nc-ata-status nc-detail-muted" id="nc-ata-status" role="status"></p>
+  </section>
+
+  <section class="nc-intranet-card nc-ata-results" id="nc-ata-results" hidden>
+    <nav class="nc-ata-tabs" aria-label="Analysis sections">
+      <button type="button" class="nc-ata-tab nc-ata-tab--active" data-tab="summary">Summary</button>
+      <button type="button" class="nc-ata-tab" data-tab="requirements">Requirements</button>
+      <button type="button" class="nc-ata-tab" data-tab="compliance">Compliance matrix</button>
+      <button type="button" class="nc-ata-tab" data-tab="risks">Risks</button>
+      <button type="button" class="nc-ata-tab" data-tab="drafts">Draft responses</button>
+    </nav>
+
+    <div class="nc-ata-tab-panel nc-ata-tab-panel--active" data-panel="summary">
+      <div class="nc-ata-prose nc-ads-prose" id="nc-ata-summary"></div>
+    </div>
+    <div class="nc-ata-tab-panel" data-panel="requirements" hidden>
+      <div class="nc-ata-table-wrap" id="nc-ata-requirements"></div>
+    </div>
+    <div class="nc-ata-tab-panel" data-panel="compliance" hidden>
+      <div class="nc-ata-table-wrap" id="nc-ata-compliance"></div>
+    </div>
+    <div class="nc-ata-tab-panel" data-panel="risks" hidden>
+      <div id="nc-ata-risks"></div>
+    </div>
+    <div class="nc-ata-tab-panel" data-panel="drafts" hidden>
+      <div id="nc-ata-drafts"></div>
+    </div>
+  </section>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+{% if ai_licensed %}
+<script src="{{ url_for('static', filename='ai_chat_format.js') }}?v=4"></script>
+<script src="{{ url_for('static', filename='ai_tender_assistant.js') }}?v=3" data-turbo-eval="always"></script>
+{% endif %}
+{% endblock %}

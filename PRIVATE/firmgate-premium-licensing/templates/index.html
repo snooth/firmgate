@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% block title %}Licenses — Firmgate{% endblock %}
+
+{% block body %}
+  <div class="fg-hero-banner">
+    <div class="fg-hero-inner">
+      <div>
+        <p class="fg-kicker">Vendor</p>
+        <h1>All licenses</h1>
+        <p class="fg-hero-muted">Issued and revoked ledger entries (vendor-only).</p>
+      </div>
+      <span class="fg-hero-stat">{{ rows|length }} total</span>
+    </div>
+  </div>
+
+  <section class="fg-card">
+    <form method="get" action="{{ url_for('index') }}" class="fg-search-row">
+      <input
+        type="search"
+        name="q"
+        class="fg-input"
+        placeholder="Search by fingerprint, label, status, feature…"
+        value="{{ q or '' }}"
+        autocomplete="off"
+      />
+      <button class="fg-btn fg-btn-primary" type="submit">Search</button>
+      {% if q %}
+        <a class="fg-btn" href="{{ url_for('index') }}">Clear</a>
+      {% endif %}
+    </form>
+  </section>
+
+  <div class="fg-table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Fingerprint</th>
+          <th>Status</th>
+          <th>Label</th>
+          <th>Expires</th>
+          <th>Issued</th>
+          <th>Features</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% if not rows %}
+          <tr>
+            <td colspan="7" class="fg-muted" style="padding:1.5rem;">No licenses match your search.</td>
+          </tr>
+        {% endif %}
+        {% for r in rows %}
+          <tr>
+            <td><code>{{ r.fingerprint }}</code></td>
+            <td>
+              {% if r.status == "revoked" %}
+                <span class="fg-pill revoked">revoked</span>
+              {% else %}
+                <span class="fg-pill active">active</span>
+              {% endif %}
+            </td>
+            <td style="min-width:140px;font-weight:600;">{{ r.subject or "—" }}</td>
+            <td><code>{{ r.expires_at or "—" }}</code></td>
+            <td><code style="font-size:0.8em;">{{ r.issued_at or "—" }}</code></td>
+            <td style="min-width:280px;">
+              {% if r.features %}
+                <div class="fg-chips">
+                  {% for f in r.features %}
+                    <span class="fg-chip" title="{{ feature_labels.get(f, f) }}">{{ f }}</span>
+                  {% endfor %}
+                </div>
+              {% else %}
+                <span class="fg-muted">—</span>
+              {% endif %}
+            </td>
+            <td>
+              <div class="fg-row-actions">
+                <a class="fg-btn fg-btn-primary" href="{{ url_for('view_license', fingerprint=r.fingerprint) }}#license-key">View key</a>
+                {% if r.status != "revoked" %}
+                  <form method="post" action="{{ url_for('revoke_license') }}">
+                    <input type="hidden" name="fingerprint" value="{{ r.fingerprint }}" />
+                    <input type="hidden" name="reason" value="revoked via webapp" />
+                    <button class="fg-btn fg-btn-danger" type="submit">Revoke</button>
+                  </form>
+                {% endif %}
+                <form
+                  method="post"
+                  action="{{ url_for('delete_license') }}"
+                  onsubmit="return confirm('Delete issued entry for {{ r.fingerprint }}? This cannot be undone.');"
+                >
+                  <input type="hidden" name="fingerprint" value="{{ r.fingerprint }}" />
+                  <input type="hidden" name="which" value="issued" />
+                  <button class="fg-btn fg-btn-danger" type="submit">Delete</button>
+                </form>
+              </div>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% endblock %}

@@ -1,0 +1,1152 @@
+<div id="admin-app" class="nc-admin" data-prefix="{{ url_for('admin.admin_page') }}" data-current-user-id="{% if current_user.is_authenticated %}{{ current_user.id }}{% endif %}" data-full-admin="{% if admin_full_access %}1{% else %}0{% endif %}" data-can-access-users="{% if can_access_users_admin %}1{% else %}0{% endif %}" data-can-create-users="{% if can_create_users %}1{% else %}0{% endif %}" data-can-approve-registrations="{% if can_approve_registrations %}1{% else %}0{% endif %}" data-can-manage-registration-notifications="{% if can_manage_registration_notifications %}1{% else %}0{% endif %}" data-users-edit="{% if users_can_edit %}1{% else %}0{% endif %}" data-users-delete="{% if users_can_delete %}1{% else %}0{% endif %}" data-users-password="{% if users_can_password %}1{% else %}0{% endif %}" data-users-role="{% if users_can_role %}1{% else %}0{% endif %}" data-users-reset-mfa="{% if users_can_reset_mfa %}1{% else %}0{% endif %}" data-users-mfa="{% if users_can_mfa %}1{% else %}0{% endif %}">
+  <div class="nc-admin-shell">
+    <aside class="nc-admin-nav" aria-label="Administration sections">
+      <nav class="nc-admin-nav-list" role="tablist">
+        {% if can_view_audit %}
+          <button type="button" class="nc-admin-nav-item" data-tab="activity" role="tab" aria-selected="false">Activity</button>
+        {% endif %}
+        <button type="button" class="nc-admin-nav-item is-active" data-tab="users" role="tab" aria-selected="true">Users</button>
+        <button type="button" class="nc-admin-nav-item nc-admin-nav-item--registrations" data-tab="registrations" role="tab" aria-selected="false" hidden>Registrations</button>
+        <button type="button" class="nc-admin-nav-item" data-tab="groups" role="tab" aria-selected="false">Groups</button>
+        <button type="button" class="nc-admin-nav-item" data-tab="roles" role="tab" aria-selected="false">Roles &amp; permissions</button>
+        <button type="button" class="nc-admin-nav-item" data-tab="time" role="tab" aria-selected="false">Date &amp; time</button>
+        <button type="button" class="nc-admin-nav-item" data-tab="recycle" role="tab" aria-selected="false">Recycle bin</button>
+        <button type="button" class="nc-admin-nav-item" data-tab="integrations" role="tab" aria-selected="false">Integrations</button>
+        <button type="button" class="nc-admin-nav-item" data-tab="email" role="tab" aria-selected="false">Email Settings</button>
+        <button type="button" class="nc-admin-nav-item" data-tab="portal" role="tab" aria-selected="false">Portal customisation</button>
+        <button type="button" class="nc-admin-nav-item" data-tab="timesheets" role="tab" aria-selected="false">Timesheets management</button>
+        <button type="button" class="nc-admin-nav-item" data-tab="security_training" role="tab" aria-selected="false">Security Training</button>
+        <button type="button" class="nc-admin-nav-item" data-tab="modules" role="tab" aria-selected="false">Modules</button>
+        <button type="button" class="nc-admin-nav-item" data-tab="backup_restore" role="tab" aria-selected="false">Backup and restore</button>
+        <button type="button" class="nc-admin-nav-item" data-tab="version" role="tab" aria-selected="false">Software version</button>
+      </nav>
+    </aside>
+
+    <div class="nc-admin-main">
+      <div class="nc-admin-mobile-nav">
+        <label class="nc-admin-mobile-nav-label" for="nc-admin-mobile-tab">Section</label>
+        <select id="nc-admin-mobile-tab" class="nc-detail-select nc-admin-mobile-tab" aria-label="Administration section"></select>
+      </div>
+      <div class="nc-admin-inner">
+
+    <div id="admin-tab-users" class="nc-admin-panel" role="tabpanel">
+      <div class="nc-admin-users-shell">
+        <aside class="nc-admin-users-side" aria-label="User groups">
+          <button type="button" class="nc-admin-side-btn" id="btn-user-add">+ New user</button>
+
+          <div class="nc-admin-side-section">
+            <div class="nc-admin-side-title">Everyone</div>
+            <div id="admin-group-list" class="nc-admin-group-list"></div>
+          </div>
+
+          <div class="nc-admin-side-footer">
+            <button type="button" class="nc-admin-settings-btn" id="btn-admin-settings">
+              <span aria-hidden="true">⚙</span> Settings
+            </button>
+          </div>
+        </aside>
+
+        <div class="nc-admin-users-main">
+          <div id="users-table-wrap" class="nc-table-wrap"></div>
+          <p id="admin-users-status" class="nc-status" role="status"></p>
+        </div>
+      </div>
+    </div>
+
+    <div id="admin-tab-activity" class="nc-admin-panel" hidden role="tabpanel">
+      <div class="nc-admin-section">
+        <div class="nc-admin-section-head">
+          <div>
+            <h2 class="nc-admin-section-title">Activity</h2>
+            <p class="nc-detail-muted">Immutable append log of auth + file operations.</p>
+          </div>
+        </div>
+        <div class="nc-admin-section-body">
+          <section class="nc-admin-card nc-activity-syslog-card" aria-labelledby="admin-audit-syslog-heading">
+            <h3 id="admin-audit-syslog-heading" class="nc-admin-subhead">Syslog forwarding</h3>
+            <p class="nc-detail-muted" style="margin:0 0 0.75rem;">
+              Mirror activity to a remote syslog collector (RFC 5424) in addition to this on-screen log.
+              New events are sent automatically when forwarding is enabled.
+            </p>
+            <label class="nc-inline-check" style="display:flex;align-items:flex-start;gap:0.45rem;max-width:52rem;">
+              <input type="checkbox" id="audit-syslog-enabled" style="margin-top:0.15rem;">
+              <span><strong>Enable syslog forwarding</strong></span>
+            </label>
+            <div class="nc-share-add-row" style="margin-top:0.75rem;">
+              <label class="nc-detail-label" for="audit-syslog-host" style="flex:2;">Endpoint host</label>
+              <label class="nc-detail-label" for="audit-syslog-port" style="flex:0 0 7rem;">Port</label>
+              <label class="nc-detail-label" for="audit-syslog-protocol" style="flex:0 0 8rem;">Protocol</label>
+            </div>
+            <div class="nc-share-add-row" style="margin-top:0.35rem;">
+              <input type="text" id="audit-syslog-host" class="nc-detail-input" placeholder="syslog.example.com or 10.0.0.5" style="flex:2;" autocomplete="off">
+              <input type="number" id="audit-syslog-port" class="nc-detail-input" placeholder="514" min="1" max="65535" style="flex:0 0 7rem;" autocomplete="off">
+              <select id="audit-syslog-protocol" class="nc-detail-select" style="flex:0 0 8rem;" aria-label="Transport">
+                <option value="udp">UDP</option>
+                <option value="tcp">TCP</option>
+              </select>
+            </div>
+            <div class="nc-share-add-row" style="margin-top:0.65rem;">
+              <label class="nc-detail-label" for="audit-syslog-facility" style="flex:1;">Facility</label>
+              <label class="nc-detail-label" for="audit-syslog-app" style="flex:1;">App name</label>
+              <label class="nc-detail-label" for="audit-syslog-hostname" style="flex:1;">Hostname field</label>
+            </div>
+            <div class="nc-share-add-row" style="margin-top:0.35rem;">
+              <select id="audit-syslog-facility" class="nc-detail-select" style="flex:1;" aria-label="Syslog facility">
+                <option value="local0">local0</option>
+                <option value="local1">local1</option>
+                <option value="local2">local2</option>
+                <option value="local3">local3</option>
+                <option value="local4">local4</option>
+                <option value="local5">local5</option>
+                <option value="local6">local6</option>
+                <option value="local7">local7</option>
+                <option value="auth">auth</option>
+                <option value="daemon">daemon</option>
+                <option value="user">user</option>
+              </select>
+              <input type="text" id="audit-syslog-app" class="nc-detail-input" placeholder="firmgate" style="flex:1;" autocomplete="off">
+              <input type="text" id="audit-syslog-hostname" class="nc-detail-input" placeholder="Server hostname in message" style="flex:1;" autocomplete="off">
+            </div>
+            <div class="nc-activity-syslog-actions" style="margin-top:0.85rem;display:flex;flex-wrap:wrap;gap:0.5rem;align-items:center;">
+              <button type="button" class="nc-btn nc-btn-primary" id="audit-syslog-save">Save</button>
+              <button type="button" class="nc-btn nc-btn-secondary" id="audit-syslog-test">Send test</button>
+              <button type="button" class="nc-btn nc-btn-secondary" id="audit-syslog-replay">Forward stored activity</button>
+            </div>
+            <p id="admin-audit-syslog-status" class="nc-status" role="status"></p>
+          </section>
+
+          <div class="nc-activity-filters nc-activity-filters--stack" role="region" aria-label="Search and filters">
+            <input id="admin-audit-q" type="search" class="nc-detail-input" placeholder="Search action, resource, user, IP…">
+            <input id="admin-audit-user" type="text" class="nc-detail-input" placeholder="User…">
+            <select id="admin-audit-action" class="nc-detail-select" aria-label="Action">
+              <option value="">All actions</option>
+            </select>
+            <select id="admin-audit-sort" class="nc-detail-select" aria-label="Sort">
+              <option value="newest" selected>Newest first</option>
+              <option value="oldest">Oldest first</option>
+            </select>
+            <div class="nc-activity-filter-actions">
+              <button type="button" id="admin-audit-apply" class="nc-btn nc-btn-secondary">Apply</button>
+              <button type="button" id="admin-audit-clear" class="nc-btn nc-btn-secondary">Clear</button>
+            </div>
+          </div>
+
+          <div class="nc-activity-tablecard">
+            <div class="nc-table-wrap">
+              <table class="audit-table nc-table--modern nc-activity-table">
+                <thead>
+                  <tr>
+                    <th class="th-time">TIME</th>
+                    <th class="th-user">USER</th>
+                    <th class="th-action">ACTION</th>
+                    <th class="th-resource">RESOURCE</th>
+                    <th class="th-ip">IP</th>
+                  </tr>
+                </thead>
+                <tbody id="admin-audit-rows"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="pager nc-pager" style="margin-top:0.8rem;">
+            <button type="button" id="admin-audit-prev" class="nc-btn nc-btn-secondary nc-btn-icontext" aria-label="Previous page">
+              <span aria-hidden="true">←</span> Previous
+            </button>
+            <div class="nc-pager-mid">
+              <span id="admin-audit-page"></span>
+              <label class="nc-pager-jump" aria-label="Rows per page">
+                <span class="nc-detail-muted">Show</span>
+                <select id="admin-audit-perpage" class="nc-detail-select" aria-label="Rows per page">
+                  <option value="10" selected>10</option>
+                  <option value="25">25</option>
+                  <option value="50">50</option>
+                  <option value="100">100</option>
+                </select>
+                <span class="nc-detail-muted">per page</span>
+              </label>
+              <label class="nc-pager-jump" aria-label="Jump to page">
+                <span class="nc-detail-muted">Jump to</span>
+                <input id="admin-audit-jump" type="number" min="1" step="1" class="nc-detail-input nc-pager-input" placeholder="Page">
+                <button type="button" id="admin-audit-go" class="nc-btn nc-btn-secondary">Go</button>
+              </label>
+            </div>
+            <button type="button" id="admin-audit-next" class="nc-btn nc-btn-secondary nc-btn-icontext" aria-label="Next page">
+              Next <span aria-hidden="true">→</span>
+            </button>
+          </div>
+
+          <p id="admin-audit-status" class="nc-status" role="status"></p>
+        </div>
+      </div>
+    </div>
+
+    <div class="nc-modal-backdrop" id="new-user-modal" hidden>
+      <div class="nc-modal" role="dialog" aria-modal="true" aria-labelledby="new-user-title">
+        <div class="nc-modal-card">
+          <div class="nc-modal-head">
+            <div class="nc-modal-title" id="new-user-title">New user</div>
+            <button type="button" class="nc-modal-close" id="new-user-close" aria-label="Close">×</button>
+          </div>
+          <div class="nc-modal-body">
+            <div class="nc-modal-section">
+              <div class="nc-modal-section-title">IDENTITY</div>
+              <div class="nc-modal-grid2">
+                <div>
+                  <label class="nc-modal-label">Email address <span class="nc-req">*</span></label>
+                  <input type="email" id="nu-email" class="nc-detail-input" placeholder="jane@example.com" autocomplete="email">
+                  <div class="nc-modal-help">Used to sign in, and for notifications and password resets.</div>
+                </div>
+                <div>
+                  <label class="nc-modal-label">Display name</label>
+                  <input type="text" id="nu-full-name" class="nc-detail-input" placeholder="e.g. Jane Smith" autocomplete="name">
+                </div>
+              </div>
+              <div style="margin-top:0.6rem;">
+                <label class="nc-modal-label">Name</label>
+                <input type="text" id="nu-username" class="nc-detail-input" placeholder="e.g. temp">
+              </div>
+              <div style="margin-top:0.6rem;">
+                <label class="nc-modal-label">Phone number</label>
+                <input type="tel" id="nu-phone" class="nc-detail-input" placeholder="+61 …" autocomplete="tel">
+              </div>
+            </div>
+
+            <div class="nc-modal-section">
+              <div class="nc-modal-section-title">SECURITY</div>
+              <div class="nc-modal-grid2">
+                <div>
+                  <label class="nc-modal-label">Password <span class="nc-req">*</span></label>
+                  <input type="password" id="nu-password" class="nc-detail-input" placeholder="Min 8 characters" autocomplete="new-password">
+                </div>
+                <div>
+                  <label class="nc-modal-label">Confirm password</label>
+                  <input type="password" id="nu-password2" class="nc-detail-input" placeholder="Repeat password" autocomplete="new-password">
+                </div>
+              </div>
+              <div class="nc-toggle-row" style="margin-top:0.8rem;">
+                <div>
+                  <div class="nc-toggle-title">Require password change on first login</div>
+                  <div class="nc-toggle-sub">User must set a new password when they first sign in</div>
+                </div>
+                <label class="nc-switch">
+                  <input type="checkbox" id="nu-require-change" checked>
+                  <span class="nc-switch-ui"></span>
+                </label>
+              </div>
+            </div>
+
+            <div class="nc-modal-section">
+              <div class="nc-modal-section-title">ROLE</div>
+              <div id="nu-role-cards" class="nc-role-cards"></div>
+            </div>
+
+            <div class="nc-modal-section">
+              <div class="nc-modal-section-title">ACCESS</div>
+              <div class="nc-toggle-row">
+                <div>
+                  <div class="nc-toggle-title">Account active</div>
+                  <div class="nc-toggle-sub">Inactive users cannot sign in</div>
+                </div>
+                <label class="nc-switch">
+                  <input type="checkbox" id="nu-active" checked>
+                  <span class="nc-switch-ui"></span>
+                </label>
+              </div>
+              <div class="nc-toggle-row" style="margin-top:0.6rem;">
+                <div>
+                  <div class="nc-toggle-title">MFA required</div>
+                  <div class="nc-toggle-sub" id="nu-mfa-help">Enforce Google or Microsoft Authenticator (TOTP) on sign-in</div>
+                </div>
+                <label class="nc-switch">
+                  <input type="checkbox" id="nu-mfa" checked>
+                  <span class="nc-switch-ui"></span>
+                </label>
+              </div>
+              <div id="nu-mfa-reset-wrap" class="nc-mfa-reset-wrap" hidden>
+                <button type="button" class="nc-btn nc-btn-secondary nc-btn-sm" id="nu-mfa-reset">
+                  Reset authenticator
+                </button>
+                <p class="nc-toggle-sub" style="margin:0.35rem 0 0;">
+                  Clears the enrolled device. The user must scan a new QR code on next sign-in.
+                </p>
+              </div>
+            </div>
+
+            <p id="new-user-status" class="nc-status" role="status"></p>
+          </div>
+          <div class="nc-modal-foot" style="display:flex;justify-content:space-between;align-items:center;gap:0.75rem;flex-wrap:wrap;">
+            <button type="button" class="nc-btn nc-btn-danger" id="nu-delete-user" hidden>Delete user</button>
+            <div style="display:flex;gap:0.6rem;margin-left:auto;">
+              <button type="button" class="nc-btn nc-btn-secondary" id="new-user-cancel">Cancel</button>
+              <button type="button" class="nc-btn nc-btn-primary" id="new-user-create">Create user</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="nc-modal-backdrop" id="delete-user-modal" hidden style="z-index:60;">
+      <div class="nc-modal" role="dialog" aria-modal="true" aria-labelledby="delete-user-title">
+        <div class="nc-modal-card">
+          <div class="nc-modal-head">
+            <div class="nc-modal-title" id="delete-user-title">Delete user</div>
+            <button type="button" class="nc-modal-close" id="delete-user-close" aria-label="Close">×</button>
+          </div>
+          <div class="nc-modal-body">
+            <p class="nc-detail-muted" id="delete-user-lead" style="margin:0 0 0.85rem;">This permanently removes the account and cannot be undone.</p>
+            <label class="nc-modal-label" for="delete-user-justification">Justification <span class="nc-req">*</span></label>
+            <textarea id="delete-user-justification" class="nc-detail-input" rows="4" style="width:100%;min-height:5.5rem;resize:vertical;" placeholder="Explain why this account should be removed (required, min. 10 characters)." autocomplete="off"></textarea>
+            <p id="delete-user-status" class="nc-status" role="status" style="margin-top:0.65rem;"></p>
+          </div>
+          <div class="nc-modal-foot">
+            <button type="button" class="nc-btn nc-btn-secondary" id="delete-user-cancel">Cancel</button>
+            <button type="button" class="nc-btn nc-btn-danger" id="delete-user-confirm">Delete permanently</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="admin-tab-registrations" class="nc-admin-panel" hidden role="tabpanel">
+      <div class="nc-admin-section">
+        <div class="nc-admin-section-head">
+          <div>
+            <h2 class="nc-admin-section-title">Registrations</h2>
+            <p class="nc-detail-muted">Review self-service sign-ups. Approve to activate the account with the <strong>Standard</strong> role and add the user to <strong>General</strong>. Reject to block sign-in (the same email may register again). Grant <strong>Approve registrations</strong> (<code>users.registrations</code>) on the <strong>Roles &amp; permissions</strong> tab — e.g. for Power Users.</p>
+          </div>
+        </div>
+        <div class="nc-admin-section-body">
+          <div id="reg-self-enabled-wrap" style="margin-bottom:1rem;"{% if not admin_full_access %} hidden{% endif %}>
+            <label class="nc-auth-remember">
+              <input type="checkbox" id="reg-self-enabled" value="1">
+              Allow public self-service registration
+            </label>
+            <p id="reg-self-enabled-hint" class="nc-detail-muted" style="margin:0.35rem 0 0 1.5rem;" hidden>
+              Self-service registration is only available when <strong>Portal customisation → Theme</strong> is set to <strong>Extranet</strong>.
+            </p>
+            </div>
+          <p id="registrations-status" class="nc-detail-muted" aria-live="polite"></p>
+          <div id="registrations-list" class="nc-admin-registrations-list"></div>
+
+          <section class="nc-admin-card nc-admin-reg-notify-card" id="reg-notify-settings-card" aria-labelledby="reg-notify-heading" style="margin-top:1.25rem;"{% if not can_manage_registration_notifications %} hidden{% endif %}>
+            <h3 id="reg-notify-heading" class="nc-admin-subhead">Registration email notifications</h3>
+            <p class="nc-detail-muted" style="margin:0 0 0.75rem;">When a registrant completes MFA, the system can email administrators and optionally confirm receipt to the registrant. When an administrator approves a registration, the registrant can receive an approval email. Requires <strong>Email Settings</strong> (SMTP) to be enabled.</p>
+            <label class="nc-auth-remember" style="display:flex;align-items:flex-start;gap:0.45rem;margin-bottom:0.65rem;">
+              <input type="checkbox" id="reg-notify-admin-enabled" style="margin-top:0.15rem;">
+              <span><strong>Email administrators</strong> when a new registration is ready for approval (MFA complete).</span>
+            </label>
+            <label class="nc-detail-label" for="reg-notify-admin-emails">Notification recipients</label>
+            <textarea id="reg-notify-admin-emails" class="nc-detail-input" rows="3" placeholder="admin@example.com&#10;hr@example.com" style="width:100%;max-width:36rem;resize:vertical;"></textarea>
+            <p class="nc-detail-muted" style="margin:0.35rem 0 0.85rem;font-size:0.82rem;">One email per line, or comma-separated.</p>
+            <label class="nc-detail-label" for="reg-notify-admin-subject">Admin notification — subject</label>
+            <input type="text" id="reg-notify-admin-subject" class="nc-detail-input" style="width:100%;max-width:36rem;" autocomplete="off">
+            <label class="nc-detail-label" for="reg-notify-admin-body" style="margin-top:0.55rem;">Admin notification — body</label>
+            <textarea id="reg-notify-admin-body" class="nc-detail-input" rows="8" style="width:100%;max-width:36rem;resize:vertical;font-family:inherit;"></textarea>
+            <label class="nc-auth-remember" style="display:flex;align-items:flex-start;gap:0.45rem;margin:0.85rem 0 0.65rem;">
+              <input type="checkbox" id="reg-notify-registrant-enabled" style="margin-top:0.15rem;">
+              <span><strong>Email registrant</strong> a confirmation that their registration was received.</span>
+            </label>
+            <label class="nc-detail-label" for="reg-notify-registrant-subject">Registrant email — subject</label>
+            <input type="text" id="reg-notify-registrant-subject" class="nc-detail-input" style="width:100%;max-width:36rem;" autocomplete="off">
+            <label class="nc-detail-label" for="reg-notify-registrant-body" style="margin-top:0.55rem;">Registrant email — body</label>
+            <textarea id="reg-notify-registrant-body" class="nc-detail-input" rows="7" style="width:100%;max-width:36rem;resize:vertical;font-family:inherit;"></textarea>
+            <label class="nc-auth-remember" style="display:flex;align-items:flex-start;gap:0.45rem;margin:0.85rem 0 0.65rem;">
+              <input type="checkbox" id="reg-notify-approval-enabled" style="margin-top:0.15rem;" checked>
+              <span><strong>Email registrant</strong> when their registration is approved (account activated).</span>
+            </label>
+            <label class="nc-detail-label" for="reg-notify-approval-subject">Approval email — subject</label>
+            <input type="text" id="reg-notify-approval-subject" class="nc-detail-input" style="width:100%;max-width:36rem;" autocomplete="off">
+            <label class="nc-detail-label" for="reg-notify-approval-body" style="margin-top:0.55rem;">Approval email — body</label>
+            <textarea id="reg-notify-approval-body" class="nc-detail-input" rows="7" style="width:100%;max-width:36rem;resize:vertical;font-family:inherit;"></textarea>
+            <p class="nc-detail-muted" id="reg-notify-placeholders" style="margin:0.65rem 0 0.85rem;font-size:0.82rem;"></p>
+            <div class="nc-share-add-row" style="flex-wrap:wrap;align-items:flex-end;gap:0.5rem;">
+              <button type="button" class="nc-btn nc-btn-primary" id="reg-notify-save">Save notification settings</button>
+              <label class="nc-detail-label" for="reg-notify-test-to" style="margin:0;">Test recipient</label>
+              <input type="email" id="reg-notify-test-to" class="nc-detail-input" placeholder="you@example.com" style="flex:1 1 12rem;max-width:16rem;" autocomplete="off">
+              <button type="button" class="nc-btn nc-btn-secondary" id="reg-notify-test-admin">Test admin email</button>
+              <button type="button" class="nc-btn nc-btn-secondary" id="reg-notify-test-registrant">Test received email</button>
+              <button type="button" class="nc-btn nc-btn-secondary" id="reg-notify-test-approval">Test approval email</button>
+            </div>
+            <p id="reg-notify-status" class="nc-detail-muted" style="margin:0.5rem 0 0;" aria-live="polite"></p>
+          </section>
+        </div>
+      </div>
+    </div>
+
+    <div id="admin-tab-groups" class="nc-admin-panel" hidden role="tabpanel">
+      <div class="nc-admin-section">
+        <div class="nc-admin-section-head nc-admin-groups-head">
+          <div>
+            <h2 class="nc-admin-section-title">Groups</h2>
+            <p class="nc-detail-muted">Manage groups and membership. <strong>Members inherit every permission</strong> from the <strong>roles attached to the group</strong> (plus any roles assigned directly on the user). Use <strong>Manage members &amp; roles</strong> on a group to tick roles — those mirror Access Control on the <strong>Roles &amp; permissions</strong> tab (e.g. attach <strong>standard</strong> or <strong>power</strong>). The <strong>General</strong> group is created automatically; <strong>every user is added to it</strong> and cannot be removed. Groups named <strong>Standard Users</strong> or <strong>Power Users</strong> with no roles yet automatically receive the matching builtin role.</p>
+          </div>
+        </div>
+        <div class="nc-admin-section-body">
+          <div class="nc-admin-groups-toolbar">
+            <label class="nc-admin-groups-search">
+              <span class="nc-admin-groups-search-ic" aria-hidden="true">⌕</span>
+              <input type="search" id="groups-search" class="nc-detail-input" placeholder="Search groups…" autocomplete="off" aria-label="Search groups">
+            </label>
+            <span id="groups-count" class="nc-admin-groups-count nc-detail-muted"></span>
+          </div>
+          <div class="nc-share-add-row" style="margin-top:0.75rem;">
+            <input type="text" id="new-group-name" class="nc-detail-input" placeholder="New group name">
+            <input type="text" id="new-group-desc" class="nc-detail-input" placeholder="Description (optional)" style="flex:2;">
+            <button type="button" class="nc-btn nc-btn-primary" id="btn-group-create">Create group</button>
+          </div>
+          <div id="groups-editor" style="margin-top:1rem;"></div>
+          <p id="admin-groups-status" class="nc-status" role="status"></p>
+        </div>
+      </div>
+    </div>
+
+    <div id="admin-tab-roles" class="nc-admin-panel" hidden role="tabpanel">
+      <div class="nc-admin-section">
+        <div class="nc-admin-section-head nc-admin-groups-head">
+          <div>
+            <h2 class="nc-admin-section-title">Access Control</h2>
+            <p class="nc-detail-muted">Edit <strong>Standard User</strong>, <strong>Power User</strong>, and <strong>Administrator</strong> above. <strong>Group</strong> rows are only shown for custom groups — groups named like <strong>Standard Users</strong>, <strong>Power Users</strong>, or <strong>admins</strong> use the baseline rows instead (no duplicate group column). Click <strong>Edit permissions</strong> on a row to change checkboxes. The catalog syncs when this tab loads.</p>
+          </div>
+        </div>
+        <div class="nc-admin-section-body">
+          <div class="nc-admin-groups-toolbar">
+            <label class="nc-admin-groups-search">
+              <span class="nc-admin-groups-search-ic" aria-hidden="true">⌕</span>
+              <input type="search" id="roles-ac-search" class="nc-detail-input" placeholder="Search roles…" autocomplete="off" aria-label="Search roles">
+            </label>
+            <span id="roles-ac-count" class="nc-admin-groups-count nc-detail-muted"></span>
+          </div>
+          <div id="roles-ac-list" style="margin-top:1rem;"></div>
+          <p id="admin-roles-status" class="nc-status" role="status"></p>
+        </div>
+      </div>
+    </div>
+
+    <div class="nc-modal-backdrop" id="role-ac-backdrop" hidden style="z-index: 56;">
+      <div class="nc-modal nc-modal--role-ac" role="dialog" aria-modal="true" aria-labelledby="role-ac-title">
+        <div class="nc-modal-card">
+          <div class="nc-modal-head">
+            <div class="nc-role-ac-head-text">
+              <div class="nc-modal-title" id="role-ac-title">Edit permissions</div>
+              <div class="nc-detail-muted" id="role-ac-sub" style="margin-top:0.35rem;font-weight:500;"></div>
+            </div>
+            <button type="button" class="nc-modal-close" id="role-ac-close" aria-label="Close">×</button>
+          </div>
+          <div class="nc-modal-body nc-role-ac-body">
+            <div id="role-ac-inner"></div>
+          </div>
+          <div class="nc-modal-foot">
+            <button type="button" class="nc-btn nc-btn-secondary" id="role-ac-cancel">Cancel</button>
+            <button type="button" class="nc-btn nc-btn-primary" id="role-ac-save">Save permissions</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="admin-tab-time" class="nc-admin-panel" hidden role="tabpanel">
+      <div class="nc-admin-section">
+        <div class="nc-admin-section-head">
+          <div>
+            <h2 class="nc-admin-section-title">Date &amp; time</h2>
+            <p class="nc-detail-muted">Configure display timezone and (optional) NTP offset checks.</p>
+          </div>
+        </div>
+        <div class="nc-admin-section-body">
+          <h3 class="nc-admin-subhead">Timezone</h3>
+          <p class="nc-detail-muted">Used for displaying dates/times across the portal.</p>
+          <div class="nc-share-add-row">
+            <select id="time-zone" class="nc-detail-select" aria-label="Timezone" style="flex:1;">
+              <option value="Australia/Melbourne">Australia/Melbourne</option>
+              <option value="Australia/Sydney">Australia/Sydney</option>
+              <option value="Australia/Brisbane">Australia/Brisbane</option>
+              <option value="Australia/Perth">Australia/Perth</option>
+              <option value="UTC">UTC</option>
+            </select>
+            <button type="button" class="nc-btn nc-btn-primary" id="time-save">Save</button>
+          </div>
+
+          <h3 class="nc-admin-subhead" style="margin-top:1.25rem;">NTP server (optional)</h3>
+          <p class="nc-detail-muted">This app can check the time offset against an NTP server. It won’t change your system clock.</p>
+          <div class="nc-share-add-row">
+            <input type="text" id="ntp-server" class="nc-detail-input" placeholder="pool.ntp.org" style="flex:1;">
+            <label class="nc-inline-check" style="margin-left:auto;">
+              <input type="checkbox" id="ntp-enabled"> Enable checks
+            </label>
+            <button type="button" class="nc-btn nc-btn-secondary" id="ntp-test">Test</button>
+          </div>
+
+          <h3 class="nc-admin-subhead" style="margin-top:1.25rem;">Manual date &amp; time (offline)</h3>
+          <p class="nc-detail-muted">If this deployment cannot reach NTP, you can apply a manual time override for UI display. This does not change the server system clock.</p>
+          <div class="nc-share-add-row">
+            <input type="datetime-local" id="manual-dt" class="nc-detail-input" style="flex:1;">
+            <label class="nc-inline-check" style="margin-left:auto;">
+              <input type="checkbox" id="manual-enabled"> Use manual time
+            </label>
+            <button type="button" class="nc-btn nc-btn-secondary" id="manual-set-now">Set to now</button>
+            <button type="button" class="nc-btn nc-btn-primary" id="manual-save">Save manual time</button>
+          </div>
+          <p id="admin-time-status" class="nc-status" role="status"></p>
+        </div>
+      </div>
+    </div>
+
+    <div id="admin-tab-recycle" class="nc-admin-panel" hidden role="tabpanel">
+      <div class="nc-admin-section">
+        <div class="nc-admin-section-head">
+          <div>
+            <h2 class="nc-admin-section-title">Recycle bin</h2>
+            <p class="nc-detail-muted">Deleted files and folders are kept temporarily and can be restored.</p>
+          </div>
+        </div>
+        <div class="nc-admin-section-body">
+          <h3 class="nc-admin-subhead">Auto purge</h3>
+          <p class="nc-detail-muted">Items in the Recycle Bin are automatically purged after this many days.</p>
+          <div class="nc-share-add-row">
+            <input type="number" id="recycle-retention-days" class="nc-detail-input" min="0" step="1" placeholder="1" style="max-width: 180px;">
+            <button type="button" class="nc-btn nc-btn-primary" id="recycle-save">Save</button>
+          </div>
+          <p id="admin-recycle-status" class="nc-status" role="status"></p>
+        </div>
+      </div>
+    </div>
+
+    <div id="admin-tab-integrations" class="nc-admin-panel" hidden role="tabpanel">
+      <div class="nc-admin-integrations-layout">
+        <header class="nc-admin-integrations-page-head">
+          <h2 class="nc-admin-section-title">Integrations</h2>
+          <p class="nc-detail-muted" style="margin:0.35rem 0 0;">Configure third-party services.</p>
+        </header>
+
+        <section class="nc-admin-card nc-admin-integrations-card" aria-labelledby="integrations-doc-editor-heading">
+          <h3 id="integrations-doc-editor-heading" class="nc-admin-subhead">Document editor</h3>
+          <p class="nc-detail-muted">Choose which service opens Word, Excel, and PowerPoint files from Documents. Configure the matching integration below.</p>
+          <label class="nc-detail-label" for="doc-editor-provider">Active editor</label>
+          <div class="nc-share-add-row" style="margin-top:0.25rem;">
+            <select id="doc-editor-provider" class="nc-detail-input" style="flex:1 1 100%;max-width:28rem;">
+              <option value="onlyoffice">OnlyOffice Document Server</option>
+              </select>
+            <span style="display:flex;gap:0.5rem;align-items:flex-end;">
+              <button type="button" class="nc-btn nc-btn-primary" id="doc-editor-save">Save</button>
+            </span>
+          </div>
+          <p id="admin-doc-editor-status" class="nc-status" role="status"></p>
+        </section>
+
+        <section class="nc-admin-card nc-admin-integrations-card" aria-labelledby="integrations-oo-heading" id="integrations-onlyoffice-card">
+          <h3 id="integrations-oo-heading" class="nc-admin-subhead">OnlyOffice Document Server</h3>
+          <p class="nc-detail-muted">Configure your OnlyOffice Document Server URL so Office files can open in an embedded editor.</p>
+          <p class="nc-detail-muted"><strong>Document Server URL</strong> — public HTTPS URL of ONLYOFFICE (same host browsers load for <code>api.js</code>), e.g. <code>https://onlyoffice.example.com</code>. Do not use <code>https://</code> against an internal IP:port unless that port really serves TLS; plain HTTP must use <code>http://</code>.</p>
+          <p class="nc-detail-muted"><strong>App public URL</strong> — public HTTPS base URL of <em>Firmgate</em> (where Flask runs), reachable by the Document Server so it can download files—e.g. <code>https://portal.example.com</code>. Not the OnlyOffice hostname.</p>
+          <div class="nc-share-add-row">
+            <label class="nc-detail-label" for="oo-url" style="flex:2;">Document Server URL</label>
+            <label class="nc-detail-label" for="oo-jwt" style="flex:1;">JWT secret</label>
+            <span style="display:flex;gap:0.5rem;align-items:flex-end;">
+              <button type="button" class="nc-btn nc-btn-primary" id="oo-save">Save</button>
+              <button type="button" class="nc-btn nc-btn-secondary" id="oo-test">Test</button>
+            </span>
+          </div>
+          <div class="nc-share-add-row" style="margin-top:0.35rem;">
+            <input type="text" id="oo-url" class="nc-detail-input" placeholder="https://onlyoffice.example.com" style="flex:2;" autocomplete="off">
+            <input type="password" id="oo-jwt" class="nc-detail-input" placeholder="Same as Document Server JWT (see DS local.json)" style="flex:1;" autocomplete="off">
+          </div>
+          <label class="nc-detail-label" for="oo-app-url" style="margin-top:0.65rem;">App public URL (Firmgate)</label>
+          <div class="nc-share-add-row">
+            <input type="text" id="oo-app-url" class="nc-detail-input" placeholder="https://portal.example.com" style="flex: 1 1 100%;" autocomplete="off">
+          </div>
+          <label class="nc-inline-check" style="margin-top:0.55rem;display:flex;align-items:flex-start;gap:0.45rem;max-width:52rem;">
+            <input type="checkbox" id="oo-skip-tls" style="margin-top:0.15rem;">
+            <span><strong>Skip TLS verify for “Test” only</strong> — use if Python reports certificate verify failed but browsers trust your HTTPS (corporate CA). Prefer fixing the chain or installing the CA on this server.</span>
+          </label>
+          <p id="admin-integrations-status" class="nc-status" role="status"></p>
+        </section>
+
+        </div>
+    </div>
+
+    <div id="admin-tab-email" class="nc-admin-panel" hidden role="tabpanel">
+      <div class="nc-admin-integrations-layout">
+        <header class="nc-admin-integrations-page-head">
+          <h2 class="nc-admin-section-title">Email Settings</h2>
+          <p class="nc-detail-muted" style="margin:0.35rem 0 0;">Configure SMTP for outbound email (notifications, password resets, and system messages).</p>
+        </header>
+
+        <section class="nc-admin-card nc-admin-integrations-card" aria-labelledby="email-smtp-heading">
+          <h3 id="email-smtp-heading" class="nc-admin-subhead">SMTP server</h3>
+          <label class="nc-detail-label" for="email-provider">Email provider</label>
+          <div class="nc-share-add-row" style="margin-top:0.25rem;">
+            <select id="email-provider" class="nc-detail-input" style="flex:1 1 100%;max-width:28rem;">
+              <option value="custom">Custom SMTP</option>
+              <option value="gmail">Google Workspace / Gmail</option>
+            </select>
+          </div>
+          <div id="email-provider-help" class="nc-email-provider-help" hidden></div>
+          <label class="nc-inline-check" style="display:flex;align-items:flex-start;gap:0.45rem;max-width:52rem;margin-top:0.75rem;">
+            <input type="checkbox" id="email-enabled" style="margin-top:0.15rem;">
+            <span><strong>Enable outbound email</strong> — turn off to disable sending without clearing saved settings.</span>
+          </label>
+          <div class="nc-share-add-row" style="margin-top:0.75rem;">
+            <label class="nc-detail-label" for="email-smtp-host" style="flex:2;">SMTP host</label>
+            <label class="nc-detail-label" for="email-smtp-port" style="flex:0 0 7rem;">Port</label>
+            <span style="display:flex;gap:0.5rem;align-items:flex-end;">
+              <button type="button" class="nc-btn nc-btn-primary" id="email-save">Save</button>
+            </span>
+          </div>
+          <div class="nc-share-add-row" style="margin-top:0.35rem;">
+            <input type="text" id="email-smtp-host" class="nc-detail-input" placeholder="smtp.example.com" style="flex:2;" autocomplete="off">
+            <input type="number" id="email-smtp-port" class="nc-detail-input" placeholder="587" min="1" max="65535" style="flex:0 0 7rem;" autocomplete="off">
+          </div>
+          <label class="nc-detail-label" for="email-username" style="margin-top:0.65rem;">Username</label>
+          <div class="nc-share-add-row">
+            <input type="text" id="email-username" class="nc-detail-input" placeholder="Mailbox email (required for Microsoft 365)" style="flex:1 1 100%;" autocomplete="off">
+          </div>
+          <label class="nc-detail-label" for="email-password" style="margin-top:0.65rem;">Password</label>
+          <div class="nc-share-add-row">
+            <input type="password" id="email-password" class="nc-detail-input" placeholder="Mailbox or app password" style="flex:1 1 100%;" autocomplete="new-password">
+          </div>
+          <p class="nc-detail-muted" id="email-password-hint" style="margin:0.35rem 0 0;font-size:0.82rem;">Leave password blank when saving to keep the stored password.</p>
+          <label class="nc-inline-check" style="margin-top:0.55rem;display:flex;align-items:flex-start;gap:0.45rem;max-width:52rem;">
+            <input type="checkbox" id="email-use-tls" style="margin-top:0.15rem;">
+            <span><strong>STARTTLS</strong> — typical for port 587 (recommended with plain SMTP connection).</span>
+          </label>
+          <label class="nc-inline-check" style="margin-top:0.45rem;display:flex;align-items:flex-start;gap:0.45rem;max-width:52rem;">
+            <input type="checkbox" id="email-use-ssl" style="margin-top:0.15rem;">
+            <span><strong>SSL/TLS on connect</strong> — typical for port 465 (implicit TLS). When enabled, STARTTLS is not used.</span>
+          </label>
+          <label class="nc-inline-check" style="margin-top:0.45rem;display:flex;align-items:flex-start;gap:0.45rem;max-width:52rem;">
+            <input type="checkbox" id="email-skip-tls" style="margin-top:0.15rem;">
+            <span><strong>Skip TLS certificate verification</strong> — for testing or private CA not trusted by this server.</span>
+          </label>
+        </section>
+
+        <section class="nc-admin-card nc-admin-integrations-card" aria-labelledby="email-from-heading">
+          <h3 id="email-from-heading" class="nc-admin-subhead">Sender identity</h3>
+          <label class="nc-detail-label" for="email-from">From email address</label>
+          <div class="nc-share-add-row">
+            <input type="email" id="email-from" class="nc-detail-input" placeholder="noreply@example.com" style="flex:1 1 100%;" autocomplete="off">
+          </div>
+          <label class="nc-detail-label" for="email-from-name" style="margin-top:0.65rem;">From display name</label>
+          <div class="nc-share-add-row">
+            <input type="text" id="email-from-name" class="nc-detail-input" placeholder="Firmgate" style="flex:1 1 100%;" autocomplete="off">
+          </div>
+          <label class="nc-detail-label" for="email-reply-to" style="margin-top:0.65rem;">Default reply-to (optional)</label>
+          <div class="nc-share-add-row">
+            <input type="email" id="email-reply-to" class="nc-detail-input" placeholder="support@example.com" style="flex:1 1 100%;" autocomplete="off">
+          </div>
+        </section>
+
+        <section class="nc-admin-card nc-admin-integrations-card" aria-labelledby="email-test-heading">
+          <h3 id="email-test-heading" class="nc-admin-subhead">Send test email</h3>
+          <p class="nc-detail-muted">Save settings first, then send a test message to confirm delivery.</p>
+          <label class="nc-detail-label" for="email-test-to">Recipient</label>
+          <div class="nc-share-add-row">
+            <input type="email" id="email-test-to" class="nc-detail-input" placeholder="you@example.com" style="flex:1 1 100%;" autocomplete="off">
+            <button type="button" class="nc-btn nc-btn-secondary" id="email-test">Send test</button>
+          </div>
+          <p id="admin-email-status" class="nc-status" role="status"></p>
+        </section>
+      </div>
+    </div>
+
+    <div id="admin-tab-portal" class="nc-admin-panel" hidden role="tabpanel">
+      <div class="nc-admin-section">
+        <div class="nc-admin-section-head">
+          <div>
+            <h2 class="nc-admin-section-title">Portal customisation</h2>
+            <p class="nc-detail-muted">Brand the portal with a logo, footer text, and colour theme.</p>
+          </div>
+        </div>
+        <div class="nc-admin-section-body">
+          <h3 class="nc-admin-subhead">Logo</h3>
+          <p class="nc-detail-muted">Upload your organisation logo for the sidebar and sign-in pages. Recommended: transparent PNG or SVG.</p>
+          <div class="nc-share-add-row">
+            <input type="file" id="portal-logo-file" class="nc-detail-input" accept=".png,.jpg,.jpeg,.svg,.webp,image/png,image/jpeg,image/svg+xml,image/webp" style="flex:2;">
+            <button type="button" class="nc-btn nc-btn-primary" id="portal-logo-upload">Upload</button>
+            <label class="nc-inline-check" style="margin-left:auto;">
+              <input type="checkbox" id="portal-logo-enabled" checked> Show logo
+            </label>
+          </div>
+          <div id="portal-logo-preview" class="nc-portal-logo-preview" hidden>
+            <img id="portal-logo-img" alt="Logo preview">
+          </div>
+
+          <h3 class="nc-admin-subhead" style="margin-top:1.25rem;">Footer</h3>
+          <p class="nc-detail-muted">Set optional footer text shown at the bottom of every page.</p>
+          <textarea id="portal-footer-text" class="nc-detail-input nc-footer-textarea" rows="5" placeholder="Footer text…"></textarea>
+
+          <h3 class="nc-admin-subhead" style="margin-top:1.25rem;">Browser tab title</h3>
+          <p class="nc-detail-muted">Prefix shown in the browser tab for every page (for example <code>Firmgate — Home</code>). Leave blank to use the default portal name (<strong>Firmgate</strong> or <strong>Extranet</strong> from theme).</p>
+          <input type="text" id="portal-browser-tab-title" class="nc-detail-input" maxlength="80" placeholder="Leave blank for default portal name" autocomplete="off">
+
+          <h3 class="nc-admin-subhead" style="margin-top:1.25rem;">Theme</h3>
+          <p class="nc-detail-muted">Colour palette for Firmgate and portal pages. <strong>Extranet</strong> uses cool slate and indigo accents (distinct from the Firmgate teal look) and shows Extranet in the header instead of Firmgate. Save, then the page reloads to apply.</p>
+          <fieldset class="nc-portal-theme-fieldset">
+            <legend class="visually-hidden">Portal theme</legend>
+            <label class="nc-portal-theme-option">
+              <input type="radio" name="portal-theme" value="core_team" id="portal-theme-intranet" checked>
+              <span><strong>Firmgate</strong> — default blue and teal accents (current look).</span>
+            </label>
+            <label class="nc-portal-theme-option">
+              <input type="radio" name="portal-theme" value="non_core_team" id="portal-theme-extranet">
+              <span><strong>Extranet</strong> — cool slate and indigo.</span>
+            </label>
+          </fieldset>
+
+          <div class="nc-admin-form-actions" style="margin-top:0.75rem;">
+            <button type="button" class="nc-btn nc-btn-primary" id="portal-save">Save</button>
+          </div>
+          <p id="admin-portal-status" class="nc-status" role="status"></p>
+        </div>
+      </div>
+    </div>
+
+    <div id="admin-tab-timesheets" class="nc-admin-panel" hidden role="tabpanel">
+      <div class="nc-admin-section">
+        <div class="nc-admin-section-head">
+          <div>
+            <h2 class="nc-admin-section-title">Timesheets management</h2>
+            <p class="nc-detail-muted">Company details and logo shown on downloaded timesheet PDFs.</p>
+          </div>
+        </div>
+        <div class="nc-admin-section-body">
+          <h3 class="nc-admin-subhead">Company logo</h3>
+          <p class="nc-detail-muted">Upload your company logo for the top-right of timesheet PDF exports. Recommended: transparent PNG or SVG.</p>
+          <div id="timesheet-logo-dropzone" class="nc-admin-logo-dropzone">
+            <div id="timesheet-logo-preview" class="nc-portal-logo-preview" hidden>
+              <img id="timesheet-logo-img" alt="Timesheet logo preview">
+            </div>
+            <p class="nc-admin-logo-drop-hint" id="timesheet-logo-drop-hint">Drag and drop a PNG, JPG, SVG, or WebP logo here, or browse below.</p>
+          </div>
+          <div class="nc-share-add-row" style="margin-top:0.65rem;">
+            <input type="file" id="timesheet-logo-file" class="nc-detail-input" accept=".png,.jpg,.jpeg,.svg,.webp,image/png,image/jpeg,image/svg+xml,image/webp" style="flex:2;">
+            <button type="button" class="nc-btn nc-btn-primary" id="timesheet-logo-upload">Upload logo</button>
+          </div>
+
+          <h3 class="nc-admin-subhead" style="margin-top:1.25rem;">Company details</h3>
+          <p class="nc-detail-muted">Optional lines printed on timesheet PDFs (for example legal entity name, ACN/ABN, and address).</p>
+          <label class="nc-detail-label" for="timesheet-company-1">Legal entity name</label>
+          <input type="text" id="timesheet-company-1" class="nc-detail-input" maxlength="240" placeholder="Legal entity name" autocomplete="organization" style="margin-bottom:0.65rem;">
+          <label class="nc-detail-label" for="timesheet-company-2">ACN / ABN line</label>
+          <input type="text" id="timesheet-company-2" class="nc-detail-input" maxlength="240" placeholder="ACN / ABN line" autocomplete="off" style="margin-bottom:0.65rem;">
+          <label class="nc-detail-label" for="timesheet-company-3">Address</label>
+          <input type="text" id="timesheet-company-3" class="nc-detail-input" maxlength="240" placeholder="Address" autocomplete="street-address" style="margin-bottom:0.65rem;">
+
+          <div class="nc-admin-form-actions" style="margin-top:0.75rem;">
+            <button type="button" class="nc-btn nc-btn-primary" id="timesheet-settings-save">Save</button>
+          </div>
+          <p id="admin-timesheets-status" class="nc-status" role="status"></p>
+        </div>
+      </div>
+
+      <div class="nc-admin-section" style="margin-top:1rem;">
+        <div class="nc-admin-section-body">
+          <section class="nc-admin-card" id="timesheet-notify-settings-card" aria-labelledby="timesheet-notify-heading">
+            <h3 id="timesheet-notify-heading" class="nc-admin-subhead">Notifications</h3>
+            <p class="nc-detail-muted" style="margin:0 0 0.75rem;">Email employees who have not uploaded a signed timesheet for the current month. Requires <strong>Email Settings</strong> (SMTP) to be enabled.</p>
+            <label class="nc-auth-remember" style="display:flex;align-items:flex-start;gap:0.45rem;margin-bottom:0.75rem;">
+              <input type="checkbox" id="ts-notify-enabled" style="margin-top:0.15rem;">
+              <span><strong>Enable email reminders</strong> for missing signed timesheets.</span>
+            </label>
+
+            <fieldset class="nc-ts-notify-schedule" style="border:0;padding:0;margin:0 0 0.85rem;">
+              <legend class="nc-detail-label" style="margin-bottom:0.45rem;">Reminder schedule</legend>
+              <label class="nc-auth-remember" style="display:flex;align-items:flex-start;gap:0.45rem;margin-bottom:0.45rem;">
+                <input type="radio" name="ts-notify-schedule" id="ts-notify-schedule-once" value="once" style="margin-top:0.15rem;">
+                <span><strong>Email once</strong> — send a single reminder on a chosen day each month (to users still missing a signed timesheet).</span>
+              </label>
+              <div id="ts-notify-once-wrap" class="nc-share-add-row" style="margin:0 0 0.65rem 1.5rem;align-items:flex-end;gap:0.5rem;" hidden>
+                <label class="nc-detail-label" for="ts-notify-once-day" style="margin:0;">Day of month</label>
+                <select id="ts-notify-once-day" class="nc-detail-input" style="flex:0 0 6rem;"></select>
+              </div>
+              <label class="nc-auth-remember" style="display:flex;align-items:flex-start;gap:0.45rem;margin-bottom:0.45rem;">
+                <input type="radio" name="ts-notify-schedule" id="ts-notify-schedule-interval" value="interval" style="margin-top:0.15rem;">
+                <span><strong>Regular intervals</strong> — repeat reminders every few days until the signed timesheet is uploaded.</span>
+              </label>
+              <div id="ts-notify-interval-wrap" class="nc-share-add-row" style="margin:0 0 0.65rem 1.5rem;align-items:flex-end;gap:0.5rem;" hidden>
+                <label class="nc-detail-label" for="ts-notify-interval-days" style="margin:0;">Every</label>
+                <input type="number" id="ts-notify-interval-days" class="nc-detail-input" min="1" max="90" value="7" style="flex:0 0 5rem;">
+                <span class="nc-detail-muted" style="margin:0;">days</span>
+              </div>
+            </fieldset>
+
+            <div class="nc-share-add-row" style="margin-bottom:0.75rem;align-items:flex-end;gap:0.5rem;">
+              <label class="nc-detail-label" for="ts-notify-send-hour" style="margin:0;">Send at (local time)</label>
+              <select id="ts-notify-send-hour" class="nc-detail-input" style="flex:0 0 8rem;"></select>
+            </div>
+
+            <label class="nc-detail-label" for="ts-notify-subject">Email subject</label>
+            <input type="text" id="ts-notify-subject" class="nc-detail-input" style="width:100%;max-width:36rem;" autocomplete="off">
+            <label class="nc-detail-label" for="ts-notify-body" style="margin-top:0.55rem;">Email body</label>
+            <textarea id="ts-notify-body" class="nc-detail-input" rows="8" style="width:100%;max-width:36rem;resize:vertical;font-family:inherit;"></textarea>
+            <p class="nc-detail-muted" id="ts-notify-placeholders" style="margin:0.65rem 0 0.85rem;font-size:0.82rem;"></p>
+
+            <div class="nc-share-add-row" style="flex-wrap:wrap;align-items:flex-end;gap:0.5rem;">
+              <button type="button" class="nc-btn nc-btn-primary" id="ts-notify-save">Save notification settings</button>
+              <button type="button" class="nc-btn nc-btn-secondary" id="ts-notify-send-now">Send reminders now</button>
+              <label class="nc-detail-label" for="ts-notify-test-to" style="margin:0;">Test recipient</label>
+              <input type="email" id="ts-notify-test-to" class="nc-detail-input" placeholder="you@example.com" style="flex:1 1 12rem;max-width:16rem;" autocomplete="off">
+              <button type="button" class="nc-btn nc-btn-secondary" id="ts-notify-test">Send test email</button>
+            </div>
+            <p id="ts-notify-status" class="nc-detail-muted" style="margin:0.5rem 0 0;" aria-live="polite"></p>
+            <p id="ts-notify-last-run" class="nc-detail-muted" style="margin:0.35rem 0 0;font-size:0.82rem;" hidden></p>
+          </section>
+        </div>
+      </div>
+
+      <div class="nc-admin-section" style="margin-top:1rem;">
+        <div class="nc-admin-section-body">
+          <section class="nc-admin-card" id="timesheet-collection-groups-card" aria-labelledby="timesheet-collection-groups-heading">
+            <h3 id="timesheet-collection-groups-heading" class="nc-admin-subhead">Project groups</h3>
+            <p class="nc-detail-muted" style="margin:0 0 0.75rem;">Organize Timesheet Collection by project name. Assign each active user to one group; unassigned users appear under <strong>Ungrouped</strong>.</p>
+            <div id="ts-col-groups-list" class="nc-ts-col-groups-list"></div>
+            <div class="nc-admin-form-actions" style="margin-top:0.75rem;flex-wrap:wrap;gap:0.5rem;">
+              <button type="button" class="nc-btn nc-btn-secondary" id="ts-col-group-add">Add project group</button>
+              <button type="button" class="nc-btn nc-btn-primary" id="ts-col-groups-save">Save project groups</button>
+            </div>
+            <p id="ts-col-groups-status" class="nc-detail-muted" style="margin:0.5rem 0 0;" aria-live="polite"></p>
+          </section>
+        </div>
+      </div>
+    </div>
+
+    <div id="admin-tab-security_training" class="nc-admin-panel" hidden role="tabpanel">
+      <div class="nc-admin-section">
+        <div class="nc-admin-section-head">
+          <div>
+            <h2 class="nc-admin-section-title">Security Training</h2>
+            <p class="nc-detail-muted">
+              Control who can upload training assets (PDF, Word, Excel, PowerPoint, video) on the Security Training page.
+              <b>Admins can always upload.</b>
+            </p>
+          </div>
+        </div>
+        <div class="nc-admin-section-body">
+          <div class="nc-admin-card" style="margin-bottom:1rem;">
+            <h3 class="nc-admin-subhead" style="margin-top:0;">Page introduction</h3>
+            <p class="nc-detail-muted" style="margin:0 0 0.65rem;">
+              Text shown under the <strong>Security Training</strong> heading on the public page. Use the toolbar for formatting, links, lists, and images.
+            </p>
+            <div class="nc-blog-toolbar nc-about-toolbar nc-st-admin-toolbar" id="st-admin-intro-toolbar" role="toolbar" aria-label="Introduction formatting">
+              <button type="button" class="nc-blog-tbtn" data-st-cmd="bold" title="Bold"><b>B</b></button>
+              <button type="button" class="nc-blog-tbtn" data-st-cmd="italic" title="Italic"><i>I</i></button>
+              <button type="button" class="nc-blog-tbtn" data-st-cmd="underline" title="Underline"><u>U</u></button>
+              <button type="button" class="nc-blog-tbtn" data-st-cmd="strikeThrough" title="Strikethrough"><s>S</s></button>
+              <span class="nc-blog-tsep" aria-hidden="true"></span>
+              <label class="nc-about-tlabel"><span class="nc-sr-only">Font</span>
+                <select class="nc-blog-tselect" id="st-admin-intro-font" title="Font">
+                  <option value="">Font…</option>
+                  <option value="Arial">Arial</option>
+                  <option value="Georgia">Georgia</option>
+                  <option value="Times New Roman">Times New Roman</option>
+                  <option value="Courier New">Courier New</option>
+                  <option value="Verdana">Verdana</option>
+                  <option value="'Trebuchet MS'">Trebuchet MS</option>
+                  <option value="system-ui">System UI</option>
+                </select>
+              </label>
+              <label class="nc-about-tlabel"><span class="nc-sr-only">Size</span>
+                <select class="nc-blog-tselect" id="st-admin-intro-size" title="Text size">
+                  <option value="">Size…</option>
+                  <option value="2">Small</option>
+                  <option value="3">Normal</option>
+                  <option value="4">Large</option>
+                  <option value="5">Larger</option>
+                  <option value="6">X-Large</option>
+                  <option value="7">XX-Large</option>
+                </select>
+              </label>
+              <span class="nc-blog-tsep" aria-hidden="true"></span>
+              <button type="button" class="nc-blog-tbtn" data-st-cmd="justifyLeft" title="Align left">L</button>
+              <button type="button" class="nc-blog-tbtn" data-st-cmd="justifyCenter" title="Align center">C</button>
+              <button type="button" class="nc-blog-tbtn" data-st-cmd="justifyRight" title="Align right">R</button>
+              <button type="button" class="nc-blog-tbtn" data-st-cmd="justifyFull" title="Justify">J</button>
+              <span class="nc-blog-tsep" aria-hidden="true"></span>
+              <button type="button" class="nc-blog-tbtn" data-st-cmd="h1" title="Heading 1">H1</button>
+              <button type="button" class="nc-blog-tbtn" data-st-cmd="h2" title="Heading 2">H2</button>
+              <button type="button" class="nc-blog-tbtn" data-st-cmd="h3" title="Heading 3">H3</button>
+              <button type="button" class="nc-blog-tbtn" data-st-cmd="p" title="Paragraph">¶</button>
+              <span class="nc-blog-tsep" aria-hidden="true"></span>
+              <button type="button" class="nc-blog-tbtn" data-st-cmd="ul" title="Bullet list">≡</button>
+              <button type="button" class="nc-blog-tbtn" data-st-cmd="ol" title="Numbered list">#</button>
+              <button type="button" class="nc-blog-tbtn" data-st-cmd="blockquote" title="Quote">❝</button>
+              <button type="button" class="nc-blog-tbtn" data-st-cmd="hr" title="Horizontal rule">—</button>
+              <button type="button" class="nc-blog-tbtn" data-st-cmd="removeFormat" title="Clear formatting">⌫</button>
+              <span class="nc-blog-tsep" aria-hidden="true"></span>
+              <button type="button" class="nc-blog-tbtn" data-st-cmd="link" title="Link">🔗</button>
+              <button type="button" class="nc-blog-tbtn" data-st-cmd="img" title="Image">🖼️</button>
+            </div>
+            <div class="nc-blog-editorbox nc-detail-input nc-about-editorbox" id="st-admin-intro-editor" contenteditable="true" role="textbox" aria-multiline="true" data-placeholder="Introduction shown on the Security Training page…"></div>
+            <div class="nc-st-admin-emoji-bar" id="st-admin-intro-emoji" aria-label="Insert emoji"></div>
+            <div class="nc-admin-form-actions" style="margin-top:0.75rem;flex-wrap:wrap;gap:0.5rem;">
+              <button type="button" class="nc-btn nc-btn-primary" id="st-admin-intro-save">Save introduction</button>
+              <button type="button" class="nc-btn nc-btn-secondary" id="st-admin-intro-reset">Reset to default text</button>
+            </div>
+          </div>
+          <div class="nc-admin-card">
+            <h3 class="nc-admin-subhead" style="margin-top:0;">Allowed uploaders</h3>
+            <div class="nc-share-add-row" style="margin-top:0.55rem;">
+              <select id="st-admin-user-sel" class="nc-detail-select" style="flex:1;">
+                <option value="">Select a user…</option>
+              </select>
+              <button type="button" class="nc-btn nc-btn-secondary" id="st-admin-user-add">Add</button>
+            </div>
+            <div id="st-admin-chips" style="margin-top:0.65rem; display:flex; gap:0.4rem; flex-wrap:wrap;"></div>
+            <div class="nc-admin-form-actions" style="margin-top:0.85rem;">
+              <button type="button" class="nc-btn nc-btn-primary" id="st-admin-save">Save</button>
+            </div>
+          </div>
+          <p id="admin-security-training-status" class="nc-status" role="status"></p>
+        </div>
+      </div>
+    </div>
+
+    <div id="admin-tab-modules" class="nc-admin-panel" hidden role="tabpanel">
+      <div class="nc-admin-section">
+        <div class="nc-admin-section-head">
+          <div>
+            <h2 class="nc-admin-section-title">Modules</h2>
+            <p class="nc-detail-muted">
+              Use <b>Enabled</b> to show or hide a section in the Firmgate navigation. In <b>Community Edition</b>, enterprise modules (Timesheets, Timesheet Collection, CRM, Security Clearance, Resource Pool, AI Document Search, AI Chatbot) require a license under <b>optional add-on</b> before they can be enabled.
+              Disabled modules are hidden for <b>everyone</b> (including portal administrators),
+              except the <b>Administration</b> tab always stays visible to portal admins so you can return here. When a module is <b>restricted</b> (and enabled),
+              <b>only administrators and the explicitly allowed users</b> can see it.
+            </p>
+          </div>
+        </div>
+        <div class="nc-admin-section-body">
+          <div id="admin-modules-wrap"></div>
+          <div class="nc-admin-form-actions" style="margin-top:0.85rem;">
+            <button type="button" class="nc-btn nc-btn-primary" id="admin-modules-save">Save modules</button>
+            <span class="nc-detail-muted" style="font-size:0.82rem;">Enabled / Restricted save automatically when toggled.</span>
+          </div>
+          <p id="admin-modules-status" class="nc-status" role="status"></p>
+        </div>
+      </div>
+    </div>
+
+    <div id="admin-tab-backup_restore" class="nc-admin-panel" hidden role="tabpanel">
+      <div class="nc-admin-section">
+        <div class="nc-admin-section-head">
+          <div>
+            <h2 class="nc-admin-section-title">Backup &amp; recovery</h2>
+            <p class="nc-detail-muted">SQLite database, portal branding, and uploads except Documents file storage. Role administrators only.</p>
+          </div>
+        </div>
+        <div class="nc-admin-section-body">
+          <div class="nc-admin-card">
+            <h3 class="nc-admin-subhead" style="margin-top:0;">Backup</h3>
+            <p class="nc-detail-muted">
+              Downloads a zip containing the SQLite database (users, roles, groups, CRM, settings, Documents metadata, and more),
+              files under <code>instance/branding/</code> (portal logo),
+              and everything under <code>uploads/</code> except <code>uploads/blobs/</code> (the content-addressed bytes for Documents, OnlyOffice, and similar).
+              Export or copy <code>uploads/blobs/</code> separately if you need those files.
+              The filename includes the date and time in Australian eastern time (Sydney) when you start the download.
+            </p>
+            <div class="nc-admin-form-actions" style="margin-top:0.75rem;">
+              <button type="button" class="nc-btn nc-btn-primary" id="admin-backup-download">Download full backup</button>
+            </div>
+            <p class="nc-detail-muted" style="margin-top:0.75rem;">
+              Store this file somewhere safe. Anyone with the zip can restore the entire portal, including user passwords as stored in the database.
+            </p>
+          </div>
+
+          <div class="nc-admin-card nc-admin-card--warn" style="margin-top:1rem;">
+            <h3 class="nc-admin-subhead" style="margin-top:0;">Recovery</h3>
+            <p class="nc-detail-muted">
+              Upload a backup zip produced by this page. The current database is replaced; <code>uploads/</code> is replaced from the archive except that
+              <code>uploads/blobs/</code> is left unchanged when the backup omitted it (new-format backups), so existing document files stay on disk.
+              Older full backups that still include <code>uploads/blobs/</code> restore those files as before.
+              When the zip includes <code>instance/branding/</code>, portal logo files are replaced from the archive.
+              Use only during a maintenance window; avoid using the app while a restore runs.
+            </p>
+            <label class="nc-detail-label" style="margin-top:0.5rem;">Backup zip file</label>
+            <div class="nc-share-add-row" style="margin-top:0.35rem;">
+              <input type="file" id="admin-backup-file" class="nc-detail-input" accept=".zip" style="flex:1;">
+              <button type="button" class="nc-btn nc-btn-danger" id="admin-backup-restore">Restore from backup</button>
+            </div>
+          </div>
+
+          <div class="nc-admin-card nc-admin-card--dev" style="margin-top:1rem;">
+            <h3 class="nc-admin-subhead" style="margin-top:0;">Development purposes</h3>
+            <p class="nc-detail-muted">
+              Populate demo content across the portal for testing and screenshots. Each click adds about
+              <strong>20%</strong> of the sample pool for every module (workforce, blogs, events, wiki, CRM, resource pool,
+              security clearance, team chat, documents, games, home, and about company). Demo employee and contractor
+              accounts use password <code>demo123</code> and have MFA disabled. Progress is tracked so repeated clicks
+              continue filling each section until complete. Cleared by factory reset.
+            </p>
+            <p id="admin-demo-data-progress" class="nc-detail-muted" style="margin-top:0.5rem;">Overall fill: —</p>
+            <div class="nc-admin-form-actions" style="margin-top:0.75rem;">
+              <button type="button" class="nc-btn nc-btn-primary" id="admin-demo-data-add">Add demo data</button>
+            </div>
+          </div>
+
+          <div class="nc-admin-card nc-admin-card--danger" style="margin-top:1rem;">
+            <h3 class="nc-admin-subhead" style="margin-top:0;">Factory reset</h3>
+            <p class="nc-detail-muted">
+              Permanently wipes the SQLite database, all settings, uploads (including document file storage under
+              <code>uploads/blobs/</code>), portal branding, CRM leads and pipeline data, and every other portal record.
+              The application is restored to a fresh install with only the factory bootstrap administrator
+              (<code>admin@example.com</code> / <code>admin</code>). CRM dashboard and pipeline views return to empty
+              placeholders, and About Company “At a glance” stats are cleared.
+              Download a backup first if you might need any of this data again. This cannot be undone.
+            </p>
+            <label class="nc-detail-label" for="admin-factory-reset-confirm" style="margin-top:0.5rem;">
+              Type <strong>FACTORY RESET</strong> to confirm
+            </label>
+            <div class="nc-share-add-row" style="margin-top:0.35rem;">
+              <input
+                type="text"
+                id="admin-factory-reset-confirm"
+                class="nc-detail-input"
+                autocomplete="off"
+                spellcheck="false"
+                placeholder="FACTORY RESET"
+                style="flex:1;"
+              >
+              <button type="button" class="nc-btn nc-btn-danger" id="admin-factory-reset">Factory reset everything</button>
+            </div>
+          </div>
+
+          <p id="admin-backup-status" class="nc-status" role="status" style="margin-top:0.85rem;"></p>
+        </div>
+      </div>
+    </div>
+
+    <div id="admin-tab-version" class="nc-admin-panel" hidden role="tabpanel">
+      <div class="nc-admin-section">
+        <div class="nc-admin-section-head">
+          <div>
+            <h2 class="nc-admin-section-title">Software version</h2>
+            <p class="nc-detail-muted">Deployed build of this application.</p>
+          </div>
+        </div>
+        <div class="nc-admin-section-body">
+          <p id="sw-display-version" class="nc-admin-version-value" aria-label="Software version">2.0</p>
+          <p id="sw-deploy-hints" class="nc-detail-muted" style="margin-top:0.6rem;display:none;"></p>
+        </div>
+      </div>
+
+      <div class="nc-admin-section" style="margin-top:0.9rem;">
+        <div class="nc-admin-section-head">
+          <div>
+            <h2 class="nc-admin-section-title">Upgrade from Git</h2>
+            <p class="nc-detail-muted">Safe in-place update: fetches and resets code to match the remote branch, keeps <code style="font-size:0.9em;">instance/</code> (database and document uploads), <code style="font-size:0.9em;">.env</code>, and <code style="font-size:0.9em;">.venv</code> — uploads are not copied during upgrade. Backs up only <code style="font-size:0.9em;">.env</code> and the database file, reinstalls Python dependencies, verifies upload counts, then restarts the app service when configured. Requires a writable Git clone under the deploy path.</p>
+          </div>
+        </div>
+        <div class="nc-admin-section-body">
+          <p id="sw-upgrade-disabled-hint" class="nc-detail-muted" style="display:none;"></p>
+          <label class="nc-modal-label" for="sw-git-url">Git repository URL</label>
+          <div class="nc-share-add-row" style="margin-top:0.35rem;">
+            <input type="text" id="sw-git-url" class="nc-detail-input" placeholder="https://github.com/org/firmgate.git" autocomplete="off" style="flex:1;">
+            <button type="button" class="nc-btn nc-btn-primary" id="sw-git-url-save">Save git address</button>
+            <button type="button" class="nc-btn nc-btn-primary" id="sw-upgrade">Download &amp; update</button>
+          </div>
+          <p id="sw-upgrade-status" class="nc-status" role="status"></p>
+        </div>
+      </div>
+
+      <div class="nc-admin-section" style="margin-top:0.9rem;">
+        <div class="nc-admin-section-head">
+          <div>
+            <h2 class="nc-admin-section-title">Upgrade from package</h2>
+            <p class="nc-detail-muted">Upload a release ZIP when Git is unavailable. The package must include the full application tree, <code style="font-size:0.9em;">requirements.txt</code>, and <code style="font-size:0.9em;">manifest.json</code> (build with <code style="font-size:0.9em;">scripts/build_release_package.sh</code>). The server keeps <code style="font-size:0.9em;">instance/</code>, <code style="font-size:0.9em;">.env</code>, and <code style="font-size:0.9em;">.venv</code>, runs <code style="font-size:0.9em;">pip install -r requirements.txt</code>, verifies uploads, then restarts the app service when configured. A light backup of <code style="font-size:0.9em;">.env</code> and the database is taken first.</p>
+          </div>
+        </div>
+        <div class="nc-admin-section-body">
+          <p id="sw-package-disabled-hint" class="nc-detail-muted" style="display:none;"></p>
+          <label class="nc-detail-label" for="sw-package-file">Release package (.zip)</label>
+          <div class="nc-share-add-row" style="margin-top:0.35rem;">
+            <input type="file" id="sw-package-file" class="nc-detail-input" accept=".zip,application/zip" style="flex:1;">
+            <button type="button" class="nc-btn nc-btn-primary" id="sw-package-upgrade">Upload &amp; update</button>
+          </div>
+          <p id="sw-package-status" class="nc-status" role="status"></p>
+        </div>
+      </div>
+
+      <div class="nc-admin-section" style="margin-top:0.9rem;">
+        <div class="nc-admin-section-head">
+          <div>
+            <h2 class="nc-admin-section-title">Deployments</h2>
+            <p class="nc-detail-muted">Timestamps recorded when an upgrade succeeds. Roll back to the recorded prior commit after a faulty release.</p>
+          </div>
+        </div>
+        <div class="nc-admin-section-body">
+          <div class="nc-sw-deploy-grid">
+            <div>
+              <div class="nc-sw-deploy-label">Previous deployment <span class="nc-detail-muted" style="font-weight:600;">(rollback target)</span></div>
+              <div id="sw-prev-deployed" class="nc-sw-deploy-stamp">—</div>
+              <div id="sw-prev-version" class="nc-sw-deploy-commit nc-detail-muted">—</div>
+            </div>
+            <div>
+              <div class="nc-sw-deploy-label">Current deployment</div>
+              <div id="sw-cur-deployed" class="nc-sw-deploy-stamp">—</div>
+              <div id="sw-cur-version" class="nc-sw-deploy-commit nc-detail-muted">—</div>
+            </div>
+          </div>
+          <div class="nc-admin-form-actions" style="margin-top:0.95rem;">
+            <button type="button" class="nc-btn nc-btn-secondary" id="sw-rollback" disabled>Rollback to previous commit</button>
+          </div>
+          <p id="sw-rollback-status" class="nc-status" role="status"></p>
+
+          <div style="height:1rem;"></div>
+          <h3 class="nc-admin-subhead">Deployment history</h3>
+          <div id="sw-deploy-list" class="nc-sw-deploy-list"></div>
+        </div>
+      </div>
+
+      <div class="nc-admin-section" style="margin-top:0.9rem;">
+        <div class="nc-admin-section-head">
+          <div>
+            <h2 class="nc-admin-section-title">Change Log</h2>
+            <p class="nc-detail-muted">Git commit subjects between each recorded deployment (newest first). Requires a clone with enough history to reach the stored commit ids.</p>
+          </div>
+        </div>
+        <div class="nc-admin-section-body">
+          <div id="sw-changelog-root" class="nc-sw-changelog"></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="admin-group-row-menu" class="nc-admin-group-flyout" hidden role="menu" aria-label="Group actions">
+      <button type="button" class="nc-admin-group-flyout-item" role="menuitem" data-gm-action="manage">Manage members &amp; roles</button>
+      <button type="button" class="nc-admin-group-flyout-item" role="menuitem" data-gm-action="rename">Rename / description…</button>
+      <button type="button" class="nc-admin-group-flyout-item nc-admin-group-flyout-item--danger" role="menuitem" data-gm-action="delete">Delete group…</button>
+    </div>
+
+    <div class="nc-modal-backdrop" id="group-manage-modal" hidden style="z-index: 55;">
+      <div class="nc-modal nc-modal--group-manage" role="dialog" aria-modal="true" aria-labelledby="group-manage-title">
+        <div class="nc-modal-card">
+          <div class="nc-modal-head">
+            <div class="nc-modal-title" id="group-manage-title">Manage group</div>
+            <button type="button" class="nc-modal-close" id="group-manage-x" aria-label="Close">×</button>
+          </div>
+          <div class="nc-modal-body">
+            <div class="nc-modal-section">
+              <div class="nc-modal-section-title">Members</div>
+              <p class="nc-modal-help" style="margin-bottom:0.65rem;">Choose a person from the list or type an email address to match a user, then add. Use <strong>Save</strong> beside a row to persist that member, or <strong>Remove</strong> to drop them from this group.</p>
+              <div class="nc-admin-gm-addrow">
+                <input type="text" id="gm-user-pick" class="nc-detail-input" list="gm-user-datalist" placeholder="Name or email…" autocomplete="off" aria-label="Add member by name or email">
+                <datalist id="gm-user-datalist"></datalist>
+                <button type="button" class="nc-btn nc-btn-secondary" id="gm-add-member">Add</button>
+              </div>
+              <div id="gm-member-rows" class="nc-admin-gm-member-rows"></div>
+            </div>
+            <div class="nc-modal-section">
+              <div class="nc-modal-section-title">Roles attached to group</div>
+              <p class="nc-modal-help" style="margin-bottom:0.65rem;">Everyone in this group gets these permissions (combined with their own direct roles). Match <strong>standard</strong> / <strong>power</strong> here to the same roles you tune under <strong>Roles &amp; permissions</strong>.</p>
+              <div id="gm-role-checks" class="nc-checkbox-grid"></div>
+            </div>
+            <p id="group-manage-status" class="nc-status" role="status"></p>
+          </div>
+          <div class="nc-modal-foot">
+            <button type="button" class="nc-btn nc-btn-secondary" id="group-manage-close">Close</button>
+            <button type="button" class="nc-btn nc-btn-primary" id="group-manage-save-all">Save all</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+

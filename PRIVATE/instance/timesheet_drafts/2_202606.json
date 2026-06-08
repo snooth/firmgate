@@ -1,0 +1,293 @@
+{
+  "month": "2026-06",
+  "saved_at": "2026-06-06T08:25:33.956583+00:00",
+  "payload": {
+    "month": "2026-06",
+    "state": "VIC",
+    "period_start": "2026-06-01",
+    "period_end": "2026-06-30",
+    "project_branch": "Client Program \u2014 Delivery",
+    "default_name": "User 1",
+    "default_role": "Standard",
+    "default_hours": "8",
+    "default_project": "",
+    "consultant_name": "User 1",
+    "declaration_text": "Declaration: I User 1 certify that the hours shown accurately represent my total hours worked for Client Program \u2014 Delivery.",
+    "employee_signature": "User 1",
+    "employee_signature_image": "",
+    "supervisor_signature": "",
+    "locked": false,
+    "rows": [
+      {
+        "date": "2026-06-01",
+        "consultant": "User 1",
+        "role": "Standard",
+        "hours": "8",
+        "project": "",
+        "is_weekend": false,
+        "is_holiday": false
+      },
+      {
+        "date": "2026-06-02",
+        "consultant": "User 1",
+        "role": "Standard",
+        "hours": "8",
+        "project": "",
+        "is_weekend": false,
+        "is_holiday": false
+      },
+      {
+        "date": "2026-06-03",
+        "consultant": "User 1",
+        "role": "Standard",
+        "hours": "8",
+        "project": "",
+        "is_weekend": false,
+        "is_holiday": false
+      },
+      {
+        "date": "2026-06-04",
+        "consultant": "User 1",
+        "role": "Standard",
+        "hours": "8",
+        "project": "",
+        "is_weekend": false,
+        "is_holiday": false
+      },
+      {
+        "date": "2026-06-05",
+        "consultant": "User 1",
+        "role": "Standard",
+        "hours": "8",
+        "project": "",
+        "is_weekend": false,
+        "is_holiday": false
+      },
+      {
+        "date": "2026-06-06",
+        "consultant": "",
+        "role": "",
+        "hours": "",
+        "project": "",
+        "is_weekend": true,
+        "is_holiday": false
+      },
+      {
+        "date": "2026-06-07",
+        "consultant": "",
+        "role": "",
+        "hours": "",
+        "project": "",
+        "is_weekend": true,
+        "is_holiday": false
+      },
+      {
+        "date": "2026-06-08",
+        "consultant": "",
+        "role": "",
+        "hours": "",
+        "project": "King's Birthday",
+        "is_weekend": false,
+        "is_holiday": true
+      },
+      {
+        "date": "2026-06-09",
+        "consultant": "User 1",
+        "role": "Standard",
+        "hours": "8",
+        "project": "",
+        "is_weekend": false,
+        "is_holiday": false
+      },
+      {
+        "date": "2026-06-10",
+        "consultant": "User 1",
+        "role": "Standard",
+        "hours": "8",
+        "project": "",
+        "is_weekend": false,
+        "is_holiday": false
+      },
+      {
+        "date": "2026-06-11",
+        "consultant": "User 1",
+        "role": "Standard",
+        "hours": "8",
+        "project": "",
+        "is_weekend": false,
+        "is_holiday": false
+      },
+      {
+        "date": "2026-06-12",
+        "consultant": "User 1",
+        "role": "Standard",
+        "hours": "8",
+        "project": "",
+        "is_weekend": false,
+        "is_holiday": false
+      },
+      {
+        "date": "2026-06-13",
+        "consultant": "",
+        "role": "",
+        "hours": "",
+        "project": "",
+        "is_weekend": true,
+        "is_holiday": false
+      },
+      {
+        "date": "2026-06-14",
+        "consultant": "",
+        "role": "",
+        "hours": "",
+        "project": "",
+        "is_weekend": true,
+        "is_holiday": false
+      },
+      {
+        "date": "2026-06-15",
+        "consultant": "User 1",
+        "role": "Standard",
+        "hours": "8",
+        "project": "",
+        "is_weekend": false,
+        "is_holiday": false
+      },
+      {
+        "date": "2026-06-16",
+        "consultant": "User 1",
+        "role": "Standard",
+        "hours": "8",
+        "project": "",
+        "is_weekend": false,
+        "is_holiday": false
+      },
+      {
+        "date": "2026-06-17",
+        "consultant": "User 1",
+        "role": "Standard",
+        "hours": "8",
+        "project": "",
+        "is_weekend": false,
+        "is_holiday": false
+      },
+      {
+        "date": "2026-06-18",
+        "consultant": "User 1",
+        "role": "Standard",
+        "hours": "8",
+        "project": "",
+        "is_weekend": false,
+        "is_holiday": false
+      },
+      {
+        "date": "2026-06-19",
+        "consultant": "User 1",
+        "role": "Standard",
+        "hours": "8",
+        "project": "",
+        "is_weekend": false,
+        "is_holiday": false
+      },
+      {
+        "date": "2026-06-20",
+        "consultant": "",
+        "role": "",
+        "hours": "",
+        "project": "",
+        "is_weekend": true,
+        "is_holiday": false
+      },
+      {
+        "date": "2026-06-21",
+        "consultant": "",
+        "role": "",
+        "hours": "",
+        "project": "",
+        "is_weekend": true,
+        "is_holiday": false
+      },
+      {
+        "date": "2026-06-22",
+        "consultant": "User 1",
+        "role": "Standard",
+        "hours": "8",
+        "project": "",
+        "is_weekend": false,
+        "is_holiday": false
+      },
+      {
+        "date": "2026-06-23",
+        "consultant": "User 1",
+        "role": "Standard",
+        "hours": "8",
+        "project": "",
+        "is_weekend": false,
+        "is_holiday": false
+      },
+      {
+        "date": "2026-06-24",
+        "consultant": "User 1",
+        "role": "Standard",
+        "hours": "8",
+        "project": "",
+        "is_weekend": false,
+        "is_holiday": false
+      },
+      {
+        "date": "2026-06-25",
+        "consultant": "User 1",
+        "role": "Standard",
+        "hours": "8",
+        "project": "",
+        "is_weekend": false,
+        "is_holiday": false
+      },
+      {
+        "date": "2026-06-26",
+        "consultant": "User 1",
+        "role": "Standard",
+        "hours": "8",
+        "project": "",
+        "is_weekend": false,
+        "is_holiday": false
+      },
+      {
+        "date": "2026-06-27",
+        "consultant": "",
+        "role": "",
+        "hours": "",
+        "project": "",
+        "is_weekend": true,
+        "is_holiday": false
+      },
+      {
+        "date": "2026-06-28",
+        "consultant": "",
+        "role": "",
+        "hours": "",
+        "project": "",
+        "is_weekend": true,
+        "is_holiday": false
+      },
+      {
+        "date": "2026-06-29",
+        "consultant": "User 1",
+        "role": "Standard",
+        "hours": "8",
+        "project": "",
+        "is_weekend": false,
+        "is_holiday": false
+      },
+      {
+        "date": "2026-06-30",
+        "consultant": "User 1",
+        "role": "Standard",
+        "hours": "8",
+        "project": "",
+        "is_weekend": false,
+        "is_holiday": false
+      }
+    ]
+  }
+}

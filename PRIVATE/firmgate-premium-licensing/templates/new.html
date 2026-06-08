@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Generate — Firmgate{% endblock %}
+
+{% block body %}
+  <div class="fg-hero-banner">
+    <div class="fg-hero-inner">
+      <div>
+        <p class="fg-kicker">Issue</p>
+        <h1>Generate new license</h1>
+        <p class="fg-hero-muted">Creates an <code>FG2…</code> key and records it in the issued ledger.</p>
+      </div>
+      <a class="fg-btn fg-btn-ghost-light" href="{{ url_for('index') }}">Back to list</a>
+    </div>
+  </div>
+
+  <section class="fg-card">
+    <form method="post" action="{{ url_for('new_license_submit') }}">
+      <div class="fg-grid">
+        <div>
+          <label for="subject">Label / subject</label>
+          <input id="subject" class="fg-input" name="subject" placeholder="Customer / org label" />
+
+          <label for="expires">Expiry (YYYY-MM-DD)</label>
+          <input id="expires" class="fg-input" name="expires" placeholder="YYYY-MM-DD (optional)" value="{{ default_expires }}" />
+
+          <label for="preset">Preset</label>
+          <select id="preset" name="preset">
+            <option value="">Custom (select features below)</option>
+            <option value="all">All features</option>
+            <option value="ai">All AI features</option>
+            <option value="enterprise">Enterprise intranet pack</option>
+          </select>
+
+          <div class="fg-actions-bar">
+            <button class="fg-btn fg-btn-primary" type="submit">Generate license</button>
+            <a class="fg-btn" href="{{ url_for('index') }}">Cancel</a>
+          </div>
+        </div>
+
+        <div>
+          <label for="features">Features (custom)</label>
+          <p class="fg-muted" style="margin:0 0 0.5rem;font-size:0.88rem;">Hold Cmd/Ctrl to multi-select.</p>
+          <select id="features" name="features" multiple size="14">
+            {% for f in all_features %}
+              <option value="{{ f }}">{{ feature_labels.get(f, f) }} ({{ f }})</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+    </form>
+  </section>
+{% endblock %}

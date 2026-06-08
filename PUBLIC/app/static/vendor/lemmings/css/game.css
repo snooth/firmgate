@@ -1,0 +1,85 @@
+html,
+body {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    background-color: black;
+}
+
+@media (orientation: landscape) {
+    html,
+    body {
+        width: 100vw;
+        height: 100vh;
+    }
+}
+
+body,
+body * {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+.game,
+.game_container {
+    display: block;
+    touch-action: none;
+    margin: auto;
+    width: 100%;
+    height: 100%;
+}
+
+@media (orientation: landscape) {
+    .game,
+    .game_container {
+        width: 100vw;
+        height: 100vh;
+    }
+}
+
+canvas {
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: contain;
+    image-rendering: pixelated;
+}
+
+.level_name {
+    display: block;
+    position: relative;
+    color: white;
+    bottom: 22px;
+    left: 2px;
+    font-size: 15px;
+}
+
+.game_container.small > .level_name {
+    font-size: 11px;
+    bottom: 17px;
+}
+
+.arrow_l {
+    display: inline-block;
+    position: relative;
+    bottom: 95px;
+    right: 73px;
+    float: right;
+}
+
+.game_container.small > .arrow_l {
+    zoom: 0.6
+}
+
+.arrow_r {
+    display: inline-block;
+    position: relative;
+    bottom: 95px;
+    left: 25px;
+    float: right;
+}
+
+.game_container.small > .arrow_r {
+    zoom: 0.6
+}

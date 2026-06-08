@@ -1,0 +1,123 @@
+{% extends "intranet_base.html" %}
+{% set e = user_entry %}
+{% set ed = e.edit if e.edit else {} %}
+{% block title %}{{ portal_tab_title }} — {{ e.name }}{% endblock %}
+
+{% block intranet_body %}
+<div class="nc-intranet-hero-banner nc-profile-page">
+  <div class="nc-intranet-hero-banner-inner">
+    <div class="nc-profile-hero-main">
+      <div class="nc-profile-avatar nc-dir-avatar" id="nc-user-hero-avatar" data-tone="{{ e.tone }}" data-user-id="{{ e.id }}" aria-hidden="true">{{ e.initials or '?' }}</div>
+      <div>
+        <h1>{{ e.name }}</h1>
+        <div class="nc-intranet-muted">{{ e.job_title or 'Team member' }}</div>
+        <div class="nc-profile-hero-meta">
+          <span class="nc-dir-online-dot" id="nc-user-presence-dot" aria-hidden="true"></span>
+          <span id="nc-user-presence-label">{{ e.presence.label if e.presence else 'Offline' }}</span>
+          {% if e.department and e.department != '—' %}
+          <span class="nc-profile-hero-pill">{{ e.department }}</span>
+          {% endif %}
+          {% if e.is_contractor %}
+          <span class="nc-profile-hero-pill nc-profile-hero-pill--contractor">Contractor</span>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    <div class="nc-profile-hero-actions">
+      <a class="nc-btn nc-btn-secondary nc-intranet-hero-edit" href="{{ directory_url }}">Back to Workforce</a>
+      {% if is_self and profile_url %}
+      <a class="nc-btn nc-btn-secondary nc-intranet-hero-edit" href="{{ profile_url }}">My profile</a>
+      {% elif workforce_edit_url %}
+      <a class="nc-btn nc-btn-primary nc-intranet-hero-edit" href="{{ workforce_edit_url }}" data-turbo="false" onclick="try{sessionStorage.setItem('nc.workforce.editUserId','{{ e.id }}')}catch(_e){}">Edit resource</a>
+      {% endif %}
+    </div>
+    {% if can_edit_workforce and not is_self and workforce_edit_url %}
+    <p class="nc-profile-edit-hint nc-detail-muted">Contact and organisation fields are read-only on this page. Use <strong>Edit resource</strong> to change them on Workforce.</p>
+    {% endif %}
+  </div>
+</div>
+
+<div class="nc-intranet-grid2 nc-profile-grid">
+  <section class="nc-intranet-card" aria-label="Contact">
+    <h2>Contact</h2>
+    <dl class="nc-profile-dl">
+      <div>
+        <dt>Email</dt>
+        <dd>
+          {% if e.email %}
+          <a href="mailto:{{ e.email|e }}">{{ e.email_display or e.email }}</a>
+          {% else %}—{% endif %}
+        </dd>
+      </div>
+      <div><dt>Phone</dt><dd>{% if e.phone %}<a href="tel:{{ e.phone|e }}">{{ e.phone }}</a>{% else %}—{% endif %}</dd></div>
+      <div><dt>Local time</dt><dd id="nc-user-local-time">—</dd></div>
+    </dl>
+  </section>
+
+  <section class="nc-intranet-card" aria-label="Organization">
+    <h2>Organization</h2>
+    <dl class="nc-profile-dl">
+      <div><dt>Department</dt><dd>{{ e.department or '—' }}</dd></div>
+      <div><dt>Job title</dt><dd>{{ e.job_title or '—' }}</dd></div>
+      <div><dt>Location</dt><dd>{{ e.location or '—' }}</dd></div>
+      <div><dt>Reports to</dt><dd>{{ e.reports_to or '—' }}</dd></div>
+      <div><dt>Start date</dt><dd>{{ e.start_date or '—' }}</dd></div>
+      <div><dt>Timezone</dt><dd>{{ e.timezone or '—' }}</dd></div>
+      {% if ed.workforce_project %}
+      <div><dt>Project</dt><dd>{{ ed.workforce_project }}</dd></div>
+      {% endif %}
+    </dl>
+  </section>
+
+  {% if e.is_contractor %}
+  <section class="nc-intranet-card" aria-label="Contract">
+    <h2>Contract</h2>
+    <dl class="nc-profile-dl">
+      <div><dt>Contract sign date</dt><dd>{{ ed.contract_sign_date or '—' }}</dd></div>
+      <div><dt>Contract start</dt><dd>{{ ed.contract_start_date or '—' }}</dd></div>
+      <div><dt>Contract end</dt><dd>{{ ed.contract_end_date or '—' }}</dd></div>
+      {% if ed.contractor_company %}
+      <div><dt>Company</dt><dd>{{ ed.contractor_company.name or '—' }}</dd></div>
+      {% endif %}
+    </dl>
+  </section>
+  {% endif %}
+</div>
+
+<section class="nc-intranet-card nc-profile-notes-card" aria-label="Workforce notes">
+  <h2>Notes</h2>
+  <p class="nc-detail-muted nc-profile-notes-intro">Workforce notes for this person. Visible here and in the Workforce edit panel (stored in this browser).</p>
+  <div class="nc-sc2-chat nc-profile-notes-chat" aria-label="Employee notes">
+    <div class="nc-sc2-chat-list" id="nc-user-notes-list" aria-live="polite"></div>
+    {% if can_edit_workforce %}
+    <div class="nc-sc2-chat-compose" id="nc-user-note-compose">
+      <div class="nc-sc2-chat-compose-main">
+        <div class="nc-sc2-chat-attach" id="nc-user-note-attach" hidden>
+          <img class="nc-sc2-chat-attach-img" id="nc-user-note-attach-img" alt="">
+          <button type="button" class="nc-sc2-chat-attach-x" id="nc-user-note-attach-x" aria-label="Remove attached image">&times;</button>
+        </div>
+        <textarea class="nc-sc2-chat-textarea" id="nc-user-note-text" rows="3" placeholder="Write a note… (paste a screenshot here too)"></textarea>
+      </div>
+      <button type="button" class="nc-btn nc-btn-primary" id="nc-user-note-send">Post</button>
+    </div>
+    {% endif %}
+  </div>
+</section>
+
+<div id="nc-user-img-viewer" class="nc-viewer-shell" hidden aria-label="Image viewer">
+  <div class="nc-viewer-topbar">
+    <div class="nc-viewer-topbar-title" id="nc-user-img-title">Image</div>
+    <button type="button" class="nc-viewer-close" id="nc-user-img-close" aria-label="Close image viewer">&times;</button>
+  </div>
+  <div class="nc-sc2-img-viewer-body">
+    <img id="nc-user-img-el" class="nc-sc2-img-viewer-img" alt="Full image">
+  </div>
+</div>
+
+<script type="application/json" id="nc-user-page-data">{{ {"id": e.id, "timezone": e.timezone, "presence": e.presence, "can_edit_workforce": can_edit_workforce, "current_user": (current_user.full_name or current_user.username or 'Member')}|tojson }}</script>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script src="{{ url_for('static', filename='intranet_user_page.js') }}?v=3" defer></script>
+{% endblock %}

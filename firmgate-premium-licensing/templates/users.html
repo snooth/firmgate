@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}Portal users — Firmgate{% endblock %}
+
+{% block body %}
+  <div class="fg-hero-banner fg-hero-banner--compact">
+    <div class="fg-hero-inner">
+      <div class="fg-hero-copy">
+        <p class="fg-kicker">Administration</p>
+        <h1>Portal users</h1>
+        <p class="fg-hero-muted">Accounts for this licensing console only — not intranet users.</p>
+      </div>
+      <div class="fg-hero-actions">
+        <a class="fg-btn fg-btn-ghost-light" href="{{ url_for('index') }}">All licenses</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="fg-page-stack fg-page-stack--2col">
+    <section class="fg-card">
+      <div class="fg-card-head">
+        <h2>Add user</h2>
+        <p class="fg-muted">Operators can issue and view licenses. Administrators can manage portal users.</p>
+      </div>
+      <form method="post" action="{{ licensing_url_users }}">
+        <input type="hidden" name="action" value="add" />
+        <label for="new_username">Username</label>
+        <input class="fg-input" id="new_username" name="username" type="text" autocomplete="username" required placeholder="name@company.com" />
+
+        <label for="new_password">Password</label>
+        <input class="fg-input" id="new_password" name="password" type="password" autocomplete="new-password" required placeholder="Min 8 characters" />
+
+        <label for="new_display_name">Display name</label>
+        <input class="fg-input" id="new_display_name" name="display_name" type="text" autocomplete="name" />
+
+        <label for="new_email">Contact email</label>
+        <input class="fg-input" id="new_email" name="email" type="email" autocomplete="email" />
+
+        <label for="new_role">Role</label>
+        <select class="fg-input" id="new_role" name="role">
+          <option value="operator">Operator — licenses only</option>
+          <option value="admin">Administrator — full portal access</option>
+        </select>
+
+        <div class="fg-actions-bar">
+          <button class="fg-btn fg-btn-primary" type="submit">Add user</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="fg-card fg-card--wide">
+      <div class="fg-card-head fg-card-head--row">
+        <div>
+          <h2>Current users</h2>
+          <p class="fg-muted">{{ users|length }} account{{ '' if users|length == 1 else 's' }}</p>
+        </div>
+      </div>
+      <div class="fg-table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Username</th>
+              <th>Role</th>
+              <th>Added</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for u in users %}
+            <tr>
+              <td>{{ u.display_name or u.username }}</td>
+              <td><code>{{ u.username }}</code></td>
+              <td><span class="fg-pill{% if u.role == 'admin' %} active{% endif %}">{{ u.role_label }}</span></td>
+              <td><code>{{ u.created_at or '—' }}</code></td>
+              <td class="fg-table-actions">
+                {% if u.id != current_user_id %}
+                <form method="post" action="{{ licensing_url_users }}/{{ u.id }}/delete" class="fg-inline-delete" onsubmit="return confirm('Delete portal user {{ u.username|e }}?');">
+                  <button class="fg-btn fg-btn-danger" type="submit">Delete</button>
+                </form>
+                {% else %}
+                <span class="fg-muted">You</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% else %}
+            <tr>
+              <td colspan="5" class="fg-muted">No users yet.</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+{% endblock %}

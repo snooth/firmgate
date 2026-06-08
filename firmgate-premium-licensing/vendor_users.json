@@ -1,0 +1,18 @@
+{
+  "users": [
+    {
+      "id": "25f99cb0-8720-404f-a31b-ac1129d9e484",
+      "username": "admin@example.com",
+      "password_hash": "scrypt:32768:8:1$f242FUXb9MpVbdsE$10d2e20ed14fce2cd33976d8513f8470c0fbe726746b1a8f6f44de15b210823bfa7579729119169c5b44eaa4aa27510a752d9bbba066c905cced14dc89334b8c",
+      "role": "admin",
+      "display_name": "admin",
+      "email": "admin@example.com",
+      "phone": "",
+      "timezone": "Australia/Melbourne",
+      "organization": "Firmgate licensing",
+      "created_at": "2026-06-08T01:50:59+00:00",
+      "updated_at": "2026-06-08T01:50:59+00:00"
+    }
+  ],
+  "updated_at": "2026-06-08T01:51:41+00:00"
+}

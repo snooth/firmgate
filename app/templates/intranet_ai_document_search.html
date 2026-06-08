@@ -1,0 +1,68 @@
+{% extends "intranet_base.html" %}
+{% block title %}{{ portal_tab_title }} — AI Document Search{% endblock %}
+
+{% block intranet_body %}
+<div class="nc-intranet-hero">
+  <div>
+    <h1>AI Document Search</h1>
+    <p class="nc-intranet-muted">Ask questions across your documents — PDF, Office, text, and scripts. Answers cite matching files.</p>
+  </div>
+</div>
+
+{% if not ai_licensed %}
+<div class="nc-intranet-card" style="margin-bottom:1rem;">
+  <p class="nc-detail-muted" style="margin:0;">
+    <strong>Enterprise feature.</strong> AI Document Search is part of the enterprise license pack. Activate a key under
+    <strong>Administration → Enterprise Features</strong> that includes <code>ai_document_search</code> (or <code>--ai</code> / <code>--all</code> from your vendor), then configure the LLM under <strong>Administration → AI Settings</strong>.
+  </p>
+</div>
+{% else %}
+
+<div
+  class="nc-ads nc-ai-chat-layout"
+  id="nc-ads-root"
+  data-configured="{{ '1' if ai_llm.configured else '0' }}"
+  data-model="{{ ai_llm.model|e }}"
+>
+  <aside class="nc-ads-side" aria-label="Conversation history">
+    <div class="nc-ads-side-head">
+      <h2 class="nc-ads-side-title">Conversations</h2>
+      <button type="button" class="nc-btn nc-btn-secondary nc-ads-new-chat" id="nc-ads-new-chat" title="Start a new chat">New</button>
+    </div>
+    <div class="nc-ads-history" id="nc-ads-history" role="listbox" aria-label="Past conversations">
+      <p class="nc-ads-history-empty nc-detail-muted">Loading…</p>
+    </div>
+    <div class="nc-ads-side-foot">
+      <p class="nc-ads-side-meta" id="nc-ads-stats" role="status">Preparing index…</p>
+      <button type="button" class="nc-btn nc-btn-secondary nc-ads-reindex" id="nc-ads-reindex">Index my documents</button>
+    </div>
+    {% if not ai_llm.configured %}
+    <p class="nc-ads-warn">AI is not configured yet. An administrator must set the API key under <strong>Administration → AI Settings → Document Search</strong>.</p>
+    {% endif %}
+  </aside>
+
+  <section class="nc-ads-chat" aria-label="Document assistant chat">
+    <div class="nc-ads-messages" id="nc-ads-messages" role="log" aria-live="polite"></div>
+    <form class="nc-ads-compose" id="nc-ads-form" autocomplete="off">
+      <textarea
+        id="nc-ads-input"
+        class="nc-ads-input"
+        rows="2"
+        placeholder="Ask about your documents…"
+        aria-label="Your question"
+        {% if not ai_llm.configured %}disabled{% endif %}
+      ></textarea>
+      <button type="submit" class="nc-btn nc-btn-primary nc-ads-send" id="nc-ads-send" {% if not ai_llm.configured %}disabled{% endif %}>Send</button>
+    </form>
+  </section>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+{% if ai_licensed %}
+<script src="{{ url_for('static', filename='ai_chat_format.js') }}?v=4"></script>
+<script src="{{ url_for('static', filename='ai_document_search.js') }}?v=9" data-turbo-eval="always"></script>
+{% endif %}
+{% endblock %}
