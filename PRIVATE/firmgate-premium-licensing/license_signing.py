@@ -63,13 +63,21 @@ def sign_license_key(
     return f"{LICENSE_PREFIX}.{_b64url_encode(body)}.{_b64url_encode(sig)}"
 
 
+def _public_key_paths() -> list[Path]:
+    """Paths the running app may load (keep in sync when rotating keys)."""
+    return [
+        APP_ROOT / "app" / "enterprise" / "enterprise_license_public.b64",
+        APP_ROOT / "app" / "enterprise_license_public.b64",
+    ]
+
+
 def generate_keypair_files(
     *,
     private_path: Path | None = None,
     public_b64_path: Path | None = None,
 ) -> tuple[Path, Path]:
     private_path = private_path or _private_key_path()
-    public_b64_path = public_b64_path or APP_ROOT / "app" / "enterprise_license_public.b64"
+    public_paths = [public_b64_path] if public_b64_path else _public_key_paths()
 
     private_key = Ed25519PrivateKey.generate()
     public_key = private_key.public_key()
@@ -90,7 +98,10 @@ def generate_keypair_files(
         encoding=serialization.Encoding.Raw,
         format=serialization.PublicFormat.Raw,
     )
-    public_b64_path.parent.mkdir(parents=True, exist_ok=True)
-    public_b64_path.write_text(base64.b64encode(pub_raw).decode("ascii") + "\n", encoding="utf-8")
+    pub_text = base64.b64encode(pub_raw).decode("ascii") + "\n"
+    primary_public = public_paths[0]
+    for path in public_paths:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(pub_text, encoding="utf-8")
 
-    return private_path, public_b64_path
+    return private_path, primary_public

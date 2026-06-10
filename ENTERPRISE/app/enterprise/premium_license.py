@@ -278,8 +278,14 @@ def build_license_body(
 
 def _load_public_key_bytes() -> bytes | None:
     b64 = (os.environ.get("FIRMGATE_LICENSE_PUBLIC_KEY") or "").strip()
-    if not b64 and _PUBLIC_KEY_FILE.is_file():
-        b64 = _PUBLIC_KEY_FILE.read_text(encoding="utf-8").strip()
+    if not b64:
+        for candidate in (
+            _PUBLIC_KEY_FILE,
+            _PUBLIC_KEY_FILE.parent.parent / "enterprise_license_public.b64",
+        ):
+            if candidate.is_file():
+                b64 = candidate.read_text(encoding="utf-8").strip()
+                break
     if not b64:
         return None
     try:

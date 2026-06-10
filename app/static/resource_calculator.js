@@ -89,6 +89,16 @@
     };
   }
 
+  function hourlyRateLabel(calc, digits) {
+    const hrs = numVal(calc?.hours_per_day, 8);
+    const hrLabel = Number.isInteger(hrs) ? String(hrs) : hrs.toFixed(1);
+    return `${money(calc.resulting_charge_hourly, digits ?? 2)}/hr · based on ${hrLabel} hr day`;
+  }
+
+  function hourlyRateLabelWithLoading(calc) {
+    return `${hourlyRateLabel(calc, 2)} · includes casual loading of 25%`;
+  }
+
   function readInputs() {
     return {
       loaded_daily: numVal(el("rcalc-daily")?.value, 0),
@@ -135,7 +145,7 @@
 
     const resultingDaily = Math.max(0, contractorDaily - obligationsDaily);
     const resultingAnnual = resultingDaily * dpy;
-    const hoursPerDay = Math.max(0.1, numVal(settings.hours_per_day, 7.6));
+    const hoursPerDay = Math.max(0.1, numVal(settings.hours_per_day, 8));
     const resultingHourly = resultingDaily / hoursPerDay;
     const marginPercent =
       resultingDaily > 0
@@ -222,12 +232,12 @@
       <article class="nc-rcalc-kpi"><div class="nc-rcalc-kpi-label">Casual daily</div><div class="nc-rcalc-kpi-val">${money(
         calc.resulting_charge_daily,
         0
-      )}</div><div class="nc-rcalc-kpi-meta">${money(calc.resulting_charge_hourly, 2)}/hr · includes casual loading of 25%</div></article>
+      )}</div><div class="nc-rcalc-kpi-meta">${hourlyRateLabelWithLoading(calc)}</div></article>
       <article class="nc-rcalc-kpi"><div class="nc-rcalc-kpi-label">Tax and obligations total</div><div class="nc-rcalc-kpi-val">${money(
         calc.margin_value_daily,
         0
       )}</div><div class="nc-rcalc-kpi-meta">${money(calc.margin_value_annual, 0)} per year · taxes &amp; obligations</div></article>
-      <article class="nc-rcalc-kpi"><div class="nc-rcalc-kpi-label">On-cost margin</div><div class="nc-rcalc-kpi-val">${pct(
+      <article class="nc-rcalc-kpi"><div class="nc-rcalc-kpi-label">Obligation Percentage</div><div class="nc-rcalc-kpi-val">${pct(
         calc.margin_percent
       )}</div><div class="nc-rcalc-kpi-meta">Loaded vs base salary</div></article>`;
   }
@@ -256,7 +266,7 @@
       "Resulting resource charge daily rate",
       calc.resulting_charge_daily,
       calc.resulting_charge_annual,
-      `${money(calc.resulting_charge_hourly, 2)}/hr`,
+      `${hourlyRateLabel(calc, 2)}`,
     ]);
     body.innerHTML = rows
       .map(([label, daily, annual, rate], i) => {
@@ -313,7 +323,7 @@
     meta.textContent = [
       `Jurisdiction: ${calc.work_state}`,
       `Contractor daily: ${money(inputs.loaded_daily, 0)}`,
-      `Casual daily: ${money(calc.resulting_charge_daily, 0)} (${money(calc.resulting_charge_hourly, 2)}/hr)`,
+      `Casual daily: ${money(calc.resulting_charge_daily, 0)} (${hourlyRateLabel(calc, 2)})`,
       `Billable days: ${inputs.days_per_year}/year`,
       `Tax & obligations: ${money(calc.margin_value_daily, 0)}/day`,
     ].join("  ·  ");

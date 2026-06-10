@@ -110,10 +110,11 @@ if [ -d "$ROOT/PRIVATE/RELEASES" ]; then
     | xargs -0 git add -f 2>/dev/null || true
 fi
 
-for forbidden in instance .venv venv; do
+for forbidden in instance .venv venv .env .solstak-backup.env; do
   if git diff --cached --name-only | grep -qx "$forbidden" \
-    || git diff --cached --name-only | grep -q "^${forbidden}/"; then
-    die "$forbidden/ must not be included in backup — check staging."
+    || git diff --cached --name-only | grep -q "^${forbidden}$" \
+    || git diff --cached --name-only | grep -q "/${forbidden}$"; then
+    die "$forbidden must not be included in backup — check staging."
   fi
 done
 

@@ -7,7 +7,7 @@ from typing import Any
 AU_WORK_STATES = ("ACT", "NSW", "VIC", "QLD", "SA", "WA", "NT")
 
 DEFAULT_DAYS_PER_YEAR = 220.0
-DEFAULT_HOURS_PER_DAY = 7.6
+DEFAULT_HOURS_PER_DAY = 8.0
 DEFAULT_SUPER_PERCENT = 12.0
 
 # Indicative rates (% of contractor daily). Adjust in code if your org updates benchmarks.
