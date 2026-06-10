@@ -1,7 +1,7 @@
 {
   "entries": [
     {
-      "expires_at": "2027-06-08",
+      "expires_at": "2027-06-10",
       "features": [
         "ai_chatbot",
         "ai_cv_builder",
@@ -21,36 +21,10 @@
         "self_registration",
         "timesheets"
       ],
-      "fingerprint": "3310436c90d277b7",
-      "issued_at": "2026-06-08T01:51:33Z",
-      "license_key": "FG2.eyJleHAiOiIyMDI3LTA2LTA4IiwiZiI6WyJhaV9jaGF0Ym90IiwiYWlfY3ZfYnVpbGRlciIsImFpX2RvY3VtZW50X3NlYXJjaCIsImFpX3BvbGljeV9hc3Npc3RhbnQiLCJhaV90ZW5kZXJfYXNzaXN0YW50IiwiY3JtIiwiZW50ZXJwcmlzZV9pbnRyYW5ldCIsImxkYXAiLCJvZmZpY2UzNjUiLCJyZXNvdXJjZV9jYWxjdWxhdG9yIiwicmVzb3VyY2VfcG9vbCIsInNlY3VyaXR5X2NsZWFyYW5jZSIsInNlY3VyaXR5X2VuY3J5cHRpb24iLCJzZWN1cml0eV9vZmZpY2VyIiwic2VjdXJpdHlfb2ZmaWNlcl9leHBvcnQiLCJzZWxmX3JlZ2lzdHJhdGlvbiIsInRpbWVzaGVldHMiXSwic3ViIjoiQUxMIiwidiI6Mn0.gcz0CyLAsvPindT_dZupmxhordfvwBkUjip62Z69hT11p0JyqmpUymVs4AZSKtdMoIOak5QSwQmyhcm5ttyzDA",
-      "subject": "ALL"
-    },
-    {
-      "expires_at": "2027-12-31",
-      "features": [
-        "ai_chatbot",
-        "ai_cv_builder",
-        "ai_document_search",
-        "ai_policy_assistant",
-        "ai_tender_assistant",
-        "crm",
-        "enterprise_intranet",
-        "ldap",
-        "office365",
-        "resource_calculator",
-        "resource_pool",
-        "security_clearance",
-        "security_encryption",
-        "security_officer",
-        "security_officer_export",
-        "self_registration",
-        "timesheets"
-      ],
-      "fingerprint": "8ba66ea6c48994f3",
-      "issued_at": "2026-06-10T01:17:39Z",
-      "license_key": "FG2.eyJleHAiOiIyMDI3LTEyLTMxIiwiZiI6WyJhaV9jaGF0Ym90IiwiYWlfY3ZfYnVpbGRlciIsImFpX2RvY3VtZW50X3NlYXJjaCIsImFpX3BvbGljeV9hc3Npc3RhbnQiLCJhaV90ZW5kZXJfYXNzaXN0YW50IiwiY3JtIiwiZW50ZXJwcmlzZV9pbnRyYW5ldCIsImxkYXAiLCJvZmZpY2UzNjUiLCJyZXNvdXJjZV9jYWxjdWxhdG9yIiwicmVzb3VyY2VfcG9vbCIsInNlY3VyaXR5X2NsZWFyYW5jZSIsInNlY3VyaXR5X2VuY3J5cHRpb24iLCJzZWN1cml0eV9vZmZpY2VyIiwic2VjdXJpdHlfb2ZmaWNlcl9leHBvcnQiLCJzZWxmX3JlZ2lzdHJhdGlvbiIsInRpbWVzaGVldHMiXSwic3ViIjoiU29sU3RhayBHcm91cCIsInYiOjJ9.XaD5H0Lsq1vYZS3tI2LBE6zwgDOsKrYuKuJgB0SIyj_lWlLc2LjN0E8ygJnWivgw0RZgMNJ_qIaWPE-0YY_lDg",
-      "subject": "SolStak Group"
+      "fingerprint": "4940f340272a2e39",
+      "issued_at": "2026-06-10T01:38:21Z",
+      "license_key": "FG2.eyJleHAiOiIyMDI3LTA2LTEwIiwiZiI6WyJhaV9jaGF0Ym90IiwiYWlfY3ZfYnVpbGRlciIsImFpX2RvY3VtZW50X3NlYXJjaCIsImFpX3BvbGljeV9hc3Npc3RhbnQiLCJhaV90ZW5kZXJfYXNzaXN0YW50IiwiY3JtIiwiZW50ZXJwcmlzZV9pbnRyYW5ldCIsImxkYXAiLCJvZmZpY2UzNjUiLCJyZXNvdXJjZV9jYWxjdWxhdG9yIiwicmVzb3VyY2VfcG9vbCIsInNlY3VyaXR5X2NsZWFyYW5jZSIsInNlY3VyaXR5X2VuY3J5cHRpb24iLCJzZWN1cml0eV9vZmZpY2VyIiwic2VjdXJpdHlfb2ZmaWNlcl9leHBvcnQiLCJzZWxmX3JlZ2lzdHJhdGlvbiIsInRpbWVzaGVldHMiXSwic3ViIjoiU29sU3RhayBNYXN0ZXIiLCJ2IjoyfQ.2ECnAZWHLQ0Roddrl30_Jfoa-5s1VoiKjSO1OH_VCSKlEf6r7eq3jHCDcP0paw3uKL_3nyMrAM9e5p1ziCQEAQ",
+      "subject": "SolStak Master"
     }
   ]
 }

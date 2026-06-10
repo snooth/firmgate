@@ -1,9 +1,9 @@
 {
   "tag": "firmgate-release-package",
   "edition": "enterprise",
-  "version": "v2.44-26-g92dabc8",
-  "build_date": "2026-06-08",
-  "created_at": "2026-06-08T01:38:16Z",
+  "version": "632b040",
+  "build_date": "2026-06-10",
+  "created_at": "2026-06-10T01:35:25Z",
   "includes": [
     "application source",
     "requirements.txt",
