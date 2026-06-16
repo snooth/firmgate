@@ -1,4 +1,8 @@
-"""Per-user Security Training completion (stored on User.attributes)."""
+"""Per-user Security Training completion (stored on User.attributes).
+
+Completion for each module is stored as an ISO UTC timestamp. We derive an overall
+"fully completed at" timestamp as the latest completion time across required modules.
+"""
 
 from __future__ import annotations
 
@@ -74,11 +78,64 @@ def progress_summary(user: User, file_ids: list[int]) -> dict:
     done = completed_map(user)
     total = len(file_ids)
     completed = sum(1 for fid in file_ids if str(int(fid)) in done)
+    all_complete = total > 0 and completed >= total
+    fc = fully_completed_at(user, file_ids) if all_complete else None
+    nr = next_refresh_at(user, file_ids) if all_complete else None
     return {
         "total": total,
         "completed": completed,
-        "all_complete": total > 0 and completed >= total,
+        "all_complete": all_complete,
+        "fully_completed_at": fc,
+        "next_refresh_at": nr,
     }
+
+
+def fully_completed_at(user: User, file_ids: list[int]) -> str | None:
+    """
+    ISO timestamp for when the user finished all required training modules.
+
+    Defined as the latest completion timestamp among the required `file_ids`,
+    but only returned when every module is complete.
+    """
+    done = completed_map(user)
+    if not file_ids:
+        return None
+    stamps: list[str] = []
+    for fid in file_ids:
+        v = done.get(str(int(fid)))
+        if not v:
+            return None
+        stamps.append(str(v))
+    if not stamps:
+        return None
+    # Lexicographic max works for ISO 8601 UTC strings without microseconds.
+    return max(stamps)
+
+
+def _add_12_months(iso_utc: str) -> str | None:
+    """Add 12 months to an ISO datetime string (UTC), keeping day when possible."""
+    try:
+        dt = datetime.fromisoformat(str(iso_utc))
+    except Exception:
+        return None
+    # Normalise naive datetimes to UTC (stored values are UTC).
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    y = dt.year + 1
+    try:
+        out = dt.replace(year=y)
+    except ValueError:
+        # Feb 29 → Feb 28 on non-leap years.
+        out = dt.replace(year=y, day=28)
+    return out.replace(microsecond=0).isoformat()
+
+
+def next_refresh_at(user: User, file_ids: list[int]) -> str | None:
+    """ISO timestamp 12 months after `fully_completed_at`."""
+    fc = fully_completed_at(user, file_ids)
+    if not fc:
+        return None
+    return _add_12_months(fc)
 
 
 def user_progress_row(user: User, file_ids: list[int]) -> dict:

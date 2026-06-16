@@ -2765,6 +2765,8 @@ def api_security_training_assets():
             "folder_id": folder.id,
             "can_upload": can_upload,
             "progress": progress,
+            "training_completed_at": progress.get("fully_completed_at"),
+            "next_refresh_at": progress.get("next_refresh_at"),
             "progress_user_id": progress_user.id,
             "progress_user_name": view_name,
             "viewing_self": progress_user.id == current_user.id,
@@ -2793,12 +2795,15 @@ def api_security_training_mark_complete(file_id: int):
     db.session.add(current_user)
     db.session.commit()
     file_ids = [int(x["id"]) for x in _security_training_items_for_user(folder, current_user)]
+    progress = stsvc.progress_summary(current_user, file_ids)
     return jsonify(
         {
             "ok": True,
             "file_id": node.id,
             "completed_at": completed_at,
-            "progress": stsvc.progress_summary(current_user, file_ids),
+            "progress": progress,
+            "training_completed_at": progress.get("fully_completed_at"),
+            "next_refresh_at": progress.get("next_refresh_at"),
         }
     )
 

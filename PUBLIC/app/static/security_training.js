@@ -65,6 +65,15 @@
   let progress = { total: 0, completed: 0, all_complete: false };
   let viewingSelf = true;
   let progressUserName = "";
+  let trainingCompletedAt = null;
+  let nextRefreshAt = null;
+
+  function fmtDate(iso) {
+    if (!iso) return "";
+    const d = new Date(String(iso));
+    if (Number.isNaN(d.getTime())) return "";
+    return d.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+  }
 
   function renderProgress() {
     if (!progressEl) return;
@@ -79,9 +88,23 @@
     const who = viewingSelf ? "Your" : `${progressUserName || "User"}'s`;
     if (progress.all_complete) {
       progressEl.className = "nc-st-progress nc-st-progress--complete";
+      const completedLabel = fmtDate(trainingCompletedAt);
+      const refreshLabel = fmtDate(nextRefreshAt);
       progressEl.innerHTML = `
         <span class="nc-st-progress-icon" aria-hidden="true">✓</span>
-        <span><strong>${who} training is complete.</strong> All ${total} materials marked done.</span>
+        <span>
+          <strong>${who} training is complete.</strong> All ${total} materials marked done.
+          ${
+            completedLabel
+              ? `<span class="nc-st-progress-meta">Completed on <strong>${esc(completedLabel)}</strong></span>`
+              : ""
+          }
+          ${
+            refreshLabel
+              ? `<span class="nc-st-progress-meta">Next security awareness training refresh <strong>${esc(refreshLabel)}</strong></span>`
+              : ""
+          }
+        </span>
       `;
       return;
     }
@@ -155,6 +178,8 @@
         body: "{}",
       });
       progress = j.progress || progress;
+      trainingCompletedAt = j.training_completed_at || progress.fully_completed_at || trainingCompletedAt;
+      nextRefreshAt = j.next_refresh_at || progress.next_refresh_at || nextRefreshAt;
       const row = items.find((x) => String(x.id) === String(it.id));
       if (row) {
         row.completed = true;
@@ -218,6 +243,8 @@
     folderId = j.folder_id != null ? j.folder_id : null;
     canUpload = !!j.can_upload;
     progress = j.progress || progress;
+    trainingCompletedAt = j.training_completed_at || progress.fully_completed_at || null;
+    nextRefreshAt = j.next_refresh_at || progress.next_refresh_at || null;
     viewingSelf = j.viewing_self !== false;
     progressUserName = j.progress_user_name || "";
     if (adminActions) {

@@ -833,6 +833,14 @@ def create_app(config_class=Config):
         from app import rbac
         from app.settings import get_setting
 
+        # Enterprise feature gates used across templates (avoid per-page plumbing).
+        try:
+            from app.premium_license import FEATURE_SECURITY_OFFICER_EXPORT, feature_enabled
+
+            premium_officer_export = bool(feature_enabled(FEATURE_SECURITY_OFFICER_EXPORT))
+        except Exception:
+            premium_officer_export = False
+
         can_audit = current_user.is_authenticated and rbac.user_has_permission(
             current_user, rbac.PERMISSION_AUDIT_READ
         )
@@ -872,6 +880,7 @@ def create_app(config_class=Config):
             "can_view_audit": can_audit,
             "can_view_admin": can_admin or can_access_users_admin or can_approve_registrations,
             "admin_full_access": can_admin,
+            "premium_officer_export": premium_officer_export,
             "can_create_users": can_create_users,
             "can_approve_registrations": can_approve_registrations,
             "can_access_users_admin": can_access_users_admin,

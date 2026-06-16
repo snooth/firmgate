@@ -36,6 +36,72 @@ def _kind_label(kind: str) -> str:
     return labels.get((kind or "").lower(), "File")
 
 
+def _user_display_name(u: dict) -> str:
+    """Name + email on separate lines so the PDF table can wrap cleanly."""
+    name = (u.get("full_name") or u.get("username") or u.get("email") or "User").strip()
+    email = str(u.get("email") or "").strip()
+    if email and email.lower() not in name.lower():
+        return f"{name}\n{email}"
+    return name
+
+
+def _wrapped_line_count(pdf: FPDF, w: float, text: str, line_h: float) -> int:
+    lines = pdf.multi_cell(w, line_h, _pdf_text(text), split_only=True)
+    return max(1, len(lines))
+
+
+def _table_col_widths(pdf: FPDF) -> tuple[float, float, float, float]:
+    """Even column spacing across the printable page width."""
+    content_w = pdf.w - pdf.l_margin - pdf.r_margin
+    return (
+        content_w * 0.46,
+        content_w * 0.24,
+        content_w * 0.18,
+        content_w * 0.12,
+    )
+
+
+def _draw_user_progress_header(pdf: FPDF, col_w: tuple[float, float, float, float], *, line_h: float = 5.0) -> None:
+    pdf.set_font("Helvetica", "B", 9)
+    pdf.set_fill_color(241, 245, 249)
+    for i, label in enumerate(("User", "Status", "Completed", "%")):
+        align = "L" if i < 2 else "R"
+        pdf.cell(col_w[i], 7, _pdf_text(label), border=1, fill=True, align=align)
+    pdf.ln()
+
+
+def _draw_user_progress_row(
+    pdf: FPDF,
+    col_w: tuple[float, float, float, float],
+    cells: tuple[str, str, str, str],
+    *,
+    line_h: float = 4.5,
+    pad_x: float = 1.2,
+    pad_y: float = 1.0,
+) -> None:
+    """Draw one table row with wrapped text and a shared row height."""
+    aligns = ("L", "L", "R", "R")
+    x0 = pdf.l_margin
+    y0 = pdf.get_y()
+    row_h = max(_wrapped_line_count(pdf, col_w[i] - (pad_x * 2), cells[i], line_h) * line_h for i in range(4))
+    row_h = max(row_h + (pad_y * 2), line_h + (pad_y * 2))
+
+    if y0 + row_h > pdf.page_break_trigger:
+        pdf.add_page()
+        y0 = pdf.get_y()
+        _draw_user_progress_header(pdf, col_w, line_h=line_h)
+        y0 = pdf.get_y()
+
+    x = x0
+    for i, (w, text) in enumerate(zip(col_w, cells)):
+        pdf.rect(x, y0, w, row_h)
+        pdf.set_xy(x + pad_x, y0 + pad_y)
+        pdf.multi_cell(w - (pad_x * 2), line_h, _pdf_text(text), border=0, align=aligns[i])
+        x += w
+
+    pdf.set_xy(x0, y0 + row_h)
+
+
 def build_security_officer_report_pdf(payload: dict[str, Any], *, portal_name: str = "Firmgate") -> bytes:
     """Render dashboard stats + user table as a downloadable PDF."""
     summary = payload.get("summary") if isinstance(payload.get("summary"), dict) else {}
@@ -104,12 +170,9 @@ def build_security_officer_report_pdf(payload: dict[str, Any], *, portal_name: s
     pdf.set_font("Helvetica", "B", 11)
     pdf.cell(0, 7, _pdf_text("User progress"), new_x="LMARGIN", new_y="NEXT")
 
-    col_w = (72, 38, 38, 22)
-    pdf.set_font("Helvetica", "B", 9)
-    pdf.set_fill_color(241, 245, 249)
-    for i, label in enumerate(("User", "Status", "Completed", "%")):
-        pdf.cell(col_w[i], 7, _pdf_text(label), border=1, fill=True, align="L" if i < 2 else "R")
-    pdf.ln()
+    col_w = _table_col_widths(pdf)
+    line_h = 4.5
+    _draw_user_progress_header(pdf, col_w, line_h=line_h)
 
     pdf.set_font("Helvetica", "", 9)
     if not users:
@@ -119,20 +182,21 @@ def build_security_officer_report_pdf(payload: dict[str, Any], *, portal_name: s
         for u in users:
             if not isinstance(u, dict):
                 continue
-            name = (u.get("full_name") or u.get("username") or u.get("email") or "User").strip()
-            email = str(u.get("email") or "").strip()
-            if email and email.lower() not in name.lower():
-                name = f"{name} ({email})"
             status = _status_label(str(u.get("status") or ""))
             total = int(u.get("total") or 0)
             done = int(u.get("completed") or 0)
             pct = f"{round((done / total) * 100)}%" if total else "0%"
-            row_h = 7
-            pdf.cell(col_w[0], row_h, _pdf_text(name[:90]), border=1)
-            pdf.cell(col_w[1], row_h, _pdf_text(status), border=1)
-            pdf.cell(col_w[2], row_h, _pdf_text(f"{done} / {total}"), border=1, align="R")
-            pdf.cell(col_w[3], row_h, _pdf_text(pct), border=1, align="R")
-            pdf.ln()
+            _draw_user_progress_row(
+                pdf,
+                col_w,
+                (
+                    _user_display_name(u),
+                    status,
+                    f"{done} / {total}",
+                    pct,
+                ),
+                line_h=line_h,
+            )
 
     out = pdf.output()
     return out if isinstance(out, (bytes, bytearray)) else bytes(out)

@@ -3994,6 +3994,12 @@ body.nc-page-intranet .nc-intranet-shell:has(.nc-st) .nc-intranet-body{
   border:1px solid rgba(22,163,74,0.35);
   color:#14532d;
 }
+.nc-st-progress-meta{
+  display:block;
+  margin-top:2px;
+  font-size:12px;
+  opacity:0.9;
+}
 .nc-st-progress-icon{
   display:inline-flex;
   align-items:center;
