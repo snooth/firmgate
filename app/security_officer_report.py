@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 from typing import Any
 
 from fpdf import FPDF
 
-REPORT_TITLE = "Security Officer — Training Completion Report"
+REPORT_TITLE = "Security Officer - Training Completion Report"
 
 
 def _pdf_text(value: str) -> str:
@@ -50,40 +50,66 @@ def _wrapped_line_count(pdf: FPDF, w: float, text: str, line_h: float) -> int:
     return max(1, len(lines))
 
 
-def _table_col_widths(pdf: FPDF) -> tuple[float, float, float, float]:
-    """Even column spacing across the printable page width."""
+def _format_completion_date(iso: str | None) -> str:
+    """Format ISO completion timestamp for the PDF table."""
+    if not iso:
+        return "-"
+    try:
+        s = str(iso).strip()
+        if s.endswith("Z"):
+            s = s[:-1] + "+00:00"
+        dt = datetime.fromisoformat(s)
+        return dt.strftime("%d %b %Y")
+    except Exception:
+        return "-"
+
+
+def _table_col_widths(pdf: FPDF) -> tuple[float, float, float, float, float]:
+    """Column spacing across the printable page width."""
     content_w = pdf.w - pdf.l_margin - pdf.r_margin
     return (
-        content_w * 0.46,
-        content_w * 0.24,
+        content_w * 0.34,
         content_w * 0.18,
         content_w * 0.12,
+        content_w * 0.20,
+        content_w * 0.16,
     )
 
 
-def _draw_user_progress_header(pdf: FPDF, col_w: tuple[float, float, float, float], *, line_h: float = 5.0) -> None:
+_USER_TABLE_HEADERS = ("User", "Status", "Completed", "Completed on", "%")
+_USER_TABLE_ALIGNS = ("L", "L", "R", "R", "R")
+
+
+def _draw_user_progress_header(
+    pdf: FPDF,
+    col_w: tuple[float, float, float, float, float],
+    *,
+    line_h: float = 5.0,
+) -> None:
     pdf.set_font("Helvetica", "B", 9)
     pdf.set_fill_color(241, 245, 249)
-    for i, label in enumerate(("User", "Status", "Completed", "%")):
-        align = "L" if i < 2 else "R"
+    for i, label in enumerate(_USER_TABLE_HEADERS):
+        align = _USER_TABLE_ALIGNS[i]
         pdf.cell(col_w[i], 7, _pdf_text(label), border=1, fill=True, align=align)
     pdf.ln()
 
 
 def _draw_user_progress_row(
     pdf: FPDF,
-    col_w: tuple[float, float, float, float],
-    cells: tuple[str, str, str, str],
+    col_w: tuple[float, float, float, float, float],
+    cells: tuple[str, str, str, str, str],
     *,
     line_h: float = 4.5,
     pad_x: float = 1.2,
     pad_y: float = 1.0,
 ) -> None:
     """Draw one table row with wrapped text and a shared row height."""
-    aligns = ("L", "L", "R", "R")
     x0 = pdf.l_margin
     y0 = pdf.get_y()
-    row_h = max(_wrapped_line_count(pdf, col_w[i] - (pad_x * 2), cells[i], line_h) * line_h for i in range(4))
+    n = len(cells)
+    row_h = max(
+        _wrapped_line_count(pdf, col_w[i] - (pad_x * 2), cells[i], line_h) * line_h for i in range(n)
+    )
     row_h = max(row_h + (pad_y * 2), line_h + (pad_y * 2))
 
     if y0 + row_h > pdf.page_break_trigger:
@@ -96,7 +122,7 @@ def _draw_user_progress_row(
     for i, (w, text) in enumerate(zip(col_w, cells)):
         pdf.rect(x, y0, w, row_h)
         pdf.set_xy(x + pad_x, y0 + pad_y)
-        pdf.multi_cell(w - (pad_x * 2), line_h, _pdf_text(text), border=0, align=aligns[i])
+        pdf.multi_cell(w - (pad_x * 2), line_h, _pdf_text(text), border=0, align=_USER_TABLE_ALIGNS[i])
         x += w
 
     pdf.set_xy(x0, y0 + row_h)
@@ -186,6 +212,7 @@ def build_security_officer_report_pdf(payload: dict[str, Any], *, portal_name: s
             total = int(u.get("total") or 0)
             done = int(u.get("completed") or 0)
             pct = f"{round((done / total) * 100)}%" if total else "0%"
+            completed_on = _format_completion_date(u.get("fully_completed_at"))
             _draw_user_progress_row(
                 pdf,
                 col_w,
@@ -193,6 +220,7 @@ def build_security_officer_report_pdf(payload: dict[str, Any], *, portal_name: s
                     _user_display_name(u),
                     status,
                     f"{done} / {total}",
+                    completed_on,
                     pct,
                 ),
                 line_h=line_h,

@@ -605,13 +605,14 @@ def documents_upload_worker():
 def documents_page():
     q = (request.args.get("q") or "").strip()
     from app.document_editor_settings import files_template_context
-    from app.files_bp import _is_files_tree_admin
+    from app.files_bp import _is_files_tree_admin, _is_portal_admin
 
     return render_template(
         "intranet_documents.html",
         nav=_nav("documents"),
         q=q,
         files_tree_admin=_is_files_tree_admin(current_user),
+        portal_admin=_is_portal_admin(current_user),
         **files_template_context(),
     )
 

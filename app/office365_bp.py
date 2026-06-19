@@ -96,6 +96,15 @@ def editor(node_id: int):
         abort(403)
     can_edit, _ = access.can_access_node(current_user, node, "write")
 
+    from app.file_lock_service import get_lock_for_node
+
+    lock_row = get_lock_for_node(node.id)
+    locked_by_other = bool(
+        lock_row and int(lock_row.locked_by_id) != int(current_user.id)
+    )
+    if locked_by_other:
+        can_edit = False
+
     cur = (
         db.session.query(FileVersion)
         .filter_by(file_node_id=node.id, is_current=True)
@@ -117,7 +126,7 @@ def editor(node_id: int):
             mime_type=cur.mime_type,
         )
         force_view = (request.args.get("view") or "").strip().lower() in ("1", "true", "yes", "view")
-        edit_mode = bool(can_edit) and not force_view
+        edit_mode = bool(can_edit) and not force_view and not locked_by_other
         edit_url = create_office_link(
             drive_id=uploaded["drive_id"],
             item_id=uploaded["item_id"],
@@ -147,7 +156,13 @@ def editor(node_id: int):
         "close_url": close_url,
         "sync_url": f"/office365/sync/{node.id}",
         "sync_token": sync_token,
-        "can_sync": bool(can_edit and not force_view),
+        "can_sync": bool(can_edit and not force_view and not locked_by_other),
+        "locked_by_other": locked_by_other,
+        "lock_holder": (
+            (lock_row.locked_by.full_name or lock_row.locked_by.username)
+            if locked_by_other and lock_row and lock_row.locked_by
+            else None
+        ),
     }
     if embed:
         return render_template("office365_embed.html", **ctx)
@@ -173,6 +188,12 @@ def sync(node_id: int):
         return jsonify({"ok": False, "error": "Forbidden"}), 403
 
     node = _node_or_404(node_id)
+    from app.file_lock_service import get_lock_for_node
+
+    lock_row = get_lock_for_node(node.id)
+    if lock_row and int(lock_row.locked_by_id) != int(current_user.id):
+        return jsonify({"ok": False, "error": "File is locked by another user"}), 423
+
     can_edit, _ = access.can_access_node(current_user, node, "write")
     if not can_edit or not session.get("can_edit"):
         return jsonify({"ok": True, "skipped": True})

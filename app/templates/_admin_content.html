@@ -543,7 +543,7 @@
           <h3 id="integrations-oo-heading" class="nc-admin-subhead">OnlyOffice Document Server</h3>
           <p class="nc-detail-muted">Configure your OnlyOffice Document Server URL so Office files can open in an embedded editor.</p>
           <p class="nc-detail-muted"><strong>Document Server URL</strong> — public HTTPS URL of ONLYOFFICE (same host browsers load for <code>api.js</code>), e.g. <code>https://onlyoffice.example.com</code>. Do not use <code>https://</code> against an internal IP:port unless that port really serves TLS; plain HTTP must use <code>http://</code>.</p>
-          <p class="nc-detail-muted"><strong>App public URL</strong> — public HTTPS base URL of <em>Firmgate</em> (where Flask runs), reachable by the Document Server so it can download files—e.g. <code>https://portal.example.com</code>. Not the OnlyOffice hostname.</p>
+          <p class="nc-detail-muted"><strong>App public URL</strong> — base URL of <em>Firmgate</em> that the Document Server uses to download files and receive save callbacks—e.g. <code>https://portal.example.com</code>. Not the OnlyOffice hostname. <strong>Local Docker:</strong> if OnlyOffice runs in Docker and Firmgate on your Mac, use <code>http://host.docker.internal:5001</code> (not <code>localhost</code> — that points at the container and causes “Download failed”).</p>
           <div class="nc-share-add-row">
             <label class="nc-detail-label" for="oo-url" style="flex:2;">Document Server URL</label>
             <label class="nc-detail-label" for="oo-jwt" style="flex:1;">JWT secret</label>
@@ -1589,8 +1589,19 @@
         <div class="nc-admin-section-body">
           <p id="sw-package-disabled-hint" class="nc-detail-muted" style="display:none;"></p>
           <label class="nc-detail-label" for="sw-package-file">Release package (.zip)</label>
-          <div class="nc-share-add-row" style="margin-top:0.35rem;">
-            <input type="file" id="sw-package-file" class="nc-detail-input" accept=".zip,application/zip" style="flex:1;">
+          <div
+            id="sw-package-dropzone"
+            class="nc-sw-zip-drop"
+            role="button"
+            tabindex="0"
+            aria-label="Drop release zip here or browse"
+          >
+            <span class="nc-sw-zip-drop-ic" aria-hidden="true">↑</span>
+            <span class="nc-sw-zip-drop-label" id="sw-package-drop-label">Drag and drop release package here</span>
+            <span class="nc-sw-zip-drop-hint" id="sw-package-drop-hint">or click to browse</span>
+          </div>
+          <input type="file" id="sw-package-file" class="nc-detail-input" accept=".zip,application/zip,application/x-zip-compressed" hidden>
+          <div class="nc-admin-form-actions" style="margin-top:0.65rem;">
             <button type="button" class="nc-btn nc-btn-primary" id="sw-package-upgrade">Upload &amp; update</button>
           </div>
           <p id="sw-package-status" class="nc-status" role="status"></p>

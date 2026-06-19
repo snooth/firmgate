@@ -55,8 +55,35 @@
     if (nav && nav !== "all") {
       params.set("return_nav", nav);
     }
+    if (opts.view || (opts.item && fileLockedByOther(opts.item))) {
+      params.set("view", "1");
+    }
+    if (opts.versionId != null && Number.isFinite(Number(opts.versionId))) {
+      params.set("version_id", String(opts.versionId));
+      params.set("review", "1");
+      params.set("view", "1");
+    }
     const q = params.toString();
     return q ? `${base}?${q}` : base;
+  }
+
+  function documentVersionReviewHref(nodeId, versionId) {
+    const provider = (root.dataset.documentEditorProvider || "onlyoffice").trim().toLowerCase();
+    if (provider !== "onlyoffice") return null;
+    return documentEditorHref(nodeId, { versionId: Number(versionId) });
+  }
+
+  function appendVersionReviewButton(actions, nodeId, versionRow, fileName) {
+    if (!actions || !versionRow || versionRow.is_current || !isOfficeDoc(fileName || "")) return;
+    const href = documentVersionReviewHref(nodeId, versionRow.id);
+    if (!href) return;
+    const review = document.createElement("a");
+    review.className = "nc-btn nc-btn-secondary";
+    review.textContent = "Review";
+    review.href = href;
+    review.title = `Open version ${versionRow.version_number} in the document viewer (read-only)`;
+    review.setAttribute("data-turbo", "false");
+    actions.appendChild(review);
   }
 
   /** Display timezone (DST-aware). */
@@ -69,6 +96,288 @@
     timeStyle: "short",
     timeZoneName: "short",
   };
+
+  const CURRENT_USER_ID = Number(root.dataset.currentUserId || "0") || 0;
+  const FILES_TREE_ADMIN = root.dataset.filesTreeAdmin === "1";
+  const PORTAL_ADMIN = root.dataset.portalAdmin === "1";
+
+  function fileLockInfo(it) {
+    return it && it.lock && it.lock.locked ? it.lock : null;
+  }
+
+  function fileLockedByOther(it) {
+    const lk = fileLockInfo(it);
+    return !!(lk && lk.locked_by_id !== CURRENT_USER_ID);
+  }
+
+  function fileLockedByMe(it) {
+    const lk = fileLockInfo(it);
+    return !!(lk && lk.locked_by_id === CURRENT_USER_ID);
+  }
+
+  function canReleaseFileLock(it) {
+    const lk = fileLockInfo(it);
+    if (!lk) return false;
+    if (fileLockedByMe(it)) return true;
+    return PORTAL_ADMIN;
+  }
+
+  function fileEditingInfo(it) {
+    const eds = it && it.editing;
+    return Array.isArray(eds) ? eds : [];
+  }
+
+  function fileEditingOthers(it) {
+    return fileEditingInfo(it).filter((e) => Number(e.user_id) !== CURRENT_USER_ID);
+  }
+
+  function editingLabelText(editors) {
+    if (!editors.length) return "";
+    if (editors.length === 1) return `Editing by ${editors[0].user_name || "someone"}`;
+    if (editors.length === 2) {
+      return `Editing by ${editors[0].user_name || "someone"} and ${editors[1].user_name || "someone"}`;
+    }
+    return `Editing by ${editors[0].user_name || "someone"} and ${editors.length - 1} others`;
+  }
+
+  function clearFileStatusLabels(container) {
+    if (!container) return;
+    container.querySelectorAll(".nc-lock-label, .nc-editing-label").forEach((el) => el.remove());
+  }
+
+  function appendFileStatusLabels(container, it) {
+    if (!container || !it || it.is_folder) return;
+    clearFileStatusLabels(container);
+    const lk = fileLockInfo(it);
+    if (lk) {
+      const lab = document.createElement("div");
+      lab.className = "nc-lock-label";
+      lab.textContent = `Locked by ${lk.locked_by_name}`;
+      if (lk.locked_at) lab.title = `Locked since ${lk.locked_at}`;
+      container.appendChild(lab);
+    }
+    const others = fileEditingOthers(it);
+    if (others.length) {
+      const lab = document.createElement("div");
+      lab.className = "nc-editing-label";
+      lab.textContent = editingLabelText(others);
+      lab.title = others.map((e) => e.user_name).filter(Boolean).join(", ");
+      container.appendChild(lab);
+    }
+  }
+
+  function appendLockLabel(container, it) {
+    appendFileStatusLabels(container, it);
+  }
+
+  function patchLockInListing(nodeId, lock) {
+    const nid = Number(nodeId);
+    if (!Number.isFinite(nid)) return;
+    const nextLock = lock && lock.locked ? lock : null;
+    function patchItem(it) {
+      if (Number(it.id) === nid) it.lock = nextLock;
+    }
+    function patchPayload(payload) {
+      if (!payload) return;
+      (payload.items || []).forEach(patchItem);
+      (payload.shared_with_me || []).forEach(patchItem);
+    }
+    patchPayload(baseListPayload);
+    patchPayload(lastListPayload);
+    lastItems.forEach(patchItem);
+  }
+
+  function patchEditingInListing(nodeId, editing) {
+    const nid = Number(nodeId);
+    if (!Number.isFinite(nid)) return;
+    const nextEditing = Array.isArray(editing) ? editing : [];
+    function patchItem(it) {
+      if (Number(it.id) === nid) it.editing = nextEditing;
+    }
+    function patchPayload(payload) {
+      if (!payload) return;
+      (payload.items || []).forEach(patchItem);
+      (payload.shared_with_me || []).forEach(patchItem);
+    }
+    patchPayload(baseListPayload);
+    patchPayload(lastListPayload);
+    lastItems.forEach(patchItem);
+  }
+
+  function applyFileStatusToTableRow(nodeId, it) {
+    const tr = tbody.querySelector(`tr[data-id="${nodeId}"]`);
+    if (!tr) return;
+    const tdName = tr.querySelector(".col-name");
+    const rowItem = it || itemFromRowEl(tr);
+    if (rowItem && tdName) appendFileStatusLabels(tdName, rowItem);
+    const lk = rowItem && fileLockInfo(rowItem);
+    if (lk && lk.locked) {
+      tr.dataset.lockedById = String(lk.locked_by_id);
+      tr.dataset.lockedByName = lk.locked_by_name || "";
+    } else {
+      delete tr.dataset.lockedById;
+      delete tr.dataset.lockedByName;
+    }
+  }
+
+  function applyLockToTableRow(nodeId, lock) {
+    patchLockInListing(nodeId, lock && lock.locked ? lock : null);
+    const tr = tbody.querySelector(`tr[data-id="${nodeId}"]`);
+    const it = tr
+      ? { ...itemFromRowEl(tr), lock: lock && lock.locked ? lock : null }
+      : { id: nodeId, is_folder: false, lock: lock && lock.locked ? lock : null, editing: [] };
+    applyFileStatusToTableRow(nodeId, it);
+  }
+
+  function applyEditingToTableRow(nodeId, editing) {
+    patchEditingInListing(nodeId, editing);
+    const tr = tbody.querySelector(`tr[data-id="${nodeId}"]`);
+    if (!tr) return;
+    const it = itemFromRowEl(tr);
+    if (!it) return;
+    it.editing = Array.isArray(editing) ? editing : [];
+    applyFileStatusToTableRow(nodeId, it);
+  }
+
+  function applyFileStatusToGridCard(nodeId, it) {
+    const card = viewGrid.querySelector(`.nc-grid-item[data-id="${nodeId}"]`);
+    if (!card || !it) return;
+    card.querySelectorAll(".nc-lock-label, .nc-editing-label").forEach((el) => el.remove());
+    const lk = fileLockInfo(it);
+    if (lk) {
+      const lockEl = document.createElement("div");
+      lockEl.className = "nc-lock-label nc-lock-label--grid";
+      lockEl.textContent = `Locked by ${lk.locked_by_name}`;
+      if (lk.locked_at) lockEl.title = `Locked since ${lk.locked_at}`;
+      card.appendChild(lockEl);
+    }
+    const others = fileEditingOthers(it);
+    if (others.length) {
+      const editEl = document.createElement("div");
+      editEl.className = "nc-editing-label nc-editing-label--grid";
+      editEl.textContent = editingLabelText(others);
+      card.appendChild(editEl);
+    }
+  }
+
+  function applyLockToGridCard(nodeId, lock) {
+    patchLockInListing(nodeId, lock && lock.locked ? lock : null);
+    const it = lastItems.find((x) => Number(x.id) === Number(nodeId)) || {
+      id: nodeId,
+      is_folder: false,
+      lock: lock && lock.locked ? lock : null,
+      editing: [],
+    };
+    applyFileStatusToGridCard(nodeId, it);
+  }
+
+  function applyEditingToGridCard(nodeId, editing) {
+    patchEditingInListing(nodeId, editing);
+    const it = lastItems.find((x) => Number(x.id) === Number(nodeId));
+    if (it) {
+      it.editing = Array.isArray(editing) ? editing : [];
+      applyFileStatusToGridCard(nodeId, it);
+    }
+  }
+
+  async function refreshEditSessionsForListing() {
+    if (!root || !root.isConnected) return;
+    const fileIds = [
+      ...new Set(
+        lastItems
+          .filter((it) => it && !it.is_folder)
+          .map((it) => Number(it.id))
+          .filter((n) => Number.isFinite(n))
+      ),
+    ];
+    if (!fileIds.length) return;
+    const qs = fileIds.map((id) => `node_id=${encodeURIComponent(String(id))}`).join("&");
+    const r = await fetch(`${API_BASE}/api/edit-sessions?${qs}`, { credentials: "same-origin" });
+    if (!r.ok) return;
+    const j = await r.json().catch(() => ({}));
+    const sessions = j.sessions || {};
+    for (const id of fileIds) {
+      const editing = sessions[String(id)] || [];
+      applyEditingToTableRow(id, editing);
+      if (viewMode === "grid") applyEditingToGridCard(id, editing);
+    }
+  }
+
+  let editSessionPollTimer = null;
+  function startEditSessionPoll() {
+    if (editSessionPollTimer) return;
+    refreshEditSessionsForListing().catch(() => {});
+    editSessionPollTimer = window.setInterval(() => {
+      refreshEditSessionsForListing().catch(() => {});
+    }, 30000);
+  }
+
+  function syncNodeLockUi(nodeId, lock) {
+    const lk = lock && lock.locked ? lock : null;
+    patchLockInListing(nodeId, lk);
+    const tr = tbody.querySelector(`tr[data-id="${nodeId}"]`);
+    const it = tr
+      ? { ...itemFromRowEl(tr), lock: lk }
+      : lastItems.find((x) => Number(x.id) === Number(nodeId));
+    if (it) {
+      applyFileStatusToTableRow(nodeId, it);
+      if (viewMode === "grid") applyFileStatusToGridCard(nodeId, it);
+    }
+    updateSelectionBar();
+  }
+
+  function openOfficeDocument(it) {
+    if (fileLockedByOther(it)) {
+      setStatus(`View only — locked by ${it.lock.locked_by_name}.`);
+      window.location.href = documentEditorHref(it.id, { item: it, view: true });
+      return;
+    }
+    window.location.href = documentEditorHref(it.id, { item: it });
+  }
+
+  async function lockFile(nodeId) {
+    const r = await fetch(`${API_BASE}/api/lock/${nodeId}`, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      setStatus(j.error || j.message || "Could not lock file");
+      return false;
+    }
+    syncNodeLockUi(nodeId, j.lock || (j.node && j.node.lock) || null);
+    setStatus("File locked for editing.");
+    return true;
+  }
+
+  async function unlockFile(nodeId) {
+    const r = await fetch(`${API_BASE}/api/unlock/${nodeId}`, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      setStatus(j.error || j.message || "Could not release lock");
+      return false;
+    }
+    syncNodeLockUi(nodeId, (j.node && j.node.lock) || null);
+    setStatus("Lock released.");
+    return true;
+  }
+
+  function appendLockMenuItems(add, it) {
+    if (it.is_folder || leftNavMode === "recycle") return;
+    const lk = fileLockInfo(it);
+    if (!lk) {
+      add("Lock for editing", () => lockFile(it.id));
+      return;
+    }
+    if (canReleaseFileLock(it)) {
+      add("Release lock", () => unlockFile(it.id));
+    }
+  }
 
   let tbody = document.getElementById("rows");
   let breadcrumbEl = document.getElementById("breadcrumb");
@@ -136,6 +445,10 @@
       window.removeEventListener("beforeunload", ncBeforeUnloadWhileUpload);
     } catch (_) {}
     ncDocsTransferDepth = 0;
+    if (editSessionPollTimer) {
+      window.clearInterval(editSessionPollTimer);
+      editSessionPollTimer = null;
+    }
   });
 
   const UPLOAD_WORKER_NAME = "nc_intranet_file_upload_worker";
@@ -202,16 +515,29 @@
 
     const extra = jobs.length > 1 ? ` (${jobs.length} batches)` : "";
     setStatus(`Uploading… you can switch menus; progress stays in the header.${extra}`);
+    clearDropzoneDragState();
     return true;
   }
 
   let dropzone = document.getElementById("dropzone");
+  let dropzoneDragDepth = 0;
+
+  function refreshDropzoneRef() {
+    dropzone = document.getElementById("dropzone");
+  }
+
+  function clearDropzoneDragState() {
+    dropzoneDragDepth = 0;
+    refreshDropzoneRef();
+    if (dropzone) dropzone.classList.remove("drag");
+  }
   let viewList = document.getElementById("view-list");
   let viewGrid = document.getElementById("view-grid");
   const dlgVersions = document.getElementById("dlg-versions");
   const versionsBody = document.getElementById("versions-body");
   const dlgUploadConflict = document.getElementById("dlg-upload-conflict");
   const btnUconflictReplace = document.getElementById("btn-uconflict-replace");
+  const btnUconflictReplaceAll = document.getElementById("btn-uconflict-replace-all");
   const btnUconflictKeep = document.getElementById("btn-uconflict-keep");
   const btnUconflictCancel = document.getElementById("btn-uconflict-cancel");
   const uconflictReadonlyHint = document.getElementById("uconflict-readonly-hint");
@@ -246,6 +572,8 @@
   const selPersonal = document.getElementById("sel-personal");
   const selMove = document.getElementById("sel-move");
   const selRename = document.getElementById("sel-rename");
+  const selLock = document.getElementById("sel-lock");
+  const selUnlock = document.getElementById("sel-unlock");
   const selDownload = document.getElementById("sel-download");
   const selDelete = document.getElementById("sel-delete");
   const footerSummary = document.getElementById("footer-summary");
@@ -533,7 +861,7 @@
         : sortListingItems(display.items || []);
     renderBreadcrumb(display.breadcrumb || [{ id: null, name: "All files" }]);
     renderTableRows(display);
-    renderGrid(lastItems, display, display.shared_with_me || []);
+    if (viewMode === "grid") renderGrid(lastItems, display, display.shared_with_me || []);
     applyViewMode();
     updateFooter(lastItems);
     maybeSelectFromUrl();
@@ -568,6 +896,7 @@
     baseListPayload = data;
     lastListPayload = data;
     await refreshMainView();
+    startEditSessionPoll();
   }
 
   function applyViewMode() {
@@ -576,6 +905,10 @@
     document.getElementById("btn-view-list").setAttribute("aria-pressed", String(viewMode === "list"));
     document.getElementById("btn-view-grid").setAttribute("aria-pressed", String(viewMode === "grid"));
     if (viewMode !== "list") cancelPendingBulkMove();
+    if (viewMode === "grid" && lastListPayload) {
+      const display = filterPayloadForLeftNav(lastListPayload);
+      renderGrid(lastItems, display, display.shared_with_me || []);
+    }
     updateSelectionBar();
   }
   let detailNodeId = null;
@@ -640,6 +973,16 @@
     selectionBar.hidden = n === 0;
     if (n && selCount) selCount.textContent = n === 1 ? "1 selected" : `${n} selected`;
     if (selRename) selRename.hidden = n !== 1;
+    if (selLock) selLock.hidden = true;
+    if (selUnlock) selUnlock.hidden = true;
+    if (n === 1 && selLock && selUnlock) {
+      const it = itemFromRowEl(rows[0]);
+      if (it && !it.is_folder && leftNavMode !== "recycle") {
+        const lk = fileLockInfo(it);
+        if (!lk) selLock.hidden = false;
+        else if (canReleaseFileLock(it)) selUnlock.hidden = false;
+      }
+    }
     if (selMove) {
       selMove.classList.toggle("is-armed", Boolean(pendingBulkMoveIds));
     }
@@ -1215,7 +1558,9 @@
     }
   }
 
-  function showUploadConflictDialog(existing, file, canReplace) {
+  function showUploadConflictDialog(existing, file, canReplace, options) {
+    const opts = options || {};
+    const showReplaceAll = !!(opts.showReplaceAll && canReplace);
     return new Promise((resolve) => {
       const done = (choice) => {
         dlgUploadConflict.close();
@@ -1234,19 +1579,41 @@
       uconflictReadonlyHint.hidden = canReplace;
       btnUconflictReplace.hidden = !canReplace;
       btnUconflictReplace.disabled = !canReplace;
+      if (btnUconflictReplaceAll) {
+        btnUconflictReplaceAll.hidden = !showReplaceAll;
+        btnUconflictReplaceAll.disabled = !showReplaceAll;
+      }
 
       const onReplace = () => done("replace");
+      const onReplaceAll = () => done("replace_all");
       const onKeep = () => done("keep");
       const onCancel = () => done("cancel");
       const onDlgCancel = () => done("cancel");
 
       btnUconflictReplace.addEventListener("click", onReplace, { once: true });
+      if (showReplaceAll && btnUconflictReplaceAll) {
+        btnUconflictReplaceAll.addEventListener("click", onReplaceAll, { once: true });
+      }
       btnUconflictKeep.addEventListener("click", onKeep, { once: true });
       btnUconflictCancel.addEventListener("click", onCancel, { once: true });
       dlgUploadConflict.addEventListener("cancel", onDlgCancel, { once: true });
 
       dlgUploadConflict.showModal();
     });
+  }
+
+  async function resolveUploadFileConflict(existing, file, canReplace, conflictCtx) {
+    if (conflictCtx.replaceAll) {
+      return canReplace === false ? "keep" : "replace";
+    }
+    const choice = await showUploadConflictDialog(existing, file, canReplace, {
+      showReplaceAll: conflictCtx.totalFiles > 1,
+    });
+    if (choice === "replace_all") {
+      conflictCtx.replaceAll = true;
+      return "replace";
+    }
+    return choice;
   }
 
   function extOf(name) {
@@ -2153,6 +2520,7 @@
       let skipped = 0;
       let failed = 0;
       let lastFailHint = "";
+      const conflictCtx = { replaceAll: false, totalFiles };
 
       for (let i = 0; i < list.length; i++) {
         const file = list[i];
@@ -2163,7 +2531,7 @@
         );
         const cd = await cu.json().catch(() => ({}));
         if (cu.ok && cd.conflict) {
-          const choice = await showUploadConflictDialog(cd.existing, file, cd.can_replace !== false);
+          const choice = await resolveUploadFileConflict(cd.existing, file, cd.can_replace !== false, conflictCtx);
           if (choice === "cancel") {
             scheduleHideUploadProgress(200);
             if (uploaded || skipped) {
@@ -2273,6 +2641,7 @@
       setStatus(String(e && e.message ? e.message : e) || "Upload failed");
     } finally {
       endBlockingNavDuringTransfer();
+      clearDropzoneDragState();
     }
   }
 
@@ -2337,6 +2706,7 @@
       let skipped = 0;
       let failed = 0;
       let lastFailHint = "";
+      const conflictCtx = { replaceAll: false, totalFiles };
 
       try {
         for (let i = 0; i < list.length; i++) {
@@ -2360,7 +2730,7 @@
         );
         const cd = await cu.json().catch(() => ({}));
         if (cu.ok && cd.conflict) {
-          const choice = await showUploadConflictDialog(cd.existing, f, cd.can_replace !== false);
+          const choice = await resolveUploadFileConflict(cd.existing, f, cd.can_replace !== false, conflictCtx);
           if (choice === "cancel") {
             scheduleHideUploadProgress(200);
             setStatus(`Upload stopped. ${uploaded} uploaded, ${skipped} skipped.`);
@@ -2476,6 +2846,7 @@
       }
     } finally {
       endBlockingNavDuringTransfer();
+      clearDropzoneDragState();
     }
   }
 
@@ -2521,6 +2892,7 @@
       add("Delete permanently…", () => purgeFromRecycle(it.id, it.name));
     } else {
       add("Details", () => openDetail(it.id));
+      appendLockMenuItems(add, it);
       add("Rename…", () => renameNode(it));
       if (!it.is_folder) {
         add("Download", () => {
@@ -2556,6 +2928,7 @@
       add("Restore", () => restoreFromRecycle(it.id));
       add("Delete permanently…", () => purgeFromRecycle(it.id, it.name));
     } else {
+      appendLockMenuItems(add, it);
       add("Rename…", () => renameNode(it));
       if (!it.is_folder) add("Download", () => (window.location.href = `${API_BASE}/api/download/${it.id}`));
       if (!it.is_folder && isPdf(it.name)) add("View PDF", () => openPdfViewer(it));
@@ -2585,7 +2958,19 @@
     if (!Number.isFinite(id)) return null;
     const is_folder = tr.dataset.folder === "1";
     const name = tr.dataset.itemName || tr.querySelector(".nc-name-text")?.textContent || "item";
-    return { id, name, is_folder };
+    const cached = lastItems.find((x) => Number(x.id) === id);
+    let lock = null;
+    if (tr.dataset.lockedById) {
+      lock = {
+        locked: true,
+        locked_by_id: Number(tr.dataset.lockedById),
+        locked_by_name: tr.dataset.lockedByName || "",
+      };
+    } else if (cached && cached.lock && cached.lock.locked) {
+      lock = cached.lock;
+    }
+    const editing = cached && Array.isArray(cached.editing) ? cached.editing : [];
+    return { id, name, is_folder, lock, editing };
   }
 
   rowMenuBackdrop.addEventListener("click", closeRowMenu);
@@ -2831,6 +3216,8 @@
       dl.textContent = "Download";
       dl.href = `${API_BASE}/api/download/${encodeURIComponent(String(nodeId))}?version_id=${encodeURIComponent(String(v.id))}`;
       actions.appendChild(dl);
+
+      appendVersionReviewButton(actions, nodeId, v, (data.file && data.file.name) || n.name);
 
       const restore = document.createElement("button");
       restore.type = "button";
@@ -3226,6 +3613,7 @@
         is_folder: s.is_folder,
         size_bytes: null,
         updated_at: s.updated_at,
+        lock: s.lock,
       }));
       for (const row of sortListingItems(sharedObjs)) {
         combined.push(row);
@@ -3245,6 +3633,7 @@
       card.innerHTML = `<div class="nc-file-icon-wrap">${fileThumbHtml(it.is_folder, thumbSrc)}</div><div class="nc-grid-name">${escapeHtml(
         it.name
       )}</div>${pathSub}`;
+      appendFileStatusLabels(card, it);
       card.addEventListener("click", () => {
         if (it.is_folder) {
           cancelPendingSearch();
@@ -3259,12 +3648,17 @@
         else if (isEml(it.name)) openEmlViewer(it);
         else if (is3dModel(it.name)) open3dViewer(it);
         else if (isTextLike(it.name)) openTextViewer(it);
-        else if (isOfficeDoc(it.name)) window.location.href = documentEditorHref(it.id, { item: it });
+        else if (isOfficeDoc(it.name)) openOfficeDocument(it);
         else window.location.href = `${API_BASE}/api/download/${it.id}`;
       });
       card.addEventListener("contextmenu", (e) => {
         e.preventDefault();
-        openContextMenuAt(e.clientX, e.clientY, { id: it.id, name: it.name, is_folder: !!it.is_folder });
+        openContextMenuAt(e.clientX, e.clientY, {
+          id: it.id,
+          name: it.name,
+          is_folder: !!it.is_folder,
+          lock: it.lock,
+        });
       });
       wireDrag(card, it, data);
       viewGrid.appendChild(card);
@@ -3299,6 +3693,7 @@
           updated_at: s.updated_at,
           owner_username: s.owner_username,
           shared_out: false,
+          lock: s.lock,
         }));
         for (const it of sortListingItems(sharedObjs)) {
           tbody.appendChild(buildItemRow(it, data, { shared: true }));
@@ -3324,6 +3719,7 @@
         updated_at: s.updated_at,
         owner_username: s.owner_username,
         shared_out: false,
+        lock: s.lock,
       }));
       for (const it of sortListingItems(sharedObjs)) {
         tbody.appendChild(buildItemRow(it, data, { shared: true }));
@@ -3368,6 +3764,11 @@
       nt.textContent = `${it.name} (${it.owner_username})`;
     }
     tdName.appendChild(nt);
+    appendLockLabel(tdName, it);
+    if (it.lock && it.lock.locked) {
+      tr.dataset.lockedById = String(it.lock.locked_by_id);
+      tr.dataset.lockedByName = it.lock.locked_by_name || "";
+    }
     if (data && data.search && data.search.q && it.path_key) {
       const pl = document.createElement("div");
       pl.className = "nc-name-path";
@@ -3457,14 +3858,14 @@
       else if (isEml(it.name)) openEmlViewer(it);
       else if (is3dModel(it.name)) open3dViewer(it);
       else if (isTextLike(it.name)) openTextViewer(it);
-      else if (isOfficeDoc(it.name)) window.location.href = documentEditorHref(it.id, { item: it });
+      else if (isOfficeDoc(it.name)) openOfficeDocument(it);
       else window.location.href = `${API_BASE}/api/download/${it.id}`;
     });
     tr.addEventListener("contextmenu", (e) => {
       if (e.target.closest("button") || e.target.closest("input")) return;
       e.preventDefault();
       setSelectedRow(tr);
-      const item = itemFromRowEl(tr) || it;
+      const item = { ...it, ...itemFromRowEl(tr), lock: fileLockInfo(it) || fileLockInfo(itemFromRowEl(tr)) };
       openContextMenuAt(e.clientX, e.clientY, item);
     });
     wireDrag(tr, it, data);
@@ -3540,6 +3941,8 @@
       lastListPayload = data;
 
       await refreshMainView();
+
+      startEditSessionPoll();
 
       cancelPendingBulkMove();
       tbody.querySelectorAll(".row-check").forEach((c) => {
@@ -3623,9 +4026,13 @@
 
   function wireDrag(el, it, data) {
     el.addEventListener("dragstart", (e) => {
-      const id = String(it.id);
+      const ids = dragMoveNodeIdsForItem(it);
+      const id = String(ids[0] != null ? ids[0] : it.id);
       e.dataTransfer.setData("application/x-node-id", id);
       e.dataTransfer.setData("text/plain", id);
+      if (ids.length > 1) {
+        e.dataTransfer.setData("application/x-node-ids", JSON.stringify(ids));
+      }
       e.dataTransfer.effectAllowed = "move";
     });
     el.addEventListener("dragend", () => el.classList.remove("drag-over"));
@@ -3661,6 +4068,7 @@
         e.preventDefault();
         e.stopPropagation();
         el.classList.remove("drag-over");
+        clearDropzoneDragState();
         const targetFolderId = it.is_folder ? it.id : effectiveParentId();
         if (targetFolderId == null) {
           setStatus("Open your Home folder first, then upload.");
@@ -3678,27 +4086,81 @@
       e.preventDefault();
       e.stopPropagation();
       el.classList.remove("drag-over");
-      const nid =
-        e.dataTransfer.getData("application/x-node-id") || e.dataTransfer.getData("text/plain");
-      if (!nid) return;
-      if (String(it.id) === nid) return;
-      await moveNode(Number(nid), it.id);
+      const nodeIds = parseDragNodeIds(e);
+      if (!nodeIds.length) return;
+      if (nodeIds.length === 1 && String(it.id) === String(nodeIds[0])) return;
+      await moveNodes(nodeIds, it.id);
     });
   }
 
   async function moveNode(nodeId, newParentId) {
-    const r = await fetch(moveUrl, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ node_id: nodeId, new_parent_id: newParentId }),
-      credentials: "same-origin",
-    });
-    if (!r.ok) {
-      const err = await r.json().catch(() => ({}));
-      setStatus(err.error || "Move failed");
+    await moveNodes([nodeId], newParentId);
+  }
+
+  function dragMoveNodeIdsForItem(it) {
+    const draggedId = Number(it.id);
+    if (!Number.isFinite(draggedId)) return [];
+    const selected = getSelectedRows();
+    if (selected.length <= 1) return [draggedId];
+    const selectedIds = selected.map((tr) => Number(tr.dataset.id)).filter((n) => Number.isFinite(n));
+    if (!selectedIds.includes(draggedId)) return [draggedId];
+    return selectedIds;
+  }
+
+  function parseDragNodeIds(e) {
+    let raw = "";
+    try {
+      raw = e.dataTransfer.getData("application/x-node-ids");
+    } catch (_) {
+      /* ignore */
+    }
+    if (raw) {
+      try {
+        const ids = JSON.parse(raw);
+        if (Array.isArray(ids) && ids.length) {
+          return [...new Set(ids.map((n) => Number(n)).filter((n) => Number.isFinite(n)))];
+        }
+      } catch (_) {
+        /* ignore */
+      }
+    }
+    const single = e.dataTransfer.getData("application/x-node-id") || e.dataTransfer.getData("text/plain");
+    const n = Number(single);
+    return Number.isFinite(n) ? [n] : [];
+  }
+
+  async function moveNodes(nodeIds, newParentId) {
+    const destId = Number(newParentId);
+    if (!Number.isFinite(destId)) return;
+    const toMove = [...new Set(nodeIds.map((n) => Number(n)).filter((n) => Number.isFinite(n) && n !== destId))];
+    if (!toMove.length) return;
+
+    setStatus(toMove.length === 1 ? "Moving…" : `Moving ${toMove.length} items…`);
+    let ok = 0;
+    let lastErr = "";
+    for (const nodeId of toMove) {
+      const r = await fetch(moveUrl, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ node_id: nodeId, new_parent_id: destId }),
+        credentials: "same-origin",
+      });
+      if (r.ok) {
+        ok += 1;
+      } else {
+        const err = await r.json().catch(() => ({}));
+        lastErr = err.message || err.error || err.reason || "Move failed";
+      }
+    }
+    if (ok === toMove.length) {
+      setStatus(ok === 1 ? "Moved." : `Moved ${ok} items.`);
+    } else if (ok > 0) {
+      setStatus(`Moved ${ok} of ${toMove.length}.${lastErr ? ` ${lastErr}` : ""}`);
+    } else {
+      setStatus(lastErr || "Move failed");
       return;
     }
-    setStatus("Moved.");
+    clearAllRowSelection();
     await reloadListing();
   }
 
@@ -3829,13 +4291,29 @@
     const r = await fetch(`${API_BASE}/api/versions/${fileId}`);
     if (!r.ok) return;
     const data = await r.json();
+    const fileName = (data.file && data.file.name) || "";
     versionsBody.innerHTML = "";
     const ul = document.createElement("ul");
     ul.className = "share-list";
     for (const v of data.versions) {
       const li = document.createElement("li");
+      li.style.display = "flex";
+      li.style.alignItems = "center";
+      li.style.gap = "0.45rem";
+      li.style.flexWrap = "wrap";
       const cur = v.is_current ? " (ACTIVE)" : "";
-      li.textContent = `v${v.version_number}${cur} — ${v.sha256.slice(0, 12)}… — ${fmtRelative(v.created_at)}`;
+      const meta = document.createElement("span");
+      meta.textContent = `v${v.version_number}${cur} — ${v.sha256.slice(0, 12)}… — ${fmtRelative(v.created_at)}`;
+      li.appendChild(meta);
+
+      const actions = document.createElement("span");
+      actions.style.display = "inline-flex";
+      actions.style.gap = "0.35rem";
+      actions.style.alignItems = "center";
+      actions.style.marginLeft = "auto";
+
+      appendVersionReviewButton(actions, fileId, v, fileName);
+
       const restore = document.createElement("button");
       restore.type = "button";
       restore.textContent = "Restore";
@@ -3852,7 +4330,8 @@
           await reloadListing();
         }
       });
-      li.appendChild(restore);
+      actions.appendChild(restore);
+      li.appendChild(actions);
       ul.appendChild(li);
     }
     versionsBody.appendChild(ul);
@@ -4109,6 +4588,26 @@
     });
   }
 
+  if (selLock) {
+    selLock.addEventListener("click", async () => {
+      const rows = getSelectedRows();
+      if (rows.length !== 1) return;
+      const it = itemFromRowEl(rows[0]);
+      if (!it || it.is_folder) return;
+      await lockFile(it.id);
+    });
+  }
+
+  if (selUnlock) {
+    selUnlock.addEventListener("click", async () => {
+      const rows = getSelectedRows();
+      if (rows.length !== 1) return;
+      const it = itemFromRowEl(rows[0]);
+      if (!it || it.is_folder || !canReleaseFileLock(it)) return;
+      await unlockFile(it.id);
+    });
+  }
+
   if (selDownload) {
     selDownload.addEventListener("click", async () => {
       const rows = getSelectedRows();
@@ -4152,95 +4651,120 @@
     selDelete.addEventListener("click", () => bulkDeleteSelected());
   }
 
-  dropzone.addEventListener("dragenter", (e) => {
-    if (!hasFilePayload(e.dataTransfer)) return;
-    e.preventDefault();
-    dropzone.classList.add("drag");
-  });
-  dropzone.addEventListener("dragleave", (e) => {
-    if (!hasFilePayload(e.dataTransfer)) return;
-    e.preventDefault();
-    if (!dropzone.contains(e.relatedTarget)) dropzone.classList.remove("drag");
-  });
-  dropzone.addEventListener("dragover", (e) => {
-    if (!hasFilePayload(e.dataTransfer)) return;
-    e.preventDefault();
-    e.dataTransfer.dropEffect = effectiveParentId() != null ? "copy" : "none";
-  });
+  if (dropzone) {
+    dropzone.addEventListener(
+      "dragenter",
+      (e) => {
+        if (!hasFilePayload(e.dataTransfer)) return;
+        e.preventDefault();
+        dropzoneDragDepth += 1;
+        dropzone.classList.add("drag");
+      },
+      { signal: ncFbSig }
+    );
+    dropzone.addEventListener(
+      "dragleave",
+      (e) => {
+        e.preventDefault();
+        dropzoneDragDepth -= 1;
+        if (dropzoneDragDepth <= 0) {
+          dropzoneDragDepth = 0;
+          dropzone.classList.remove("drag");
+        }
+      },
+      { signal: ncFbSig }
+    );
+    dropzone.addEventListener(
+      "dragover",
+      (e) => {
+        if (!hasFilePayload(e.dataTransfer)) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = effectiveParentId() != null ? "copy" : "none";
+      },
+      { signal: ncFbSig }
+    );
 
-  dropzone.addEventListener("drop", async (e) => {
-    dropzone.classList.remove("drag");
-    if (!hasFilePayload(e.dataTransfer)) return;
-    e.preventDefault();
-    const pid = effectiveParentId();
-    if (pid == null) {
-      setStatus("Open your Home folder first, then upload.");
-      return;
-    }
-
-    async function readAllEntries(reader) {
-      const out = [];
-      while (true) {
-        const batch = await new Promise((resolve) => reader.readEntries(resolve));
-        if (!batch || !batch.length) break;
-        out.push(...batch);
-      }
-      return out;
-    }
-
-    async function collectDroppedFiles(dt) {
-      const items = dt.items ? Array.from(dt.items) : [];
-      const hasEntry = items.some((it) => typeof it.webkitGetAsEntry === "function");
-      if (!hasEntry) {
-        // Fallback: plain files only.
-        return { files: Array.from(dt.files || []), hasFolders: false };
-      }
-
-      const files = [];
-      let hasFolders = false;
-
-      async function walk(entry, basePath) {
-        if (!entry) return;
-        if (entry.isFile) {
-          const f = await new Promise((resolve) => entry.file(resolve, () => resolve(null)));
-          if (f) {
-            // Preserve relative path for uploadFolder().
-            f.relativePath = basePath ? `${basePath}/${f.name}` : f.name;
-            files.push(f);
-          }
+    dropzone.addEventListener(
+      "drop",
+      async (e) => {
+        clearDropzoneDragState();
+        if (!hasFilePayload(e.dataTransfer)) return;
+        e.preventDefault();
+        const pid = effectiveParentId();
+        if (pid == null) {
+          setStatus("Open your Home folder first, then upload.");
           return;
         }
-        if (entry.isDirectory) {
-          hasFolders = true;
-          const dirReader = entry.createReader();
-          const children = await readAllEntries(dirReader);
-          const nextBase = basePath ? `${basePath}/${entry.name}` : entry.name;
-          for (const ch of children) {
-            await walk(ch, nextBase);
+
+        async function readAllEntries(reader) {
+          const out = [];
+          while (true) {
+            const batch = await new Promise((resolve) => reader.readEntries(resolve));
+            if (!batch || !batch.length) break;
+            out.push(...batch);
           }
+          return out;
         }
-      }
 
-      for (const it of items) {
-        const entry = it.webkitGetAsEntry ? it.webkitGetAsEntry() : null;
-        if (!entry) continue;
-        await walk(entry, "");
-      }
+        async function collectDroppedFiles(dt) {
+          const items = dt.items ? Array.from(dt.items) : [];
+          const hasEntry = items.some((it) => typeof it.webkitGetAsEntry === "function");
+          if (!hasEntry) {
+            // Fallback: plain files only.
+            return { files: Array.from(dt.files || []), hasFolders: false };
+          }
 
-      // If for some reason traversal yields nothing, fall back to dt.files.
-      if (!files.length) return { files: Array.from(dt.files || []), hasFolders };
-      return { files, hasFolders };
-    }
+          const files = [];
+          let hasFolders = false;
 
-    const gathered = await collectDroppedFiles(e.dataTransfer);
-    const files = gathered.files || [];
-    if (!files.length) return;
-    const looksLikeFolderUpload =
-      gathered.hasFolders || files.some((f) => (f.webkitRelativePath || f.relativePath || "").includes("/"));
+          async function walk(entry, basePath) {
+            if (!entry) return;
+            if (entry.isFile) {
+              const f = await new Promise((resolve) => entry.file(resolve, () => resolve(null)));
+              if (f) {
+                // Preserve relative path for uploadFolder().
+                f.relativePath = basePath ? `${basePath}/${f.name}` : f.name;
+                files.push(f);
+              }
+              return;
+            }
+            if (entry.isDirectory) {
+              hasFolders = true;
+              const dirReader = entry.createReader();
+              const children = await readAllEntries(dirReader);
+              const nextBase = basePath ? `${basePath}/${entry.name}` : entry.name;
+              for (const ch of children) {
+                await walk(ch, nextBase);
+              }
+            }
+          }
 
-    if (looksLikeFolderUpload) await uploadFolder(pid, files);
-    else await uploadFiles(pid, files);
-  });
+          for (const it of items) {
+            const entry = it.webkitGetAsEntry ? it.webkitGetAsEntry() : null;
+            if (!entry) continue;
+            await walk(entry, "");
+          }
+
+          // If for some reason traversal yields nothing, fall back to dt.files.
+          if (!files.length) return { files: Array.from(dt.files || []), hasFolders };
+          return { files, hasFolders };
+        }
+
+        const gathered = await collectDroppedFiles(e.dataTransfer);
+        const files = gathered.files || [];
+        if (!files.length) return;
+        const looksLikeFolderUpload =
+          gathered.hasFolders || files.some((f) => (f.webkitRelativePath || f.relativePath || "").includes("/"));
+
+        if (looksLikeFolderUpload) await uploadFolder(pid, files);
+        else await uploadFiles(pid, files);
+      },
+      { signal: ncFbSig }
+    );
+  }
+
+  window.addEventListener("dragend", clearDropzoneDragState, { signal: ncFbSig });
+  document.addEventListener("nc-filebrowser-reload", clearDropzoneDragState, { signal: ncFbSig });
 
   if (thSortName) {
     thSortName.addEventListener("click", () => {

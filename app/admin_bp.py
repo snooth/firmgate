@@ -1181,6 +1181,28 @@ def _http_get_text(
         return int(status), text
 
 
+def _onlyoffice_app_url_warnings(app_url: str) -> list[str]:
+    """Hints when Document Server is unlikely to reach Firmgate (common local Docker setup)."""
+    import urllib.parse
+
+    warnings: list[str] = []
+    if not app_url:
+        warnings.append(
+            "Set App public URL so the Document Server can download files from Firmgate. "
+            "For OnlyOffice in Docker with Firmgate on your machine, use "
+            "http://host.docker.internal:5001 (not localhost)."
+        )
+        return warnings
+    host = (urllib.parse.urlparse(app_url).hostname or "").lower()
+    if host in ("localhost", "127.0.0.1"):
+        warnings.append(
+            "App public URL uses localhost, but OnlyOffice fetches files server-to-server. "
+            "Inside a Docker container, localhost is the container — not Firmgate on your Mac. "
+            "Use http://host.docker.internal:5001 instead (fixes “Download failed” when opening documents)."
+        )
+    return warnings
+
+
 @bp.route("/api/settings/onlyoffice/test", methods=["GET"])
 @login_required
 @admin_required_json
@@ -1192,14 +1214,14 @@ def api_onlyoffice_settings_test():
         return jsonify({"ok": False, "error": "OnlyOffice URL not set"}), 400
 
     hints: list[str] = []
+    warnings = _onlyoffice_app_url_warnings(app_url)
     if "localhost" in base or "127.0.0.1" in base:
         hints.append(
-            "If OnlyOffice is on another machine/container, don't use localhost here — use the network IP/hostname reachable from the Flask server."
+            "Document Server URL uses localhost — fine if your browser loads OnlyOffice from this machine. "
+            "Firmgate must still reach that URL for the Test button."
         )
-    if not app_url:
-        hints.append(
-            "Tip: set an App public URL for OnlyOffice if the document server is in Docker/another host, so it can fetch files from your app."
-        )
+    if warnings:
+        hints.extend(warnings)
 
     health_url = f"{base}/healthcheck"
     api_js_url = f"{base}/web-apps/apps/api/documents/api.js"
@@ -1244,13 +1266,32 @@ def api_onlyoffice_settings_test():
     js_ok = js_code == 200
     ok = bool(health_ok and js_ok)
 
+    app_health: dict[str, Any] | None = None
+    if app_url:
+        try:
+            ah_code, ah_text = _http_get_text(f"{app_url}/health", timeout_s=3.0, ssl_context=tls_ctx)
+            app_health = {"url": f"{app_url}/health", "status": ah_code, "body": ah_text.strip()[:200]}
+            if ah_code != 200:
+                hints.append(
+                    f"App public URL health check returned HTTP {ah_code}. "
+                    "OnlyOffice must be able to reach this URL from its own network (often host.docker.internal in local Docker)."
+                )
+        except Exception as e:
+            app_health = {"url": f"{app_url}/health", "error": str(e)}
+            hints.append(
+                f"Could not reach App public URL ({app_url}): {e}. "
+                "If OnlyOffice is in Docker, try http://host.docker.internal:5001."
+            )
+
     return jsonify(
         {
             "ok": ok,
             "checks": {
                 "healthcheck": {"url": health_url, "status": hs_code, "body": hs_text.strip()[:200]},
                 "api_js": {"url": api_js_url, "status": js_code},
+                "app_health": app_health,
             },
+            "warnings": warnings,
             "hints": hints,
         }
     )
@@ -4110,6 +4151,7 @@ def _apply_fresh_database_migrations() -> None:
     _ensure_wiki_page_content_html_column()
     _ensure_node_group_role_share_tables()
     _ensure_security_clearance_records_table()
+    _ensure_file_node_locks_table()
     _ensure_resource_pool_resources_table()
     _ensure_resource_pool_resources_columns()
 

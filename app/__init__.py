@@ -184,6 +184,8 @@ def _ensure_calendar_event_columns() -> None:
         stmts.append("ALTER TABLE calendar_events ADD COLUMN shared_user_ids JSON")
     if "shared_group_ids" not in names:
         stmts.append("ALTER TABLE calendar_events ADD COLUMN shared_group_ids JSON")
+    if "is_private" not in names:
+        stmts.append("ALTER TABLE calendar_events ADD COLUMN is_private BOOLEAN DEFAULT 0")
     if not stmts:
         return
     with db.engine.begin() as conn:
@@ -236,6 +238,44 @@ def _ensure_security_clearance_records_table() -> None:
     if insp.has_table("security_clearance_records"):
         return
     SecurityClearanceRecord.__table__.create(db.engine, checkfirst=True)
+
+
+def _ensure_file_node_locks_table() -> None:
+    """Create file_node_locks table on upgraded installs."""
+    from sqlalchemy import inspect
+
+    from app.models import FileNodeLock
+
+    insp = inspect(db.engine)
+    if insp.has_table("file_node_locks"):
+        return
+    FileNodeLock.__table__.create(db.engine, checkfirst=True)
+
+
+def _ensure_file_node_onlyoffice_doc_key_column() -> None:
+    """Add OnlyOffice session key column to file_nodes when upgrading an older DB."""
+    from sqlalchemy import inspect, text
+
+    insp = inspect(db.engine)
+    if not insp.has_table("file_nodes"):
+        return
+    names = {c["name"] for c in insp.get_columns("file_nodes")}
+    if "onlyoffice_doc_key" in names:
+        return
+    with db.engine.begin() as conn:
+        conn.execute(text("ALTER TABLE file_nodes ADD COLUMN onlyoffice_doc_key VARCHAR(128)"))
+
+
+def _ensure_file_node_edit_sessions_table() -> None:
+    """Create file_node_edit_sessions table on upgraded installs."""
+    from sqlalchemy import inspect
+
+    from app.models import FileNodeEditSession
+
+    insp = inspect(db.engine)
+    if insp.has_table("file_node_edit_sessions"):
+        return
+    FileNodeEditSession.__table__.create(db.engine, checkfirst=True)
 
 
 def _ensure_node_group_role_share_tables() -> None:
@@ -415,6 +455,9 @@ def create_app(config_class=Config):
         _ensure_wiki_page_content_html_column()
         _ensure_node_group_role_share_tables()
         _ensure_security_clearance_records_table()
+        _ensure_file_node_locks_table()
+        _ensure_file_node_edit_sessions_table()
+        _ensure_file_node_onlyoffice_doc_key_column()
         _ensure_resource_pool_resources_table()
         _ensure_resource_pool_resources_columns()
         try:

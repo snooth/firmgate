@@ -33,7 +33,20 @@ from app.models import (
     user_roles,
     utcnow,
 )
-from app.settings import get_setting
+from app.file_lock_service import (
+    acquire_lock,
+    assert_can_edit_locked_node,
+    attach_lock_fields,
+    get_lock_for_node,
+    lock_payload,
+    release_lock,
+)
+from app.file_edit_session_service import (
+    attach_edit_fields,
+    edit_sessions_map,
+    release_edit_session,
+    touch_edit_session,
+)
 from datetime import timedelta
 from email import policy
 from email.parser import BytesParser
@@ -168,13 +181,90 @@ def _serialize_node_for_lister(
     shared_out_ids: set[int] | None = None,
     include_owner_username: bool = False,
 ) -> dict[str, Any]:
-    d = _serialize_node(n, include_children_count=include_children_count)
-    if shared_out_ids is not None:
-        d["shared_out"] = n.id in shared_out_ids
+    batch = _serialize_nodes_batch(
+        [n],
+        shared_out_ids=shared_out_ids,
+        include_owner_username=include_owner_username,
+    )
+    return batch[0] if batch else _serialize_node(n, include_children_count=include_children_count)
+
+
+def _current_versions_map(file_node_ids: list[int]) -> dict[int, FileVersion]:
+    if not file_node_ids:
+        return {}
+    rows = (
+        db.session.query(FileVersion)
+        .filter(FileVersion.file_node_id.in_(file_node_ids), FileVersion.is_current.is_(True))
+        .all()
+    )
+    return {int(fv.file_node_id): fv for fv in rows}
+
+
+def _shared_out_owned_node_ids(owner_id: int) -> set[int]:
+    """Node IDs owned by this user that have any internal or public share."""
+    owned = select(FileNode.id).where(
+        FileNode.owner_id == owner_id,
+        FileNode.deleted_at.is_(None),
+    )
+    out: set[int] = set()
+    for model in (NodeUserShare, NodeGroupShare, NodeRoleShare, FileShare):
+        rows = db.session.scalars(
+            select(model.file_node_id).where(model.file_node_id.in_(owned)).distinct()
+        ).all()
+        out |= {int(i) for i in rows}
+    return out
+
+
+def _serialize_nodes_batch(
+    nodes: list[FileNode],
+    *,
+    shared_out_ids: set[int] | None = None,
+    include_owner_username: bool = False,
+    attach_locks: bool = True,
+) -> list[dict[str, Any]]:
+    """Serialize many nodes with batched version, owner, and lock queries (list views)."""
+    if not nodes:
+        return []
+    file_ids = [n.id for n in nodes if not n.is_folder]
+    versions = _current_versions_map(file_ids)
+    owner_names: dict[int, str] = {}
     if include_owner_username:
-        ou = db.session.get(User, n.owner_id)
-        d["owner_username"] = (ou.username or ou.email or "") if ou else ""
-    return d
+        owner_ids = {n.owner_id for n in nodes}
+        if owner_ids:
+            for u in db.session.query(User).filter(User.id.in_(owner_ids)).all():
+                owner_names[u.id] = (u.username or u.email or "")
+
+    items: list[dict[str, Any]] = []
+    for n in nodes:
+        data: dict[str, Any] = {
+            "id": n.id,
+            "name": n.name,
+            "is_folder": n.is_folder,
+            "parent_id": n.parent_id,
+            "owner_id": n.owner_id,
+            "created_at": n.created_at.isoformat() if n.created_at else None,
+            "updated_at": n.updated_at.isoformat() if n.updated_at else None,
+            "path_key": n.path_key,
+            "attributes": n.attributes or {},
+        }
+        if not n.is_folder:
+            fv = versions.get(n.id)
+            if fv:
+                data["size_bytes"] = fv.size_bytes
+                data["mime_type"] = fv.mime_type
+                data["version_number"] = fv.version_number
+                data["sha256"] = fv.sha256
+        if shared_out_ids is not None:
+            data["shared_out"] = n.id in shared_out_ids
+        if include_owner_username:
+            data["owner_username"] = owner_names.get(n.owner_id, "")
+        if files_workspace.is_users_container_folder(n) and _shows_users_root_display_name(current_user):
+            data["name"] = files_workspace.USERS_ROOT_DISPLAY_NAME
+        items.append(data)
+    if attach_locks:
+        attach_lock_fields(items)
+    attach_edit_fields(items)
+    return items
 
 
 def _path_key_for(node: FileNode) -> str:
@@ -208,6 +298,11 @@ def _is_files_tree_admin(user: User) -> bool:
     return rbac.user_has_permission(user, rbac.PERMISSION_FILES_ADMIN) or rbac.user_has_permission(
         user, rbac.PERMISSION_ADMIN
     )
+
+
+def _is_portal_admin(user: User) -> bool:
+    """Portal administrator (admin.all) — may release any file lock."""
+    return rbac.user_has_permission(user, rbac.PERMISSION_ADMIN)
 
 
 def _resolve_parent_for_create(parent_id: int | None, user: User) -> FileNode | None:
@@ -278,6 +373,10 @@ def _soft_delete_node_recursive(node: FileNode, *, deleted_by_id: int) -> int:
         n.deleted_by_id = deleted_by_id
         # Revoke any shares/public links so deleted content is no longer accessible.
         _delete_shares_for_node_id(n.id)
+        if not n.is_folder:
+            lk = get_lock_for_node(n.id)
+            if lk:
+                db.session.delete(lk)
         db.session.add(n)
         count += 1
     db.session.flush()
@@ -298,6 +397,7 @@ def browser():
     return render_template(
         "files.html",
         files_tree_admin=_is_files_tree_admin(current_user),
+        portal_admin=_is_portal_admin(current_user),
         **files_template_context(),
     )
 
@@ -309,25 +409,17 @@ def _documents_root_list_payload(user: User) -> dict[str, Any]:
     default_parent = home_container
     if home_container and home_container.is_folder:
         children = (
-            home_container.children.filter(FileNode.deleted_at.is_(None))
+            home_container.children.filter(
+                FileNode.deleted_at.is_(None),
+                FileNode.owner_id == user.id,
+            )
             .order_by(FileNode.is_folder.desc(), FileNode.name)
             .all()
         )
-        child_ids = [c.id for c in children]
-        shared_out_ids: set[int] = set()
-        if child_ids:
-            shared_out_ids |= _shared_out_node_ids(child_ids)
-        for c in children:
-            if c.owner_id != user.id:
-                continue
-            ok, _ = access.can_access_node(user, c, "read")
-            if not ok:
-                continue
-            if not access.documents_listing_includes_node(user, c):
-                continue
-            d = _serialize_node(c, include_children_count=True)
-            d["shared_out"] = c.id in shared_out_ids
-            items.append(d)
+        visible = [c for c in children if access.documents_listing_includes_node(user, c)]
+        child_ids = [c.id for c in visible]
+        shared_out_ids = _shared_out_node_ids(child_ids) if child_ids else set()
+        items = _serialize_nodes_batch(visible, shared_out_ids=shared_out_ids)
 
     shared_with_me: list[dict[str, Any]] = []
     seen_share_nodes: set[int] = set()
@@ -335,19 +427,17 @@ def _documents_root_list_payload(user: User) -> dict[str, Any]:
     shared_with_me.sort(key=lambda x: (not x["is_folder"], x["name"].lower()))
 
     shared_by_me: list[dict[str, Any]] = []
-    owned_ids = [n.id for n in FileNode.query.filter_by(owner_id=user.id).all()]
-    if owned_ids:
-        out_ids = _shared_out_node_ids(owned_ids)
-        for nid in out_ids:
-            sn = db.session.get(FileNode, nid)
-            if not sn or sn.deleted_at is not None:
-                continue
-            ok, _ = access.can_access_node(user, sn, "read")
-            if not ok or not access.documents_listing_includes_node(user, sn):
-                continue
-            d = _serialize_node(sn, include_children_count=True)
+    out_ids = _shared_out_owned_node_ids(user.id)
+    if out_ids:
+        shared_nodes = (
+            FileNode.query.filter(FileNode.id.in_(out_ids), FileNode.deleted_at.is_(None))
+            .order_by(FileNode.is_folder.desc(), FileNode.name)
+            .all()
+        )
+        visible_shared = [sn for sn in shared_nodes if access.documents_listing_includes_node(user, sn)]
+        shared_by_me = _serialize_nodes_batch(visible_shared)
+        for d in shared_by_me:
             d["shared_out"] = True
-            shared_by_me.append(d)
     shared_by_me.sort(key=lambda x: (not x["is_folder"], (x.get("name") or "").lower()))
 
     _audit("files.list", "folder", "root", True, {"count": len(items)})
@@ -372,21 +462,17 @@ def _documents_admin_root_list_payload(user: User) -> dict[str, Any]:
     )
     root_ids = [n.id for n in roots]
     shared_out_ids = _shared_out_node_ids(root_ids)
-    items: list[dict[str, Any]] = []
-    for n in roots:
-        ok, _ = access.can_access_node(user, n, "read")
-        if not ok:
-            continue
-        if not access.documents_listing_includes_node(user, n):
-            continue
-        items.append(
-            _serialize_node_for_lister(
-                n,
-                include_children_count=True,
-                shared_out_ids=shared_out_ids,
-                include_owner_username=True,
-            )
-        )
+    visible = [
+        n
+        for n in roots
+        if access.documents_listing_includes_node(user, n)
+        and access.can_access_node(user, n, "read")[0]
+    ]
+    items = _serialize_nodes_batch(
+        visible,
+        shared_out_ids=shared_out_ids,
+        include_owner_username=True,
+    )
     _audit("files.list.admin", "folder", "root", True, {"count": len(items)})
     return {
         "parent": None,
@@ -443,22 +529,20 @@ def api_list():
     if files_workspace.is_users_container_folder(parent) and not admin_scope:
         children = files_workspace.filter_users_root_children_for_lister(current_user, list(children))
     child_ids = [c.id for c in children]
-    shared_out_ids = _shared_out_node_ids(child_ids)
-    items = []
+    shared_out_ids = _shared_out_node_ids(child_ids) if child_ids else set()
+    visible: list[FileNode] = []
     for c in children:
         okc, _ = access.can_access_node(current_user, c, "read")
         if not okc:
             continue
         if not access.documents_listing_includes_node(current_user, c):
             continue
-        items.append(
-            _serialize_node_for_lister(
-                c,
-                include_children_count=True,
-                shared_out_ids=shared_out_ids,
-                include_owner_username=admin_scope,
-            )
-        )
+        visible.append(c)
+    items = _serialize_nodes_batch(
+        visible,
+        shared_out_ids=shared_out_ids,
+        include_owner_username=admin_scope,
+    )
     # Treat navigating into a folder as "opened" (single-click should not spam activity).
     _audit("files.open", "folder", str(parent.id), True, {"count": len(items), "scope": scope})
     crumbs = _admin_documents_breadcrumb(parent) if admin_scope else _documents_breadcrumb(current_user, parent)
@@ -553,11 +637,7 @@ def api_search():
     if ids:
         shared_out_ids |= _shared_out_node_ids(ids)
 
-    payload_items: list[dict[str, Any]] = []
-    for n in items:
-        d = _serialize_node(n, include_children_count=True)
-        d["shared_out"] = n.id in shared_out_ids
-        payload_items.append(d)
+    payload_items = _serialize_nodes_batch(items, shared_out_ids=shared_out_ids)
 
     qdisp = raw[:80] + ("…" if len(raw) > 80 else "")
     crumbs = [{"id": None, "name": "All files"}, {"id": None, "name": f'Search: "{qdisp}"'}]
@@ -602,6 +682,9 @@ def _serialize_node(n: FileNode, include_children_count: bool = False) -> dict[s
             data["sha256"] = cur.sha256
     if include_children_count and n.is_folder:
         data["child_count"] = n.children.count()
+    if not n.is_folder:
+        data["lock"] = lock_payload(get_lock_for_node(n.id))
+        attach_edit_fields([data])
     if files_workspace.is_users_container_folder(n) and _shows_users_root_display_name(current_user):
         data["name"] = files_workspace.USERS_ROOT_DISPLAY_NAME
     return data
@@ -765,6 +848,12 @@ def api_upload():
             ok2, _ = access.can_access_node(current_user, existing, "write")
             if not ok2:
                 results.append({"name": name, "error": "forbidden overwrite"})
+                continue
+            lock_ok, lock_err = assert_can_edit_locked_node(
+                existing, current_user, files_admin=_is_files_tree_admin(current_user)
+            )
+            if not lock_ok:
+                results.append({"name": name, "error": lock_err or "locked"})
                 continue
             db.session.query(FileVersion).filter_by(file_node_id=existing.id, is_current=True).update({"is_current": False})
             last_v = (
@@ -1907,6 +1996,12 @@ def api_move():
     ok, reason = access.can_access_node(current_user, node, "move")
     if not ok:
         return jsonify({"error": "forbidden", "reason": reason}), 403
+    if not node.is_folder:
+        lock_ok, lock_err = assert_can_edit_locked_node(
+            node, current_user, files_admin=_is_files_tree_admin(current_user)
+        )
+        if not lock_ok:
+            return jsonify({"error": "locked", "message": lock_err}), 423
     ok2, reason2 = access.can_access_node(current_user, dest, "write")
     if not ok2:
         return jsonify({"error": "forbidden", "reason": reason2}), 403
@@ -2043,6 +2138,12 @@ def api_node_patch(node_id: int):
         _audit("files.rename.denied", "node", str(node.id), False, {"reason": reason})
         return jsonify({"error": "forbidden", "reason": reason}), 403
 
+    lock_ok, lock_err = assert_can_edit_locked_node(
+        node, current_user, files_admin=_is_files_tree_admin(current_user)
+    )
+    if not lock_ok:
+        return jsonify({"error": "locked", "message": lock_err}), 423
+
     # Ignore items in Recycle Bin; they should not block renames in the live tree.
     q = FileNode.query.filter_by(parent_id=node.parent_id, name=name).filter(FileNode.deleted_at.is_(None))
     clash = q.filter(FileNode.id != node.id).first()
@@ -2063,6 +2164,89 @@ def api_node_patch(node_id: int):
     return jsonify({"node": _serialize_node(node)})
 
 
+@bp.route("/api/lock/<int:node_id>", methods=["POST"])
+@login_required
+def api_lock_node(node_id: int):
+    node = _node_or_404(node_id)
+    if node.deleted_at is not None:
+        return jsonify({"error": "not found"}), 404
+    ok, reason = access.can_access_node(current_user, node, "write")
+    if not ok:
+        return jsonify({"error": "forbidden", "reason": reason}), 403
+    lock_data, err = acquire_lock(node, current_user)
+    if err:
+        code = 409 if lock_data else 400
+        return jsonify({"error": err, "lock": lock_data}), code
+    _audit("files.lock", "file", str(node.id), True, {"path": node.path_key})
+    return jsonify({"ok": True, "lock": lock_data, "node": _serialize_node(node)})
+
+
+@bp.route("/api/unlock/<int:node_id>", methods=["POST"])
+@login_required
+def api_unlock_node(node_id: int):
+    node = _node_or_404(node_id)
+    if node.deleted_at is not None:
+        return jsonify({"error": "not found"}), 404
+    ok, reason = access.can_access_node(current_user, node, "read")
+    if not ok:
+        return jsonify({"error": "forbidden", "reason": reason}), 403
+    released, err = release_lock(node, current_user, files_admin=_is_portal_admin(current_user))
+    if err:
+        return jsonify({"error": err}), 403
+    if released:
+        _audit("files.unlock", "file", str(node.id), True, {"path": node.path_key})
+    return jsonify({"ok": True, "node": _serialize_node(node)})
+
+
+@bp.route("/api/edit-session/<int:node_id>", methods=["POST"])
+@login_required
+def api_edit_session_touch(node_id: int):
+    node = _node_or_404(node_id)
+    if node.deleted_at is not None:
+        return jsonify({"error": "not found"}), 404
+    if node.is_folder:
+        return jsonify({"error": "folder"}), 400
+    ok, reason = access.can_access_node(current_user, node, "read")
+    if not ok:
+        return jsonify({"error": "forbidden", "reason": reason}), 403
+    can_edit, _ = access.can_access_node(current_user, node, "write")
+    if not can_edit:
+        return jsonify({"error": "forbidden", "reason": "write required"}), 403
+    row = touch_edit_session(node, current_user)
+    if not row:
+        return jsonify({"error": "could not register session"}), 400
+    return jsonify({"ok": True, "session": row})
+
+
+@bp.route("/api/edit-session/<int:node_id>", methods=["DELETE"])
+@login_required
+def api_edit_session_release(node_id: int):
+    node = _node_or_404(node_id)
+    if node.deleted_at is not None:
+        return jsonify({"error": "not found"}), 404
+    release_edit_session(node, current_user)
+    return jsonify({"ok": True})
+
+
+@bp.route("/api/edit-sessions", methods=["GET"])
+@login_required
+def api_edit_sessions():
+    node_ids = request.args.getlist("node_id", type=int)
+    node_ids = [int(n) for n in node_ids if n is not None]
+    if not node_ids:
+        return jsonify({"sessions": {}})
+    node_ids = list(dict.fromkeys(node_ids))[:500]
+    allowed: list[int] = []
+    for nid in node_ids:
+        node = db.session.get(FileNode, nid)
+        if not node or node.deleted_at is not None or node.is_folder:
+            continue
+        ok, _ = access.can_access_node(current_user, node, "read")
+        if ok:
+            allowed.append(int(nid))
+    return jsonify({"sessions": edit_sessions_map(allowed)})
+
+
 @bp.route("/api/node/<int:node_id>", methods=["DELETE"])
 @login_required
 def api_delete(node_id: int):
@@ -2070,6 +2254,12 @@ def api_delete(node_id: int):
     ok, reason = access.can_access_node(current_user, node, "delete")
     if not ok:
         return jsonify({"error": "forbidden", "reason": reason}), 403
+    if not node.is_folder:
+        lock_ok, lock_err = assert_can_edit_locked_node(
+            node, current_user, files_admin=_is_files_tree_admin(current_user)
+        )
+        if not lock_ok:
+            return jsonify({"error": "locked", "message": lock_err}), 423
 
     payload = request.get_json(force=True, silent=True) or {}
     j_err, justification = validate_deletion_justification(payload)
@@ -2333,20 +2523,34 @@ def _append_shared_with_me_entries(user: User, out: list[dict[str, Any]], seen: 
         for sh in NodeRoleShare.query.filter(NodeRoleShare.role_id.in_(role_ids)).all():
             candidates.append((sh.file_node_id, sh.permission))
 
+    pending: list[tuple[FileNode, str]] = []
+    node_ids_to_fetch: list[int] = []
     for node_id, _hint_perm in candidates:
         if node_id in seen:
             continue
         seen.add(node_id)
-        sn = db.session.get(FileNode, node_id)
-        if not sn or sn.deleted_at is not None or sn.owner_id == user.id:
+        node_ids_to_fetch.append(node_id)
+
+    if not node_ids_to_fetch:
+        return
+    nodes_by_id = {
+        n.id: n
+        for n in FileNode.query.filter(FileNode.id.in_(node_ids_to_fetch), FileNode.deleted_at.is_(None)).all()
+    }
+    for node_id in node_ids_to_fetch:
+        sn = nodes_by_id.get(node_id)
+        if not sn or sn.owner_id == user.id:
             continue
         ok, _ = access.can_access_node(user, sn, "read")
         if not ok or not access.documents_listing_includes_node(user, sn):
             continue
         perm = access.internal_share_grant(user.id, sn) or "read"
-        ou = db.session.get(User, sn.owner_id)
-        d = _serialize_node(sn, include_children_count=True)
-        d["owner_username"] = ou.username if ou else ""
+        pending.append((sn, perm))
+
+    if not pending:
+        return
+    batch = _serialize_nodes_batch([sn for sn, _ in pending], include_owner_username=True)
+    for d, (sn, perm) in zip(batch, pending):
         d["path_key"] = sn.path_key or sn.display_path()
         d["permission"] = perm
         out.append(d)

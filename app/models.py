@@ -115,6 +115,8 @@ class FileNode(db.Model):
     deleted_at = db.Column(db.DateTime(timezone=True), nullable=True, index=True)
     deleted_by_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True, index=True)
     original_parent_id = db.Column(db.Integer, nullable=True, index=True)
+    # OnlyOffice co-editing session key; cleared when no edit sessions remain.
+    onlyoffice_doc_key = db.Column(db.String(128), nullable=True)
 
     parent = db.relationship("FileNode", remote_side=[id], backref=db.backref("children", lazy="dynamic"))
     versions = db.relationship("FileVersion", back_populates="file_node", lazy="dynamic")
@@ -127,6 +129,36 @@ class FileNode(db.Model):
             parts.append(node.name)
             node = node.parent
         return "/" + "/".join(reversed(parts))
+
+
+class FileNodeLock(db.Model):
+    """Exclusive edit lock on a file (Documents). One lock per file."""
+
+    __tablename__ = "file_node_locks"
+    __table_args__ = (db.UniqueConstraint("file_node_id", name="uq_file_node_lock_node"),)
+
+    id = db.Column(db.Integer, primary_key=True)
+    file_node_id = db.Column(db.Integer, db.ForeignKey("file_nodes.id"), nullable=False, index=True)
+    locked_by_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    locked_at = db.Column(db.DateTime(timezone=True), default=utcnow, nullable=False)
+
+    file_node = db.relationship("FileNode", backref=db.backref("edit_lock", uselist=False))
+    locked_by = db.relationship("User", foreign_keys=[locked_by_id])
+
+
+class FileNodeEditSession(db.Model):
+    """Live indicator that a user currently has a document open for editing."""
+
+    __tablename__ = "file_node_edit_sessions"
+    __table_args__ = (db.UniqueConstraint("file_node_id", "user_id", name="uq_file_node_edit_session"),)
+
+    id = db.Column(db.Integer, primary_key=True)
+    file_node_id = db.Column(db.Integer, db.ForeignKey("file_nodes.id"), nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    last_seen_at = db.Column(db.DateTime(timezone=True), default=utcnow, nullable=False, index=True)
+
+    file_node = db.relationship("FileNode", backref=db.backref("edit_sessions", lazy="dynamic"))
+    user = db.relationship("User", foreign_keys=[user_id])
 
 
 class FileVersion(db.Model):
@@ -405,7 +437,8 @@ class CalendarEvent(db.Model):
     end = db.Column(db.String(5), nullable=True)  # HH:MM (24h)
     location = db.Column(db.String(255), nullable=True)
     notes = db.Column(db.String(2000), nullable=True)
-    # Sharing: private by default (creator only) unless explicitly shared.
+    # Sharing: company calendar by default; set is_private for creator-only visibility.
+    is_private = db.Column(db.Boolean, nullable=False, default=False)
     shared_user_ids = db.Column(db.JSON, nullable=False, default=list)
     shared_group_ids = db.Column(db.JSON, nullable=False, default=list)
     created_at = db.Column(db.DateTime(timezone=True), default=utcnow, nullable=False, index=True)

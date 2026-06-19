@@ -69,6 +69,8 @@
       btn.setAttribute("aria-expanded", collapsed ? "false" : "true");
       btn.setAttribute("aria-label", collapsed ? "Expand navigation" : "Collapse navigation");
       btn.title = collapsed ? "Expand navigation" : "Collapse navigation";
+      const label = btn.querySelector(".nc-intranet-sidebar-toggle-label");
+      if (label) label.textContent = collapsed ? "Expand menu" : "Collapse menu";
     }
     const syncLayout = () => {
       if (typeof window.ncSyncViewerOffsetsSoon === "function") {

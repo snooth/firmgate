@@ -17,6 +17,7 @@
 
   const dlgUploadConflict = document.getElementById("dlg-upload-conflict");
   const btnUconflictReplace = document.getElementById("btn-uconflict-replace");
+  const btnUconflictReplaceAll = document.getElementById("btn-uconflict-replace-all");
   const btnUconflictKeep = document.getElementById("btn-uconflict-keep");
   const btnUconflictCancel = document.getElementById("btn-uconflict-cancel");
   const uconflictReadonlyHint = document.getElementById("uconflict-readonly-hint");
@@ -140,7 +141,7 @@
     }
   }
 
-  function requestConflictViaShell(existing, file, canReplace) {
+  function requestConflictViaShell(existing, file, canReplace, options) {
     return new Promise((resolve) => {
       const requestId = `cr_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
       let shell = null;
@@ -159,7 +160,8 @@
         const d = ev.data;
         if (!d || d.nc !== "fb-up" || d.type !== "conflict-response" || d.requestId !== requestId) return;
         window.removeEventListener("message", onMsg);
-        const choice = d.choice === "replace" || d.choice === "keep" ? d.choice : "cancel";
+        const choice =
+          d.choice === "replace" || d.choice === "replace_all" || d.choice === "keep" ? d.choice : "cancel";
         resolve(choice);
       }
       window.addEventListener("message", onMsg);
@@ -176,6 +178,7 @@
               lastModified: file.lastModified,
             },
             canReplace: canReplace !== false,
+            showReplaceAll: !!(options && options.showReplaceAll),
           },
           origin
         );
@@ -186,18 +189,20 @@
     });
   }
 
-  function showUploadConflictDialog(existing, file, canReplace) {
+  function showUploadConflictDialog(existing, file, canReplace, options) {
     try {
       if (
         (window.opener && !window.opener.closed) ||
         (window.parent && window.parent !== window)
       ) {
-        return requestConflictViaShell(existing, file, canReplace);
+        return requestConflictViaShell(existing, file, canReplace, options);
       }
     } catch {
       /* fall through to local dialog */
     }
     if (!dlgUploadConflict) return Promise.resolve("cancel");
+    const opts = options || {};
+    const showReplaceAll = !!(opts.showReplaceAll && canReplace);
     return new Promise((resolve) => {
       const done = (choice) => {
         dlgUploadConflict.close();
@@ -216,19 +221,41 @@
       uconflictReadonlyHint.hidden = canReplace;
       btnUconflictReplace.hidden = !canReplace;
       btnUconflictReplace.disabled = !canReplace;
+      if (btnUconflictReplaceAll) {
+        btnUconflictReplaceAll.hidden = !showReplaceAll;
+        btnUconflictReplaceAll.disabled = !showReplaceAll;
+      }
 
       const onReplace = () => done("replace");
+      const onReplaceAll = () => done("replace_all");
       const onKeep = () => done("keep");
       const onCancel = () => done("cancel");
       const onDlgCancel = () => done("cancel");
 
       btnUconflictReplace.addEventListener("click", onReplace, { once: true });
+      if (showReplaceAll && btnUconflictReplaceAll) {
+        btnUconflictReplaceAll.addEventListener("click", onReplaceAll, { once: true });
+      }
       btnUconflictKeep.addEventListener("click", onKeep, { once: true });
       btnUconflictCancel.addEventListener("click", onCancel, { once: true });
       dlgUploadConflict.addEventListener("cancel", onDlgCancel, { once: true });
 
       dlgUploadConflict.showModal();
     });
+  }
+
+  async function resolveUploadFileConflict(existing, file, canReplace, conflictCtx) {
+    if (conflictCtx.replaceAll) {
+      return canReplace === false ? "keep" : "replace";
+    }
+    const choice = await showUploadConflictDialog(existing, file, canReplace, {
+      showReplaceAll: conflictCtx.totalFiles > 1,
+    });
+    if (choice === "replace_all") {
+      conflictCtx.replaceAll = true;
+      return "replace";
+    }
+    return choice;
   }
 
   function uploadSingleFile(uploadUrl, parentId, file, onProgress) {
@@ -398,6 +425,7 @@
       let skipped = 0;
       let failed = 0;
       let lastFailHint = "";
+      const conflictCtx = { replaceAll: false, totalFiles };
 
       for (let i = 0; i < list.length; i++) {
         const file = list[i];
@@ -408,7 +436,7 @@
         );
         const cd = await cu.json().catch(() => ({}));
         if (cu.ok && cd.conflict) {
-          const choice = await showUploadConflictDialog(cd.existing, file, cd.can_replace !== false);
+          const choice = await resolveUploadFileConflict(cd.existing, file, cd.can_replace !== false, conflictCtx);
           if (choice === "cancel") {
             return jobResult(uploaded, skipped, failed, totalFiles, "files", {
               cancelled: true,
@@ -524,6 +552,7 @@
       let skipped = 0;
       let failed = 0;
       let lastFailHint = "";
+      const conflictCtx = { replaceAll: false, totalFiles };
 
       for (let i = 0; i < list.length; i++) {
         const f = list[i];
@@ -546,7 +575,7 @@
         );
         const cd = await cu.json().catch(() => ({}));
         if (cu.ok && cd.conflict) {
-          const choice = await showUploadConflictDialog(cd.existing, f, cd.can_replace !== false);
+          const choice = await resolveUploadFileConflict(cd.existing, f, cd.can_replace !== false, conflictCtx);
           if (choice === "cancel") {
             return jobResult(uploaded, skipped, failed, totalFiles, "folder", {
               cancelled: true,

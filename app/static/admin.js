@@ -2788,6 +2788,8 @@
     if (upBtn) upBtn.disabled = !upgradable;
     if (rbBtn) rbBtn.disabled = !(upgradable && j.rollback_available);
     if (pkgBtn) pkgBtn.disabled = !packageUpgradable;
+    const pkgDrop = document.getElementById("sw-package-dropzone");
+    if (pkgDrop) pkgDrop.classList.toggle("is-disabled", !packageUpgradable);
 
     const pel = document.getElementById("sw-prev-deployed");
     const cel = document.getElementById("sw-cur-deployed");
@@ -2853,44 +2855,143 @@
     });
   }
 
+  function isPackageZipFile(file) {
+    if (!file) return false;
+    const name = String(file.name || "").toLowerCase();
+    const type = String(file.type || "").toLowerCase();
+    return name.endsWith(".zip") || type === "application/zip" || type === "application/x-zip-compressed";
+  }
+
+  function setPackageFile(file) {
+    const fileEl = document.getElementById("sw-package-file");
+    const label = document.getElementById("sw-package-drop-label");
+    const hint = document.getElementById("sw-package-drop-hint");
+    const dropzone = document.getElementById("sw-package-dropzone");
+    if (!file || !isPackageZipFile(file)) {
+      if (fileEl) fileEl.value = "";
+      if (label) label.textContent = "Drag and drop release package here";
+      if (hint) {
+        hint.textContent = "or click to browse";
+        hint.hidden = false;
+      }
+      if (dropzone) dropzone.classList.remove("has-file");
+      return false;
+    }
+    if (fileEl) {
+      const dt = new DataTransfer();
+      dt.items.add(file);
+      fileEl.files = dt.files;
+    }
+    if (label) label.textContent = file.name;
+    if (hint) {
+      const mb = file.size / (1024 * 1024);
+      hint.textContent = `${mb >= 0.1 ? mb.toFixed(1) : "<0.1"} MB — drop another file to replace`;
+      hint.hidden = false;
+    }
+    if (dropzone) dropzone.classList.add("has-file");
+    return true;
+  }
+
+  async function runPackageUpgrade() {
+    const fileEl = document.getElementById("sw-package-file");
+    const swPkgBtn = document.getElementById("sw-package-upgrade");
+    const f = fileEl && fileEl.files && fileEl.files[0] ? fileEl.files[0] : null;
+    if (!f) {
+      setStatus("sw-package-status", "Choose or drop a release zip file first.");
+      return;
+    }
+    if (
+      !window.confirm(
+        "Upload and apply this release package?\n\nThe server keeps instance/, .env, and .venv. Python dependencies are reinstalled from requirements.txt. A light backup of .env and the database is taken first.\n\nContinue?"
+      )
+    ) {
+      return;
+    }
+    if (swPkgBtn) swPkgBtn.disabled = true;
+    setStatus("sw-package-status", "Uploading and applying package… this may take several minutes.");
+    try {
+      const fd = new FormData();
+      fd.append("file", f, f.name || "release.zip");
+      const r = await fetch(u("/api/settings/software-version/package-upgrade"), {
+        method: "POST",
+        credentials: "same-origin",
+        body: fd,
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        setStatus("sw-package-status", j.error || "Package upgrade failed.");
+        return;
+      }
+      setStatus("sw-package-status", j.message || "Package upgrade complete.");
+      setPackageFile(null);
+    } catch (e) {
+      setStatus("sw-package-status", String(e && e.message ? e.message : e) || "Package upgrade failed.");
+    } finally {
+      await loadSoftwareVersion();
+    }
+  }
+
   const swPkgBtn = document.getElementById("sw-package-upgrade");
   if (swPkgBtn) {
-    swPkgBtn.addEventListener("click", async () => {
-      const fileEl = document.getElementById("sw-package-file");
-      const f = fileEl && fileEl.files && fileEl.files[0] ? fileEl.files[0] : null;
-      if (!f) {
-        setStatus("sw-package-status", "Choose a release zip file first.");
+    swPkgBtn.addEventListener("click", () => {
+      void runPackageUpgrade();
+    });
+  }
+
+  const swPackageDropzone = document.getElementById("sw-package-dropzone");
+  const swPackageFile = document.getElementById("sw-package-file");
+  if (swPackageDropzone && swPackageFile) {
+    let dragDepth = 0;
+    const setDrag = (on) => swPackageDropzone.classList.toggle("is-drag", !!on);
+    const openPicker = () => {
+      if (swPackageDropzone.classList.contains("is-disabled")) return;
+      swPackageFile.click();
+    };
+
+    swPackageDropzone.addEventListener("click", openPicker);
+    swPackageDropzone.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        openPicker();
+      }
+    });
+    swPackageFile.addEventListener("change", () => {
+      const file = swPackageFile.files && swPackageFile.files[0] ? swPackageFile.files[0] : null;
+      if (file && !setPackageFile(file)) {
+        setStatus("sw-package-status", "Release package must be a .zip file.");
+      } else {
+        setStatus("sw-package-status", "");
+      }
+    });
+
+    ["dragenter", "dragover"].forEach((ev) => {
+      swPackageDropzone.addEventListener(ev, (e) => {
+        if (swPackageDropzone.classList.contains("is-disabled")) return;
+        e.preventDefault();
+        e.stopPropagation();
+        if (ev === "dragenter") dragDepth += 1;
+        setDrag(true);
+      });
+    });
+    swPackageDropzone.addEventListener("dragleave", (e) => {
+      if (swPackageDropzone.classList.contains("is-disabled")) return;
+      e.preventDefault();
+      dragDepth = Math.max(0, dragDepth - 1);
+      if (dragDepth === 0) setDrag(false);
+    });
+    swPackageDropzone.addEventListener("drop", (e) => {
+      if (swPackageDropzone.classList.contains("is-disabled")) return;
+      e.preventDefault();
+      e.stopPropagation();
+      dragDepth = 0;
+      setDrag(false);
+      const file = e.dataTransfer?.files?.[0];
+      if (!file) return;
+      if (!setPackageFile(file)) {
+        setStatus("sw-package-status", "Release package must be a .zip file.");
         return;
       }
-      if (
-        !window.confirm(
-          "Upload and apply this release package?\n\nThe server keeps instance/, .env, and .venv. Python dependencies are reinstalled from requirements.txt. A light backup of .env and the database is taken first.\n\nContinue?"
-        )
-      ) {
-        return;
-      }
-      swPkgBtn.disabled = true;
-      setStatus("sw-package-status", "Uploading and applying package… this may take several minutes.");
-      try {
-        const fd = new FormData();
-        fd.append("file", f, f.name || "release.zip");
-        const r = await fetch(u("/api/settings/software-version/package-upgrade"), {
-          method: "POST",
-          credentials: "same-origin",
-          body: fd,
-        });
-        const j = await r.json().catch(() => ({}));
-        if (!r.ok) {
-          setStatus("sw-package-status", j.error || "Package upgrade failed.");
-          return;
-        }
-        setStatus("sw-package-status", j.message || "Package upgrade complete.");
-        if (fileEl) fileEl.value = "";
-      } catch (e) {
-        setStatus("sw-package-status", String(e && e.message ? e.message : e) || "Package upgrade failed.");
-      } finally {
-        await loadSoftwareVersion();
-      }
+      setStatus("sw-package-status", "");
     });
   }
 
@@ -3158,7 +3259,14 @@
       setStatus("admin-integrations-status", (j.error || "OnlyOffice test failed") + hints);
       return;
     }
-    setStatus("admin-integrations-status", "OnlyOffice connected: healthcheck OK, editor API OK.");
+    const warn = (j.warnings || []).length ? `\n${(j.warnings || []).join(" ")}` : "";
+    const hints = (j.hints || []).length ? `\n${(j.hints || []).join(" ")}` : "";
+    setStatus(
+      "admin-integrations-status",
+      (j.warnings || []).length
+        ? `OnlyOffice reachable, but check App public URL:${warn}${hints}`
+        : `OnlyOffice connected: healthcheck OK, editor API OK.${hints}`
+    );
   }
 
   const ooSave = document.getElementById("oo-save");
