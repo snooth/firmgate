@@ -19,6 +19,7 @@ from itsdangerous import BadSignature, TimestampSigner
 from app import access
 from app.intranet_bp import _nav as intranet_nav
 from app.extensions import db
+from app.document_version_service import append_document_version
 from app.file_storage import store_stream_and_digest
 from app.models import FileNode, FileNodeEditSession, FileVersion, utcnow
 from app.document_editor_settings import PROVIDER_OFFICE365, get_document_editor_provider, redirect_with_query
@@ -259,7 +260,7 @@ def _apply_onlyoffice_save_to_version(
     download_url: str,
     original_name: str,
 ) -> bool:
-    """Persist Document Server output onto an existing version row (same version id for the session)."""
+    """Persist Document Server output as a new version (prior versions kept)."""
     log = current_app.logger
     try:
         with _open_onlyoffice_saved_file(download_url) as resp:
@@ -272,19 +273,28 @@ def _apply_onlyoffice_save_to_version(
         )
         return False
 
-    fv.storage_relpath = relpath
-    fv.size_bytes = size
-    fv.sha256 = sha256
-    if mime:
-        fv.mime_type = mime
-    fv.is_current = True
-    db.session.query(FileVersion).filter(
-        FileVersion.file_node_id == node.id,
-        FileVersion.id != fv.id,
-    ).update({"is_current": False}, synchronize_session=False)
-    node.updated_at = utcnow()
-    db.session.commit()
-    return True
+    created, new_fv = append_document_version(
+        node,
+        user_id=user_id,
+        relpath=relpath,
+        size=size,
+        sha256=sha256,
+        mime=mime,
+    )
+    if created and new_fv:
+        log.warning(
+            "onlyoffice callback new version node_id=%s version_number=%s version_id=%s",
+            node.id,
+            new_fv.version_number,
+            new_fv.id,
+        )
+    elif new_fv:
+        log.warning(
+            "onlyoffice callback unchanged node_id=%s version_number=%s",
+            node.id,
+            new_fv.version_number,
+        )
+    return new_fv is not None
 
 
 @bp.route("/editor/<int:node_id>")
@@ -623,7 +633,11 @@ def callback(node_id: int):
             original_name=node.name,
         )
         if ok:
-            log.warning("onlyoffice callback saved node_id=%s version_id=%s", node_id, pin_version_id)
+            log.warning(
+                "onlyoffice callback saved node_id=%s session_version_id=%s",
+                node_id,
+                pin_version_id,
+            )
         else:
             log.error("onlyoffice callback save failed node_id=%s version_id=%s", node_id, pin_version_id)
         return jsonify({"error": 0 if ok else 1})
@@ -640,28 +654,19 @@ def callback(node_id: int):
         )
         return jsonify({"error": 1})
 
-    cur = (
-        db.session.query(FileVersion)
-        .filter_by(file_node_id=node.id, is_current=True)
-        .order_by(FileVersion.version_number.desc())
-        .first()
-    )
-    next_v = (cur.version_number + 1) if cur else 1
-    if cur:
-        cur.is_current = False
-    fv = FileVersion(
-        file_node_id=node.id,
-        version_number=next_v,
-        storage_relpath=relpath,
-        size_bytes=size,
+    created, new_fv = append_document_version(
+        node,
+        user_id=user_id,
+        relpath=relpath,
+        size=size,
         sha256=sha256,
-        mime_type=mime,
-        created_at=utcnow(),
-        created_by_id=user_id,
-        is_current=True,
+        mime=mime,
     )
-    db.session.add(fv)
-    node.updated_at = utcnow()
-    db.session.commit()
-    return jsonify({"error": 0})
+    if created and new_fv:
+        log.warning(
+            "onlyoffice callback legacy new version node_id=%s version_number=%s",
+            node_id,
+            new_fv.version_number,
+        )
+    return jsonify({"error": 0 if new_fv else 1})
 

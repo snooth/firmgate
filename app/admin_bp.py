@@ -269,6 +269,42 @@ def _current_repo_version(cwd: Path) -> str | None:
     return _git_describe_version(cwd) or None
 
 
+def _is_package_deploy_commit(commit: str | None) -> bool:
+    return bool(commit and str(commit).strip().startswith("package:"))
+
+
+def _format_package_version(version: str, build_id: str) -> str:
+    """Human-readable version label; build id changes on every package upload."""
+    base = (version or "").strip()
+    bid = (build_id or "").strip()[:8]
+    if base and bid:
+        return f"{base} · build {bid}"
+    if base:
+        return base
+    if bid:
+        return f"build {bid}"
+    return SOFTWARE_DISPLAY_VERSION_DEFAULT
+
+
+def _software_display_version(
+    state: dict[str, Any],
+    *,
+    is_git: bool,
+    live: str | None,
+    git_ver: str | None,
+) -> str:
+    """Prefer the version recorded at the last successful upgrade."""
+    recorded = str(state.get("current_version") or "").strip()
+    if recorded and state.get("current_deployed_at"):
+        return recorded
+    stored_display = str(state.get("display_version") or "").strip()
+    if stored_display and state.get("current_deployed_at"):
+        return stored_display
+    if is_git:
+        return git_ver or (live[:12] if live else "") or SOFTWARE_DISPLAY_VERSION_DEFAULT
+    return recorded or SOFTWARE_DISPLAY_VERSION_DEFAULT
+
+
 def _is_git_clone(cwd: Path) -> bool:
     git_dir = cwd / ".git"
     return git_dir.exists()
@@ -3098,6 +3134,12 @@ def api_software_version_get():
         # Non-fatal: keep API response working even if settings persistence fails.
         pass
     changelog = _software_changelog_payload(root, state)
+    display_version = _software_display_version(
+        state,
+        is_git=is_git,
+        live=live,
+        git_ver=git_ver,
+    )
     return jsonify(
         {
             "upgrade_enabled": enabled,
@@ -3106,11 +3148,8 @@ def api_software_version_get():
             "git_executable": _git_executable(),
             "is_git_repo": is_git,
             "live_head": live,
-            # Always show the *actual* repo version (git describe) when available.
-            "display_version": git_ver
-            or (live[:12] if live else "")
-            or (str(state.get("current_version") or "").strip() or None)
-            or SOFTWARE_DISPLAY_VERSION_DEFAULT,
+            "display_version": display_version,
+            "is_package_deploy": _is_package_deploy_commit(state.get("current_commit")),
             "git_url": state.get("git_url") or "",
             "current_commit": state.get("current_commit"),
             "current_deployed_at": state.get("current_deployed_at"),
@@ -3178,7 +3217,10 @@ def api_software_version_upgrade_post():
         if ha:
             state["current_commit"] = ha
         state["current_deployed_at"] = now_iso
-        state["current_version"] = after_version or before_version or None
+        version_label = after_version or before_version or None
+        state["current_version"] = version_label
+        if version_label:
+            state["display_version"] = version_label
 
         _append_deployment(
             state,
@@ -3261,6 +3303,7 @@ def api_software_version_package_upgrade_post():
         ok, msg, meta = perform_package_upgrade(root, zip_path)
         after_version = str(meta.get("after_version") or before_version or "")
         build_id = str(meta.get("build_id") or "")
+        version_label = _format_package_version(after_version, build_id)
 
         if ok:
             old_cur = state.get("current_commit")
@@ -3278,7 +3321,8 @@ def api_software_version_package_upgrade_post():
             now_iso = _utc_iso()
             state["current_commit"] = f"package:{build_id}" if build_id else None
             state["current_deployed_at"] = now_iso
-            state["current_version"] = after_version or before_version or None
+            state["current_version"] = version_label
+            state["display_version"] = version_label
 
             _append_deployment(
                 state,
@@ -3288,7 +3332,7 @@ def api_software_version_package_upgrade_post():
                     "from_commit": old_cur or (f"package:{before_version}" if before_version else ""),
                     "to_commit": state.get("current_commit") or "",
                     "from_version": (old_ver or before_version or ""),
-                    "to_version": (after_version or before_version or ""),
+                    "to_version": version_label,
                     "message": msg,
                     "changed": bool(meta.get("changed")),
                     "package_name": name,
@@ -3301,7 +3345,7 @@ def api_software_version_package_upgrade_post():
             "setting",
             "software_deploy",
             bool(ok),
-            {"file": name, "message": msg, "version": after_version},
+            {"file": name, "message": msg, "version": version_label},
         )
         if ok:
             return jsonify({"ok": True, "message": msg, "state": state})
@@ -3332,6 +3376,8 @@ def api_software_version_rollback_post():
         state["current_deployed_at"] = _utc_iso()
         # Refresh versions after rollback
         state["current_version"] = _current_repo_version(root) or (state.get("current_version") or None)
+        if state.get("current_version"):
+            state["display_version"] = state["current_version"]
         _append_deployment(
             state,
             {

@@ -2300,6 +2300,18 @@ def api_versions(node_id: int):
         .order_by(FileVersion.version_number.desc())
         .all()
     )
+    user_ids = {int(v.created_by_id) for v in vers if v.created_by_id is not None}
+    users_by_id: dict[int, User] = {}
+    if user_ids:
+        for u in db.session.query(User).filter(User.id.in_(user_ids)).all():
+            users_by_id[int(u.id)] = u
+
+    def _version_created_by_name(v: FileVersion) -> str:
+        u = users_by_id.get(int(v.created_by_id)) if v.created_by_id is not None else None
+        if not u:
+            return ""
+        return (u.full_name or u.username or u.email or "").strip()
+
     _audit("files.versions.list", "file", str(node.id), True, {"count": len(vers)})
     return jsonify(
         {
@@ -2312,6 +2324,7 @@ def api_versions(node_id: int):
                     "sha256": v.sha256,
                     "created_at": v.created_at.isoformat(),
                     "created_by_id": v.created_by_id,
+                    "created_by_name": _version_created_by_name(v),
                     "is_current": v.is_current,
                 }
                 for v in vers

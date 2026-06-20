@@ -2777,8 +2777,10 @@
     const bits = [];
     if (!j.is_git_repo)
       bits.push("This path is not a Git clone — use Upgrade from package, or deploy a Git checkout for Git-based updates.");
-    if (j.live_head && j.current_commit && j.live_head !== j.current_commit)
-      bits.push("Live HEAD differs from recorded current commit — record may be stale until you upgrade again.");
+    else if (j.is_package_deploy)
+      bits.push("Last upgrade was from a package — Git HEAD is unchanged (expected).");
+    else if (j.live_head && j.current_commit && j.live_head !== j.current_commit)
+      bits.push("Live HEAD differs from recorded current commit — run Upgrade from Git to sync the record.");
 
     if (topHint) {
       topHint.textContent = bits.join(" ");

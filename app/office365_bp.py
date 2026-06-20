@@ -17,6 +17,7 @@ from app.document_editor_settings import (
     get_document_editor_provider,
     redirect_with_query,
 )
+from app.document_version_service import append_document_version
 from app.extensions import db
 from app.file_storage import store_stream_and_digest
 from app.intranet_bp import _nav as intranet_nav
@@ -61,22 +62,18 @@ def _node_or_404(node_id: int) -> FileNode:
     return node
 
 
-def _apply_graph_bytes_to_version(*, node: FileNode, fv: FileVersion, data: bytes, mime: str | None) -> bool:
+def _apply_graph_bytes_to_version(*, node: FileNode, fv: FileVersion, data: bytes, mime: str | None, user_id: int) -> bool:
     stream = BytesIO(data)
-    relpath, size, sha256 = store_stream_and_digest(stream)
-    fv.storage_relpath = relpath
-    fv.size_bytes = size
-    fv.sha256 = sha256
-    if mime:
-        fv.mime_type = mime
-    fv.is_current = True
-    db.session.query(FileVersion).filter(
-        FileVersion.file_node_id == node.id,
-        FileVersion.id != fv.id,
-    ).update({"is_current": False}, synchronize_session=False)
-    node.updated_at = utcnow()
-    db.session.commit()
-    return True
+    relpath, size, sha256, guessed_mime = store_stream_and_digest(stream, node.name)
+    created, new_fv = append_document_version(
+        node,
+        user_id=user_id,
+        relpath=relpath,
+        size=size,
+        sha256=sha256,
+        mime=mime or guessed_mime,
+    )
+    return new_fv is not None
 
 
 @bp.route("/editor/<int:node_id>")
@@ -210,7 +207,13 @@ def sync(node_id: int):
 
     try:
         data = download_drive_item(drive_id=drive_id, item_id=item_id)
-        ok = _apply_graph_bytes_to_version(node=node, fv=fv, data=data, mime=fv.mime_type)
+        ok = _apply_graph_bytes_to_version(
+            node=node,
+            fv=fv,
+            data=data,
+            mime=fv.mime_type,
+            user_id=int(current_user.id),
+        )
     except Exception as e:
         log.exception("office365 sync failed node_id=%s", node_id)
         return jsonify({"ok": False, "error": str(e)}), 502

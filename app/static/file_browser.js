@@ -73,6 +73,17 @@
     return documentEditorHref(nodeId, { versionId: Number(versionId) });
   }
 
+  function formatVersionSummary(v) {
+    const when = v.created_at ? fmtRelative(v.created_at) : "";
+    const by = v.created_by_name ? ` by ${v.created_by_name}` : "";
+    const sha = v.sha256 ? `${String(v.sha256).slice(0, 12)}…` : "";
+    const bits = [`v${v.version_number}`];
+    if (by) bits.push(by.trim());
+    if (sha) bits.push(sha);
+    if (when) bits.push(when);
+    return bits.join(" — ");
+  }
+
   function appendVersionReviewButton(actions, nodeId, versionRow, fileName) {
     if (!actions || !versionRow || versionRow.is_current || !isOfficeDoc(fileName || "")) return;
     const href = documentVersionReviewHref(nodeId, versionRow.id);
@@ -3172,8 +3183,6 @@
 
     for (const v of vers) {
       const li = document.createElement("li");
-      const when = v.created_at ? fmtRelative(v.created_at) : "";
-      const sha = v.sha256 ? String(v.sha256).slice(0, 12) : "";
       const isCur = !!v.is_current;
 
       li.style.display = "flex";
@@ -3187,9 +3196,7 @@
       }
 
       const meta = document.createElement("span");
-      meta.innerHTML = `<strong>v${escapeHtml(String(v.version_number))}</strong> — ${escapeHtml(
-        sha ? `${sha}…` : ""
-      )} ${escapeHtml(when ? `— ${when}` : "")}`;
+      meta.textContent = formatVersionSummary(v);
       li.appendChild(meta);
 
       if (isCur) {
@@ -4303,7 +4310,7 @@
       li.style.flexWrap = "wrap";
       const cur = v.is_current ? " (ACTIVE)" : "";
       const meta = document.createElement("span");
-      meta.textContent = `v${v.version_number}${cur} — ${v.sha256.slice(0, 12)}… — ${fmtRelative(v.created_at)}`;
+      meta.textContent = `${formatVersionSummary(v)}${cur}`;
       li.appendChild(meta);
 
       const actions = document.createElement("span");
