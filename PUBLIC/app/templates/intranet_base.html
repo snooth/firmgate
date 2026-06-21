@@ -19,32 +19,78 @@
 {% set _embed = (request.args.get('embed') == '1') %}
 {% if not _embed %}
 <div class="nc-intranet-shell">
+  <header class="nc-intranet-top nc-intranet-topbar" data-turbo-permanent id="nc-intranet-top-permanent">
+    <a
+      class="nc-intranet-topbar-brand{% if portal_has_custom_logo %} nc-intranet-topbar-brand--custom{% endif %}"
+      href="{{ url_for('intranet.intranet_page') }}"
+      aria-label="{{ portal_shell_name }} home"
+    >
+      {% if portal_logo_url %}
+        {% with brand_variant='header' %}{% include "_portal_brand_mark.html" %}{% endwith %}
+      {% else %}
+        <span class="nc-intranet-topbar-logo-fallback" aria-hidden="true">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M3 6h8l2 3h8v12H3V6z" fill="currentColor" opacity=".9"/></svg>
+        </span>
+      {% endif %}
+      {% if not portal_has_custom_logo %}
+      <span class="nc-intranet-topbar-brand-text">
+        <span class="nc-intranet-brand-name">{{ portal_shell_name }}</span>
+      </span>
+      {% endif %}
+    </a>
+
+    <div class="nc-intranet-top-mid">
+      <form class="nc-intranet-search" action="{{ url_for('intranet.intranet_search') }}" method="get" role="search">
+        <input type="search" name="q" value="{{ q|default('') }}" placeholder="Search {{ portal_shell_name }}" aria-label="Search {{ portal_shell_name }}">
+        <button type="submit" aria-label="Search">⌕</button>
+      </form>
+      {% set upload_progress_class_modifier = "nc-upload-progress--intranet-bar" %}
+      {% include "_upload_progress.html" %}
+    </div>
+
+    <div class="nc-intranet-top-right">
+      <button type="button" class="nc-intranet-user" id="intranet-user-btn" aria-haspopup="menu" aria-expanded="false">
+        <span class="nc-intranet-user-avatar">{{ (current_user.username or '?')[:2]|upper }}</span>
+        <span class="nc-intranet-user-meta">
+          <span class="nc-intranet-user-name">{{ current_user.full_name or current_user.username }}</span>
+          {% if current_user.roles %}
+          <span class="nc-intranet-user-role">{{ current_user.roles[0].name }}</span>
+          {% endif %}
+        </span>
+      </button>
+      <div class="nc-intranet-usermenu" id="intranet-user-menu" role="menu" hidden>
+        <div class="nc-intranet-usermenu-head">
+          <div class="nc-intranet-usermenu-title">{{ current_user.full_name or current_user.username }}</div>
+          <div class="nc-intranet-usermenu-sub">{{ current_user.email or current_user.username }}</div>
+        </div>
+        <div class="nc-intranet-usermenu-items">
+          <a class="nc-intranet-usermenu-item" role="menuitem" href="{{ url_for('intranet.profile_page') }}">My profile</a>
+          {% if not intranet_profile_modal and can_access_users_admin %}
+          <a class="nc-intranet-usermenu-item" role="menuitem" href="{{ url_for('intranet.admin_page') }}?edit_user_id={{ current_user.id }}">Manage account</a>
+          {% endif %}
+        </div>
+        <div class="nc-intranet-usermenu-foot">
+          <a class="nc-btn nc-btn-primary" role="menuitem" href="{{ url_for('auth.logout') }}" data-turbo="false">Log out</a>
+        </div>
+      </div>
+    </div>
+  </header>
+
   <div
     class="nc-intranet-app"
     id="nc-intranet-app"
     data-intranet-nav-active="{{ nav.get('active', '') if nav else '' }}"
   >
     <aside class="nc-intranet-sidebar" id="nc-intranet-sidebar" data-turbo-permanent aria-label="{{ portal_shell_name }} navigation">
-      <a class="nc-intranet-sidebar-brand{% if portal_has_custom_logo %} nc-intranet-sidebar-brand--custom{% endif %}" href="{{ url_for('intranet.intranet_page') }}" aria-label="{{ portal_shell_name }} home">
-        {% if portal_logo_url %}
-          {% with brand_variant='sidebar' %}{% include "_portal_brand_mark.html" %}{% endwith %}
-        {% else %}
-          <span class="nc-intranet-sidebar-logo-fallback" aria-hidden="true">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M3 6h8l2 3h8v12H3V6z" fill="currentColor" opacity=".9"/></svg>
-          </span>
-        {% endif %}
-        {% if not portal_has_custom_logo %}
-        <span class="nc-intranet-sidebar-brand-text">
-          <span class="nc-intranet-brand-name">{{ portal_shell_name }}</span>
-        </span>
-        {% endif %}
-      </a>
-
       <nav class="nc-intranet-sidebar-nav nc-intranet-tabs" aria-label="{{ portal_shell_name }} sections">
-        {% macro intranet_sidebar_tab(key, label, endpoint) %}
+        {% macro intranet_sidebar_tab(key, label, endpoint, sub=false, endpoint_kwargs=None) %}
+        {% set tab_active = nav.get('active') == key %}
+        {% if key == 'kanban' and (nav.get('active') == 'kanban' or nav.get('active', '').startswith('kanban_board_')) %}
+          {% set tab_active = true %}
+        {% endif %}
         <a
-          class="nc-intranet-tab{% if nav.get('active') == key %} is-active{% endif %}"
-          href="{{ url_for(endpoint) }}"
+          class="nc-intranet-tab{% if sub %} nc-intranet-tab--sub{% endif %}{% if tab_active %} is-active{% endif %}"
+          href="{{ url_for(endpoint, **(endpoint_kwargs or {})) }}"
           data-nav-key="{{ key }}"
           title="{{ label }}"
           {% if nav.get('active') == key %}aria-current="page"{% endif %}
@@ -60,10 +106,38 @@
         {% endmacro %}
 
         {% macro intranet_sidebar_tab_with_subitems(key, label, endpoint) %}
-          {{ intranet_sidebar_tab(key, label, endpoint) }}
+          {% if key == 'kanban' and nav.get('kanban_sub_items') %}
+            {% set kanban_on_board = nav.get('active', '').startswith('kanban_board_') %}
+            <div
+              class="nc-intranet-nav-group nc-intranet-nav-group--kanban{% if kanban_on_board %} is-expanded{% endif %}"
+              data-nav-group="kanban"
+              data-nav-default-expanded="{{ '1' if kanban_on_board else '0' }}"
+            >
+              <div class="nc-intranet-nav-group-row">
+                {{ intranet_sidebar_tab(key, label, endpoint) }}
+                <button
+                  type="button"
+                  class="nc-intranet-nav-group-chevron"
+                  aria-expanded="{{ 'true' if kanban_on_board else 'false' }}"
+                  aria-controls="nc-kanban-nav-subitems"
+                  aria-label="Show KanBan boards"
+                  title="Show boards"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg>
+                </button>
+              </div>
+              <div class="nc-intranet-nav-subitems" id="nc-kanban-nav-subitems">
+                {% for sub_key, sub_label, sub_endpoint, sub_kwargs in nav.kanban_sub_items %}
+                  {{ intranet_sidebar_tab(sub_key, sub_label, sub_endpoint, sub=true, endpoint_kwargs=sub_kwargs) }}
+                {% endfor %}
+              </div>
+            </div>
+          {% else %}
+            {{ intranet_sidebar_tab(key, label, endpoint) }}
+          {% endif %}
           {% if key == 'timesheets' and nav.get('timesheets_sub_items') %}
             {% for sub_key, sub_label, sub_endpoint in nav.timesheets_sub_items %}
-              {{ intranet_sidebar_tab(sub_key, sub_label, sub_endpoint) }}
+              {{ intranet_sidebar_tab(sub_key, sub_label, sub_endpoint, sub=true) }}
             {% endfor %}
           {% endif %}
         {% endmacro %}
@@ -106,44 +180,6 @@
     </aside>
 
     <div class="nc-intranet-stage">
-      <header class="nc-intranet-top nc-intranet-topbar" data-turbo-permanent id="nc-intranet-top-permanent">
-        <div class="nc-intranet-top-mid">
-          <form class="nc-intranet-search" action="{{ url_for('intranet.intranet_search') }}" method="get" role="search">
-            <input type="search" name="q" value="{{ q|default('') }}" placeholder="Search {{ portal_shell_name }}" aria-label="Search {{ portal_shell_name }}">
-            <button type="submit" aria-label="Search">⌕</button>
-          </form>
-          {% set upload_progress_class_modifier = "nc-upload-progress--intranet-bar" %}
-          {% include "_upload_progress.html" %}
-        </div>
-
-        <div class="nc-intranet-top-right">
-          <button type="button" class="nc-intranet-user" id="intranet-user-btn" aria-haspopup="menu" aria-expanded="false">
-            <span class="nc-intranet-user-avatar">{{ (current_user.username or '?')[:2]|upper }}</span>
-            <span class="nc-intranet-user-meta">
-              <span class="nc-intranet-user-name">{{ current_user.full_name or current_user.username }}</span>
-              {% if current_user.roles %}
-              <span class="nc-intranet-user-role">{{ current_user.roles[0].name }}</span>
-              {% endif %}
-            </span>
-          </button>
-          <div class="nc-intranet-usermenu" id="intranet-user-menu" role="menu" hidden>
-            <div class="nc-intranet-usermenu-head">
-              <div class="nc-intranet-usermenu-title">{{ current_user.full_name or current_user.username }}</div>
-              <div class="nc-intranet-usermenu-sub">{{ current_user.email or current_user.username }}</div>
-            </div>
-            <div class="nc-intranet-usermenu-items">
-              <a class="nc-intranet-usermenu-item" role="menuitem" href="{{ url_for('intranet.profile_page') }}">My profile</a>
-              {% if not intranet_profile_modal and can_access_users_admin %}
-              <a class="nc-intranet-usermenu-item" role="menuitem" href="{{ url_for('intranet.admin_page') }}?edit_user_id={{ current_user.id }}">Manage account</a>
-              {% endif %}
-            </div>
-            <div class="nc-intranet-usermenu-foot">
-              <a class="nc-btn nc-btn-primary" role="menuitem" href="{{ url_for('auth.logout') }}" data-turbo="false">Log out</a>
-            </div>
-          </div>
-        </div>
-      </header>
-
       <div class="nc-intranet-body">
         {{ self.intranet_body() }}
       </div>
@@ -197,10 +233,10 @@
   })();
 </script>
 <script src="{{ url_for('static', filename='ai_stream_client.js') }}?v=5"></script>
-<script src="{{ url_for('static', filename='intranet_sidebar.js') }}?v=7" defer></script>
+<script src="{{ url_for('static', filename='intranet_sidebar.js') }}?v=10" defer></script>
 <script src="{{ url_for('static', filename='intranet_chat_badge.js') }}?v=1" defer></script>
 <script src="{{ url_for('static', filename='intranet_chess_badge.js') }}?v=2" defer></script>
 <script src="{{ url_for('static', filename='upload_summary.js') }}?v=2" defer></script>
-<script src="{{ url_for('static', filename='intranet_upload_manager.js') }}?v=1" defer></script>
-<script src="{{ url_for('static', filename='intranet_upload_progress_bridge.js') }}?v=7" defer></script>
+<script src="{{ url_for('static', filename='intranet_upload_manager.js') }}?v=2" defer></script>
+<script src="{{ url_for('static', filename='intranet_upload_progress_bridge.js') }}?v=8" defer></script>
 {% endblock %}

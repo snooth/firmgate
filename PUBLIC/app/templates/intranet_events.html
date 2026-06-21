@@ -5,7 +5,7 @@
 <div class="nc-intranet-hero">
   <div>
     <h1>Events</h1>
-    <p class="nc-intranet-muted">Company calendar — use Day, Month, or Year below. The schedule area scrolls.</p>
+    <p class="nc-intranet-muted">Company calendar — events are shared with everyone by default. Use <strong>Make private</strong> on your events to hide them from others (admins can still see all events).</p>
   </div>
 </div>
 
@@ -15,6 +15,7 @@
   data-cal-year="{{ cal_year }}"
   data-cal-month="{{ cal_month }}"
   data-can-edit="{{ '1' if can_manage_events else '0' }}"
+  data-is-admin="{{ '1' if admin_full_access else '0' }}"
 >
   <div class="nc-intranet-card-head">
     <h2>Calendar</h2>
@@ -83,9 +84,9 @@
       <label class="nc-detail-label">Notes (optional)</label>
       <textarea class="nc-detail-input" id="cal-ev-notes" rows="4" placeholder="Details…"></textarea>
 
-      <div id="cal-ev-shared-row" hidden style="margin-top:0.8rem;">
-        <label class="nc-detail-label">Shared with</label>
-        <div id="cal-ev-shared" class="nc-cal-sharedchips"></div>
+      <div id="cal-ev-visibility-row" hidden style="margin-top:0.8rem;">
+        <label class="nc-detail-label">Visibility</label>
+        <p class="nc-detail-muted" id="cal-ev-visibility-text" style="margin:0.25rem 0 0;"></p>
       </div>
 
       <p class="nc-detail-muted" id="cal-ev-status" style="margin-top:0.75rem;"></p>
@@ -93,29 +94,13 @@
     <div class="nc-modal-actions">
       <button value="cancel" class="nc-btn nc-btn-secondary" type="button" id="cal-ev-cancel">Cancel</button>
       <button value="delete" class="nc-btn nc-btn-secondary" type="button" id="cal-ev-delete" hidden>Delete</button>
-      <button value="share" class="nc-btn nc-btn-secondary" type="button" id="cal-ev-share" hidden>Share</button>
+      <button value="private" class="nc-btn nc-btn-secondary" type="button" id="cal-ev-private" hidden>Make private</button>
       <button value="ok" class="nc-btn nc-btn-primary" type="submit" id="cal-ev-save">Save</button>
     </div>
   </form>
 </dialog>
-
-<dialog id="cal-share-dlg" class="nc-modal nc-cal-share-modal">
-  <form method="dialog" class="nc-modal-form" id="cal-share-form">
-    <h3 class="nc-modal-title">Share event</h3>
-    <div class="nc-modal-body">
-      <label class="nc-detail-label">People</label>
-      <input class="nc-detail-input" type="search" id="cal-share-q" placeholder="Search people…">
-      <div class="nc-cal-sharelist" id="cal-share-list"></div>
-      <p class="nc-detail-muted" id="cal-share-status" style="margin-top:0.75rem;"></p>
-    </div>
-    <div class="nc-modal-actions">
-      <button value="cancel" class="nc-btn nc-btn-secondary" type="button" id="cal-share-cancel">Cancel</button>
-      <button value="ok" class="nc-btn nc-btn-primary" type="submit" id="cal-share-save">Save</button>
-    </div>
-  </form>
-</dialog>
 {# Load synchronously here (inside main, after markup) so the calendar always initializes even if the footer scripts block differs by template #}
-<script src="{{ url_for('static', filename='events_calendar.js') }}?v=14"></script>
+<script src="{{ url_for('static', filename='events_calendar.js') }}?v=15"></script>
 {% endblock %}
 
 {% block scripts %}

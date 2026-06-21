@@ -7,7 +7,7 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
-from app.branding import portal_shell_name
+from app.branding import portal_display_name_from_settings
 from app.email_service import send_email
 from app.models import User
 from app.timesheet_signed import get_signed_timesheet, normalize_month
@@ -268,7 +268,7 @@ def build_template_context(user: User, month: str) -> dict[str, str]:
         "month": month,
         "month_label": _month_label(month),
         "timesheets_url": _timesheets_url(),
-        "portal_name": portal_shell_name(),
+        "portal_name": portal_display_name_from_settings(),
     }
 
 
@@ -280,7 +280,7 @@ def sample_template_context() -> dict[str, str]:
         "month": "2026-06",
         "month_label": "June 2026",
         "timesheets_url": _timesheets_url(),
-        "portal_name": portal_shell_name(),
+        "portal_name": portal_display_name_from_settings(),
     }
 
 

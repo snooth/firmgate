@@ -220,6 +220,7 @@ def send_email(
     to_addrs: list[str],
     subject: str,
     body: str,
+    html_body: str | None = None,
     settings: dict[str, Any] | None = None,
 ) -> tuple[bool, str]:
     v = _coerce_settings(settings) if settings is not None else get_email_settings()
@@ -258,6 +259,8 @@ def send_email(
     if reply_to:
         msg["Reply-To"] = reply_to
     msg.set_content(body)
+    if html_body:
+        msg.add_alternative(html_body, subtype="html")
 
     try:
         if use_ssl:

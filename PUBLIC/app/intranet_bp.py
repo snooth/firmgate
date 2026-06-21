@@ -1702,6 +1702,49 @@ def _cal_month_cells(
     return cells
 
 
+def _calendar_user_is_admin(user) -> bool:
+    return bool(user and user.is_authenticated and rbac.user_has_permission(user, rbac.PERMISSION_ADMIN))
+
+
+def _calendar_event_visible(ev: CalendarEvent, user, *, is_admin: bool | None = None) -> bool:
+    """Company events are visible to all users unless marked private (creator + admins only)."""
+    if is_admin is None:
+        is_admin = _calendar_user_is_admin(user)
+    if is_admin:
+        return True
+    try:
+        if ev.created_by_id == user.id:
+            return True
+    except Exception:
+        pass
+    return not bool(getattr(ev, "is_private", False))
+
+
+def _serialize_calendar_event(ev: CalendarEvent, user, *, is_admin: bool | None = None) -> dict[str, Any]:
+    if is_admin is None:
+        is_admin = _calendar_user_is_admin(user)
+    mine = bool(ev.created_by_id == user.id)
+    private = bool(getattr(ev, "is_private", False))
+    return {
+        "id": ev.id,
+        "date": ev.date,
+        "start": (ev.start or ""),
+        "end": (ev.end or ""),
+        "title": ev.title,
+        "allDay": bool(ev.all_day),
+        "location": (ev.location or ""),
+        "notes": (ev.notes or ""),
+        "mine": mine,
+        "is_private": private,
+        "is_shared": not private,
+        "can_manage": bool(mine or is_admin),
+        "shared_count": 0,
+        "shared_user_ids": [],
+        "shared_group_ids": [],
+        "publicHoliday": False,
+    }
+
+
 @bp.route("/events", methods=["GET"])
 @login_required
 def events_page():
@@ -1718,66 +1761,13 @@ def events_page():
         .limit(5000)
         .all()
     )
-    # Private-by-default: only show events created by the user, or explicitly shared.
-    group_ids = set()
-    try:
-        group_ids = {int(g.id) for g in (current_user.groups or []) if getattr(g, "id", None) is not None}
-    except Exception:
-        group_ids = set()
-
-    def _visible(ev: CalendarEvent) -> bool:
-        try:
-            if ev.created_by_id == current_user.id:
-                return True
-        except Exception:
-            pass
-        try:
-            su = ev.shared_user_ids or []
-            if isinstance(su, list) and current_user.id in [int(x) for x in su if str(x).isdigit()]:
-                return True
-        except Exception:
-            pass
-        try:
-            sg = ev.shared_group_ids or []
-            if isinstance(sg, list):
-                for x in sg:
-                    try:
-                        if int(x) in group_ids:
-                            return True
-                    except Exception:
-                        continue
-        except Exception:
-            pass
-        return False
+    is_admin = _calendar_user_is_admin(current_user)
 
     calendar_events = []
     for ev in rows:
-        if not _visible(ev):
+        if not _calendar_event_visible(ev, current_user, is_admin=is_admin):
             continue
-        su = ev.shared_user_ids if isinstance(ev.shared_user_ids, list) else []
-        sg = ev.shared_group_ids if isinstance(ev.shared_group_ids, list) else []
-        shared_count = 0
-        try:
-            shared_count = len([x for x in su if x is not None]) + len([x for x in sg if x is not None])
-        except Exception:
-            shared_count = 0
-        calendar_events.append(
-            {
-                "id": ev.id,
-                "date": ev.date,
-                "start": (ev.start or ""),
-                "end": (ev.end or ""),
-                "title": ev.title,
-                "allDay": bool(ev.all_day),
-                "location": (ev.location or ""),
-                "notes": (ev.notes or ""),
-                "mine": bool(ev.created_by_id == current_user.id),
-                "shared_count": int(shared_count),
-                "shared_user_ids": su if ev.created_by_id == current_user.id else [],
-                "shared_group_ids": sg if ev.created_by_id == current_user.id else [],
-                "publicHoliday": False,
-            }
-        )
+        calendar_events.append(_serialize_calendar_event(ev, current_user, is_admin=is_admin))
     calendar_events.extend(calendar_au_holidays.au_public_holiday_events_for_calendar_view(cal_y))
     calendar_events.sort(key=lambda x: ((x.get("date") or ""), (x.get("title") or "")))
     cal_month_label = date(cal_y, cal_m, 1).strftime("%B %Y")
@@ -1809,65 +1799,12 @@ def api_events_list():
         .limit(5000)
         .all()
     )
+    is_admin = _calendar_user_is_admin(current_user)
     out = []
-    group_ids = set()
-    try:
-        group_ids = {int(g.id) for g in (current_user.groups or []) if getattr(g, "id", None) is not None}
-    except Exception:
-        group_ids = set()
-
-    def _visible(ev: CalendarEvent) -> bool:
-        try:
-            if ev.created_by_id == current_user.id:
-                return True
-        except Exception:
-            pass
-        try:
-            su = ev.shared_user_ids or []
-            if isinstance(su, list) and current_user.id in [int(x) for x in su if str(x).isdigit()]:
-                return True
-        except Exception:
-            pass
-        try:
-            sg = ev.shared_group_ids or []
-            if isinstance(sg, list):
-                for x in sg:
-                    try:
-                        if int(x) in group_ids:
-                            return True
-                    except Exception:
-                        continue
-        except Exception:
-            pass
-        return False
-
     for ev in rows:
-        if not _visible(ev):
+        if not _calendar_event_visible(ev, current_user, is_admin=is_admin):
             continue
-        su = ev.shared_user_ids if isinstance(ev.shared_user_ids, list) else []
-        sg = ev.shared_group_ids if isinstance(ev.shared_group_ids, list) else []
-        shared_count = 0
-        try:
-            shared_count = len([x for x in su if x is not None]) + len([x for x in sg if x is not None])
-        except Exception:
-            shared_count = 0
-        out.append(
-            {
-                "id": ev.id,
-                "date": ev.date,
-                "start": (ev.start or ""),
-                "end": (ev.end or ""),
-                "title": ev.title,
-                "allDay": bool(ev.all_day),
-                "location": (ev.location or ""),
-                "notes": (ev.notes or ""),
-                "mine": bool(ev.created_by_id == current_user.id),
-                "shared_count": int(shared_count),
-                "shared_user_ids": su if ev.created_by_id == current_user.id else [],
-                "shared_group_ids": sg if ev.created_by_id == current_user.id else [],
-                "publicHoliday": False,
-            }
-        )
+        out.append(_serialize_calendar_event(ev, current_user, is_admin=is_admin))
     out.extend(calendar_au_holidays.au_public_holiday_events_for_calendar_view(year))
     out.sort(key=lambda x: ((x.get("date") or ""), (x.get("title") or "")))
     return jsonify({"events": out, "year": year})
@@ -1951,6 +1888,7 @@ def api_events_create():
         end=(end or None),
         location=(location or None),
         notes=(notes or None),
+        is_private=bool(payload.get("is_private") or payload.get("isPrivate") or False),
         shared_user_ids=[],
         shared_group_ids=[],
         created_by_id=current_user.id,
@@ -2036,6 +1974,10 @@ def api_events_update(event_id: int):
         ev.location = (str(payload.get("location") or "").strip()[:255] or None)
     if "notes" in payload:
         ev.notes = (str(payload.get("notes") or "").strip()[:2000] or None)
+    if "is_private" in payload or "isPrivate" in payload:
+        if ev.created_by_id != current_user.id:
+            return jsonify({"error": "forbidden"}), 403
+        ev.is_private = bool(payload.get("is_private") if "is_private" in payload else payload.get("isPrivate"))
 
     db.session.add(ev)
     db.session.commit()
@@ -4229,34 +4171,38 @@ def admin_page():
 @login_required
 def intranet_search():
     q = (request.args.get("q") or "").strip()
+    scope_raw = (request.args.get("scope") or "documents").strip().lower()
+    search_scope = "all" if scope_raw in ("all", "everywhere", "global") else "documents"
     results: dict[str, list[dict]] = {"news": [], "people": [], "documents": [], "wiki": []}
     if q:
         qq = q.lower()
-        blog_hits: list[dict] = []
-        for p in _news_posts():
-            if qq not in (p.get("title") or "").lower() and qq not in (p.get("excerpt") or "").lower():
-                continue
-            pid = p.get("post_id") or p.get("id")
-            url = url_for("intranet.news_page")
-            if pid:
-                url = f"{url}?open={pid}"
-            blog_hits.append({**p, "url": url, "id": pid})
-        results["news"] = blog_hits
-        users = db.session.query(User).filter(User.is_active.is_(True)).all()
-        results["people"] = [
-            {
-                "id": u.id,
-                "name": (u.full_name or u.username),
-                "email": u.email or "",
-                "phone": u.phone or "",
-                "url": url_for("intranet.user_page", user_id=u.id),
-            }
-            for u in users
-            if qq in (u.full_name or "").lower()
-            or qq in (u.email or "").lower()
-            or qq in (u.username or "").lower()
-            or qq in (u.phone or "").lower()
-        ]
+
+        if search_scope == "all":
+            blog_hits: list[dict] = []
+            for p in _news_posts():
+                if qq not in (p.get("title") or "").lower() and qq not in (p.get("excerpt") or "").lower():
+                    continue
+                pid = p.get("post_id") or p.get("id")
+                url = url_for("intranet.news_page")
+                if pid:
+                    url = f"{url}?open={pid}"
+                blog_hits.append({**p, "url": url, "id": pid})
+            results["news"] = blog_hits
+            users = db.session.query(User).filter(User.is_active.is_(True)).all()
+            results["people"] = [
+                {
+                    "id": u.id,
+                    "name": (u.full_name or u.username),
+                    "email": u.email or "",
+                    "phone": u.phone or "",
+                    "url": url_for("intranet.user_page", user_id=u.id),
+                }
+                for u in users
+                if qq in (u.full_name or "").lower()
+                or qq in (u.email or "").lower()
+                or qq in (u.username or "").lower()
+                or qq in (u.phone or "").lower()
+            ]
 
         # Documents (FileNode name search). Respect access rules.
         # If a matching folder is found, also include a slice of its children to act like a "listing".
@@ -4330,40 +4276,47 @@ def intranet_search():
                 break
         results["documents"] = doc_hits
 
-        from app.intranet_community_routes import _wiki_can_read
+        if search_scope == "all":
+            from app.intranet_community_routes import _wiki_can_read
 
-        if _wiki_can_read():
-            try:
-                pat = f"%{qq}%"
-                wiki_rows = (
-                    db.session.query(WikiPage)
-                    .filter(
-                        or_(
-                            func.lower(WikiPage.title).like(pat),
-                            func.lower(WikiPage.slug).like(pat),
-                            func.lower(WikiPage.body_md).like(pat),
-                            func.lower(func.coalesce(WikiPage.content_html, "")).like(pat),
+            if _wiki_can_read():
+                try:
+                    pat = f"%{qq}%"
+                    wiki_rows = (
+                        db.session.query(WikiPage)
+                        .filter(
+                            or_(
+                                func.lower(WikiPage.title).like(pat),
+                                func.lower(WikiPage.slug).like(pat),
+                                func.lower(WikiPage.body_md).like(pat),
+                                func.lower(func.coalesce(WikiPage.content_html, "")).like(pat),
+                            )
                         )
+                        .order_by(WikiPage.title.asc())
+                        .limit(50)
+                        .all()
                     )
-                    .order_by(WikiPage.title.asc())
-                    .limit(50)
-                    .all()
-                )
-            except Exception:
-                wiki_rows = []
-            wiki_hits: list[dict] = []
-            wiki_base = url_for("intranet.wiki_page")
-            for wp in wiki_rows:
-                wiki_hits.append(
-                    {
-                        "slug": wp.slug,
-                        "title": wp.title or wp.slug,
-                        "url": f"{wiki_base}?slug={quote(str(wp.slug or ''), safe='')}",
-                    }
-                )
-            results["wiki"] = wiki_hits
+                except Exception:
+                    wiki_rows = []
+                wiki_hits: list[dict] = []
+                wiki_base = url_for("intranet.wiki_page")
+                for wp in wiki_rows:
+                    wiki_hits.append(
+                        {
+                            "slug": wp.slug,
+                            "title": wp.title or wp.slug,
+                            "url": f"{wiki_base}?slug={quote(str(wp.slug or ''), safe='')}",
+                        }
+                    )
+                results["wiki"] = wiki_hits
 
-    return render_template("intranet_search.html", nav=_nav("home"), q=q, results=results)
+    return render_template(
+        "intranet_search.html",
+        nav=_nav("home"),
+        q=q,
+        results=results,
+        search_scope=search_scope,
+    )
 
 
 @bp.app_context_processor

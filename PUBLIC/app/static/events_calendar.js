@@ -181,22 +181,11 @@
     const stEl = document.getElementById("cal-ev-status");
     const btnCancel = document.getElementById("cal-ev-cancel");
     const btnDelete = document.getElementById("cal-ev-delete");
-    const btnShare = document.getElementById("cal-ev-share");
+    const btnPrivate = document.getElementById("cal-ev-private");
     const btnSave = document.getElementById("cal-ev-save");
-    const sharedRow = document.getElementById("cal-ev-shared-row");
-    const sharedChips = document.getElementById("cal-ev-shared");
-
-    // Share dialog
-    const shareDlg = document.getElementById("cal-share-dlg");
-    const shareForm = document.getElementById("cal-share-form");
-    const shareQ = document.getElementById("cal-share-q");
-    const shareList = document.getElementById("cal-share-list");
-    const shareStatus = document.getElementById("cal-share-status");
-    const shareCancel = document.getElementById("cal-share-cancel");
-
-    let peopleCache = null; // [{id,name,email,username}]
-    let shareEventId = null;
-    let shareSelectedUserIds = new Set();
+    const visibilityRow = document.getElementById("cal-ev-visibility-row");
+    const visibilityText = document.getElementById("cal-ev-visibility-text");
+    const isAdmin = (root.getAttribute("data-is-admin") || "") === "1";
 
     // History: calendar navigation + opening dialogs should be back-navigable.
     const NAV_HISTORY_KEY = "calNav";
@@ -318,8 +307,8 @@
       if (fDate) fDate.value = dateKey(focused);
       syncAllDayUi();
       if (btnDelete) btnDelete.hidden = true;
-      if (btnShare) btnShare.hidden = true;
-      if (sharedRow) sharedRow.hidden = true;
+      if (btnPrivate) btnPrivate.hidden = true;
+      if (visibilityRow) visibilityRow.hidden = true;
       dlg.showModal();
       if (pushHistory) pushEvState({ mode: "add", view, focused: dateKey(focused) });
       try {
@@ -343,8 +332,8 @@
       if (stEl) stEl.textContent = "";
       if (btnSave) btnSave.hidden = true;
       if (btnDelete) btnDelete.hidden = true;
-      if (btnShare) btnShare.hidden = true;
-      if (sharedRow) sharedRow.hidden = true;
+      if (btnPrivate) btnPrivate.hidden = true;
+      if (visibilityRow) visibilityRow.hidden = true;
       setFormEnabled(false);
       if (fId) fId.value = String(ev.id || "");
       if (dlgHeading) dlgHeading.textContent = "Public holiday";
@@ -369,13 +358,79 @@
       } catch (_) {}
     }
 
+    function renderVisibilityRow(ev) {
+      if (!visibilityRow || !visibilityText) return;
+      if (!ev || ev.publicHoliday) {
+        visibilityRow.hidden = true;
+        visibilityText.textContent = "";
+        return;
+      }
+      visibilityRow.hidden = false;
+      if (ev.is_private) {
+        visibilityText.textContent = ev.mine
+          ? "Private — only you can see this event."
+          : isAdmin
+            ? "Private event — visible to the creator and admins."
+            : "Private event.";
+      } else {
+        visibilityText.textContent = "Shared with everyone on the company calendar.";
+      }
+    }
+
+    function syncPrivateButton(ev) {
+      if (!btnPrivate) return;
+      const mine = !!(ev && ev.mine);
+      if (!mine || !ev || ev.publicHoliday) {
+        btnPrivate.hidden = true;
+        return;
+      }
+      btnPrivate.hidden = false;
+      btnPrivate.textContent = ev.is_private ? "Share with everyone" : "Make private";
+    }
+
+    function openViewDialog(ev, opts = {}) {
+      if (!dlg || !ev) return;
+      const { pushHistory = true } = opts || {};
+      if (btnSave) btnSave.hidden = true;
+      if (btnDelete) btnDelete.hidden = true;
+      if (btnPrivate) btnPrivate.hidden = true;
+      setFormEnabled(false);
+      if (stEl) stEl.textContent = "";
+      if (fId) fId.value = String(ev.id || "");
+      if (dlgHeading) dlgHeading.textContent = "Event";
+      if (fTitle) fTitle.value = String(ev.title || "");
+      if (fDate) fDate.value = String(ev.date || dateKey(focused));
+      if (fAllDay) fAllDay.checked = !!ev.allDay;
+      if (fStart) fStart.value = String(ev.start || "");
+      if (fEnd) fEnd.value = String(ev.end || "");
+      if (fLoc) fLoc.value = String(ev.location || "");
+      if (fNotes) fNotes.value = String(ev.notes || "");
+      syncAllDayUi();
+      renderVisibilityRow(ev);
+      dlg.showModal();
+      if (pushHistory)
+        pushEvState({
+          mode: "view",
+          id: String(ev.id || ""),
+          view,
+          focused: String(ev.date || dateKey(focused)),
+        });
+      try {
+        (btnCancel || fTitle || fDate).focus();
+      } catch (_) {}
+    }
+
     function openEditDialog(ev, opts = {}) {
       if (!dlg || !ev) return;
       if (ev.publicHoliday) {
         openPublicHolidayDialog(ev, opts);
         return;
       }
-      if (!canEdit) return;
+      const canModify = canEdit && !!ev.can_manage;
+      if (!canModify) {
+        openViewDialog(ev, opts);
+        return;
+      }
       const { pushHistory = true } = opts || {};
       if (btnSave) btnSave.hidden = false;
       setFormEnabled(true);
@@ -391,9 +446,9 @@
       if (fNotes) fNotes.value = String(ev.notes || "");
       syncAllDayUi();
       const mine = !!ev.mine;
-      if (btnDelete) btnDelete.hidden = !mine;
-      if (btnShare) btnShare.hidden = !mine;
-      renderSharedChips(ev);
+      if (btnDelete) btnDelete.hidden = !mine && !isAdmin;
+      syncPrivateButton(ev);
+      renderVisibilityRow(ev);
       dlg.showModal();
       if (pushHistory) pushEvState({ mode: "edit", id: String(ev.id || ""), view, focused: String(ev.date || dateKey(focused)) });
       try {
@@ -495,7 +550,9 @@
       if (allDay.length) {
         html += '<div class="nc-cal-allday"><div class="nc-cal-allday-label">All day</div><div class="nc-cal-allday-list">';
         for (const ev of allDay) {
-          html += `<div class="nc-cal-event nc-cal-event--day" data-ev-id="${escapeAttr(String(ev.id || ""))}">${escapeHtml(ev.title || "(Untitled)")}</div>`;
+          html += `<div class="nc-cal-event nc-cal-event--day" data-ev-id="${escapeAttr(String(ev.id || ""))}">${escapeHtml(ev.title || "(Untitled)")}${
+            ev.is_private && (ev.mine || isAdmin) ? ` <span class="nc-cal-privacy">Private</span>` : ""
+          }</div>`;
         }
         html += "</div></div>";
       }
@@ -509,7 +566,7 @@
               .map(
                 (ev) =>
                   `<span class="nc-cal-hour-event" data-ev-id="${escapeAttr(String(ev.id || ""))}">${escapeHtml(ev.title || "(Untitled)")}${
-                    ev.shared_count && ev.mine ? ` <span class="nc-cal-invitees">Shared · ${escapeHtml(String(ev.shared_count))}</span>` : ""
+                    ev.is_private && (ev.mine || isAdmin) ? ` <span class="nc-cal-privacy">Private</span>` : ""
                   }${ev.start ? ` <span class="nc-cal-hour-time">${escapeHtml(ev.start)}</span>` : ""}</span>`
               )
               .join("")
@@ -658,12 +715,11 @@
         const tEl = eventTargetElement(ev);
         const hit = hitFromDayEventTarget(tEl);
         if (!hit) return;
-        if (!hit.publicHoliday && !canEdit) return;
         ev.preventDefault();
         openEditDialog(hit);
       });
 
-      // Right-click an existing event to edit/delete/share.
+      // Right-click an existing event to view/edit.
       mount.addEventListener("contextmenu", (ev) => {
         if (view !== "day") return;
         const tEl = eventTargetElement(ev);
@@ -961,146 +1017,37 @@
           setFormEnabled(true);
         }
       });
-    if (btnShare)
-      btnShare.addEventListener("click", async () => {
+    if (btnPrivate) {
+      btnPrivate.addEventListener("click", async () => {
         const id = fId && fId.value ? Number(fId.value) : null;
         if (!id || id < 0) return;
-        openShareDialog(id);
-      });
-
-    function renderSharedChips(ev) {
-      if (!sharedRow || !sharedChips) return;
-      const mine = !!(ev && ev.mine);
-      const ids = ev && Array.isArray(ev.shared_user_ids) ? ev.shared_user_ids : [];
-      if (!mine || !ids.length) {
-        sharedRow.hidden = true;
-        sharedChips.innerHTML = "";
-        return;
-      }
-      sharedRow.hidden = false;
-      const people = Array.isArray(peopleCache) ? peopleCache : [];
-      const byId = new Map(people.map((p) => [String(p.id), p]));
-      sharedChips.innerHTML = ids
-        .map((id) => {
-          const p = byId.get(String(id));
-          const name = p ? p.name : `User ${id}`;
-          const hint = p ? (p.email || p.username || "") : "";
-          return `<span class="nc-cal-chip" title="${escapeAttr(hint)}">${escapeHtml(name)}</span>`;
-        })
-        .join("");
-    }
-
-    async function loadPeople() {
-      if (Array.isArray(peopleCache)) return peopleCache;
-      const r = await fetch("/intranet/api/people", { credentials: "same-origin" });
-      const j = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(j.error || "Could not load people");
-      const rows = Array.isArray(j.people) ? j.people : [];
-      peopleCache = rows;
-      return rows;
-    }
-
-    function setShareStatus(msg) {
-      if (shareStatus) shareStatus.textContent = msg || "";
-    }
-
-    function renderShareList() {
-      if (!shareList) return;
-      const q = (shareQ && shareQ.value ? String(shareQ.value) : "").trim().toLowerCase();
-      const rows = Array.isArray(peopleCache) ? peopleCache : [];
-      const filtered = q
-        ? rows.filter((p) => {
-            const n = String(p.name || "").toLowerCase();
-            const e = String(p.email || "").toLowerCase();
-            const u = String(p.username || "").toLowerCase();
-            return n.includes(q) || e.includes(q) || u.includes(q);
-          })
-        : rows;
-      shareList.innerHTML = filtered
-        .slice(0, 500)
-        .map((p) => {
-          const checked = shareSelectedUserIds.has(Number(p.id)) ? "checked" : "";
-          const hint = p.email || p.username || "";
-          return `<label class="nc-cal-shareitem">
-            <input type="checkbox" data-user-id="${escapeAttr(String(p.id))}" ${checked}>
-            <span class="nc-cal-sharemeta">
-              <span class="nc-cal-sharename">${escapeHtml(p.name || "")}</span>
-              <span class="nc-cal-sharehint">${escapeHtml(hint)}</span>
-            </span>
-          </label>`;
-        })
-        .join("");
-    }
-
-    async function openShareDialog(eventId) {
-      if (!shareDlg) return;
-      const n = Number(eventId);
-      if (!Number.isFinite(n) || n < 0) return;
-      shareEventId = n;
-      setShareStatus("");
-      try {
-        await loadPeople();
-      } catch (e) {
-        setShareStatus(String(e && e.message ? e.message : e) || "Could not load people");
-        return;
-      }
-      // Seed selection from current event (owner view)
-      const hit = (events || []).find((x) => Number(x.id) === Number(shareEventId));
-      shareSelectedUserIds = new Set((hit && Array.isArray(hit.shared_user_ids) ? hit.shared_user_ids : []).map(Number));
-      if (shareQ) shareQ.value = "";
-      renderShareList();
-      shareDlg.showModal();
-      try {
-        shareQ && shareQ.focus();
-      } catch (_) {}
-    }
-
-    function closeShareDialog() {
-      try {
-        shareDlg && shareDlg.close();
-      } catch (_) {}
-    }
-
-    if (shareCancel) shareCancel.addEventListener("click", closeShareDialog);
-    if (shareDlg) {
-      shareDlg.addEventListener("click", (ev) => {
-        if (ev.target === shareDlg) closeShareDialog();
-      });
-    }
-    if (shareQ) shareQ.addEventListener("input", renderShareList);
-    if (shareList) {
-      shareList.addEventListener("change", (ev) => {
-        const t = ev.target;
-        if (!t || !t.getAttribute) return;
-        const id = Number(t.getAttribute("data-user-id"));
-        if (!Number.isFinite(id)) return;
-        if (t.checked) shareSelectedUserIds.add(id);
-        else shareSelectedUserIds.delete(id);
-      });
-    }
-    if (shareForm) {
-      shareForm.addEventListener("submit", async (ev) => {
-        ev.preventDefault();
-        if (!shareEventId) return;
-        setShareStatus("Saving…");
+        const hit = (events || []).find((x) => Number(x.id) === Number(id));
+        if (!hit || !hit.mine) return;
+        const nextPrivate = !hit.is_private;
+        if (btnPrivate) btnPrivate.disabled = true;
+        if (stEl) stEl.textContent = nextPrivate ? "Making private…" : "Sharing with everyone…";
         try {
-          const r = await fetch(`/intranet/api/events/${encodeURIComponent(String(shareEventId))}/share`, {
-            method: "POST",
+          const r = await fetch(`/intranet/api/events/${encodeURIComponent(String(id))}`, {
+            method: "PATCH",
             credentials: "same-origin",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ users: Array.from(shareSelectedUserIds).map(String), groups: [] }),
+            body: JSON.stringify({ is_private: nextPrivate }),
           });
           const j = await r.json().catch(() => ({}));
-          if (!r.ok) throw new Error(j.error || "Share failed");
-          closeShareDialog();
-          const y = focused.getFullYear();
-          await fetchYearEvents(y);
+          if (!r.ok) throw new Error(j.error || "Could not update visibility");
+          const y = Number(String(hit.date || "").slice(0, 4));
+          if (Number.isFinite(y)) await fetchYearEvents(y);
+          const updated = (events || []).find((x) => Number(x.id) === Number(id));
+          if (updated) {
+            syncPrivateButton(updated);
+            renderVisibilityRow(updated);
+          }
           render();
-          // Update chips in the edit dialog if it's open for this event
-          const hit = (events || []).find((x) => Number(x.id) === Number(shareEventId));
-          if (hit) renderSharedChips(hit);
+          if (stEl) stEl.textContent = nextPrivate ? "Event is now private." : "Event is shared with everyone.";
         } catch (e) {
-          setShareStatus(String(e && e.message ? e.message : e) || "Share failed");
+          if (stEl) stEl.textContent = String(e && e.message ? e.message : e) || "Could not update visibility";
+        } finally {
+          if (btnPrivate) btnPrivate.disabled = false;
         }
       });
     }
@@ -1134,7 +1081,7 @@
       }
 
       const st = navSt;
-      const wantOpen = st && (st.mode === "add" || st.mode === "edit" || st.mode === "holiday");
+      const wantOpen = st && (st.mode === "add" || st.mode === "edit" || st.mode === "holiday" || st.mode === "view");
       const isOpen = !!(dlg && dlg.open);
 
       if (isOpen && !wantOpen) {

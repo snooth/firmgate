@@ -92,10 +92,13 @@
     });
   }
 
-  function showUploadConflictDialog(existing, incoming, canReplace) {
+  function showUploadConflictDialog(existing, incoming, canReplace, options) {
+    const opts = options || {};
+    const showReplaceAll = !!(opts.showReplaceAll && canReplace !== false);
     return new Promise((resolve) => {
       const dlg = refEl("dlg-upload-conflict");
       const btnReplace = refEl("btn-uconflict-replace");
+      const btnReplaceAll = refEl("btn-uconflict-replace-all");
       const btnKeep = refEl("btn-uconflict-keep");
       const btnCancel = refEl("btn-uconflict-cancel");
       const hint = refEl("uconflict-readonly-hint");
@@ -125,8 +128,15 @@
       if (hint) hint.hidden = canReplace !== false;
       btnReplace.hidden = !canReplace;
       btnReplace.disabled = !canReplace;
+      if (btnReplaceAll) {
+        btnReplaceAll.hidden = !showReplaceAll;
+        btnReplaceAll.disabled = !showReplaceAll;
+      }
 
       btnReplace.addEventListener("click", () => done("replace"), { once: true });
+      if (showReplaceAll && btnReplaceAll) {
+        btnReplaceAll.addEventListener("click", () => done("replace_all"), { once: true });
+      }
       btnKeep.addEventListener("click", () => done("keep"), { once: true });
       btnCancel.addEventListener("click", () => done("cancel"), { once: true });
       dlg.addEventListener("cancel", () => done("cancel"), { once: true });
@@ -196,7 +206,9 @@
   document.addEventListener("nc-upload-conflict-request", (ev) => {
     const d = ev.detail;
     if (!d || !d.requestId) return;
-    void showUploadConflictDialog(d.existing, d.incoming, d.canReplace !== false).then((choice) => {
+    void showUploadConflictDialog(d.existing, d.incoming, d.canReplace !== false, {
+      showReplaceAll: !!d.showReplaceAll,
+    }).then((choice) => {
       document.dispatchEvent(
         new CustomEvent("nc-upload-conflict-response", {
           detail: { requestId: d.requestId, choice },
@@ -213,7 +225,9 @@
     if (d.nc === "fb-up" && d.type === "conflict-request") {
       const src = ev.source;
       if (!src || typeof src.postMessage !== "function") return;
-      void showUploadConflictDialog(d.existing, d.incoming, d.canReplace !== false).then((choice) => {
+      void showUploadConflictDialog(d.existing, d.incoming, d.canReplace !== false, {
+        showReplaceAll: !!d.showReplaceAll,
+      }).then((choice) => {
         try {
           src.postMessage(
             { nc: "fb-up", type: "conflict-response", requestId: d.requestId, choice },

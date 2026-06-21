@@ -8,7 +8,7 @@ from app.branding import (
     portal_has_custom_logo,
     portal_logo_url as resolve_portal_logo_url,
 )
-from app.branding import portal_browser_tab_title, portal_shell_name as portal_shell_name_for_theme
+from app.branding import portal_display_name
 from app.extensions import db, login_manager
 
 
@@ -155,6 +155,72 @@ def _ensure_file_share_columns() -> None:
     with db.engine.begin() as conn:
         for stmt in stmts:
             conn.execute(text(stmt))
+
+
+def _ensure_kanban_tables() -> None:
+    """Create KanBan tables on upgraded installs."""
+    from sqlalchemy import inspect, text
+
+    from app.models import (
+        KanbanBoard,
+        KanbanBoardActivity,
+        KanbanCard,
+        KanbanCardActivity,
+        KanbanCardAttachment,
+        KanbanCardComment,
+        KanbanColumn,
+    )
+
+    insp = inspect(db.engine)
+    if not insp.has_table("kanban_boards"):
+        KanbanBoard.__table__.create(db.engine, checkfirst=True)
+    else:
+        names = {c["name"] for c in insp.get_columns("kanban_boards")}
+        stmts: list[str] = []
+        if "shared_users" not in names:
+            stmts.append("ALTER TABLE kanban_boards ADD COLUMN shared_users JSON")
+        if "shared_groups" not in names:
+            stmts.append("ALTER TABLE kanban_boards ADD COLUMN shared_groups JSON")
+        if "subtitle" not in names:
+            stmts.append("ALTER TABLE kanban_boards ADD COLUMN subtitle VARCHAR(240)")
+        if stmts:
+            with db.engine.begin() as conn:
+                for stmt in stmts:
+                    conn.execute(text(stmt))
+    if not insp.has_table("kanban_columns"):
+        KanbanColumn.__table__.create(db.engine, checkfirst=True)
+    if not insp.has_table("kanban_cards"):
+        KanbanCard.__table__.create(db.engine, checkfirst=True)
+    else:
+        names = {c["name"] for c in insp.get_columns("kanban_cards")}
+        stmts: list[str] = []
+        if "due_at" not in names:
+            stmts.append("ALTER TABLE kanban_cards ADD COLUMN due_at DATETIME")
+        if "body_html" not in names:
+            stmts.append("ALTER TABLE kanban_cards ADD COLUMN body_html TEXT")
+        if "deleted_at" not in names:
+            stmts.append("ALTER TABLE kanban_cards ADD COLUMN deleted_at DATETIME")
+        if "deleted_by_id" not in names:
+            stmts.append("ALTER TABLE kanban_cards ADD COLUMN deleted_by_id INTEGER")
+        if "priority" not in names:
+            stmts.append("ALTER TABLE kanban_cards ADD COLUMN priority VARCHAR(16) NOT NULL DEFAULT 'medium'")
+        if stmts:
+            with db.engine.begin() as conn:
+                for stmt in stmts:
+                    conn.execute(text(stmt))
+    if not insp.has_table("kanban_card_comments"):
+        KanbanCardComment.__table__.create(db.engine, checkfirst=True)
+    else:
+        names = {c["name"] for c in insp.get_columns("kanban_card_comments")}
+        if "body_html" not in names:
+            with db.engine.begin() as conn:
+                conn.execute(text("ALTER TABLE kanban_card_comments ADD COLUMN body_html TEXT"))
+    if not insp.has_table("kanban_card_attachments"):
+        KanbanCardAttachment.__table__.create(db.engine, checkfirst=True)
+    if not insp.has_table("kanban_card_activity"):
+        KanbanCardActivity.__table__.create(db.engine, checkfirst=True)
+    if not insp.has_table("kanban_board_activity"):
+        KanbanBoardActivity.__table__.create(db.engine, checkfirst=True)
 
 
 def _ensure_wiki_page_content_html_column() -> None:
@@ -452,6 +518,7 @@ def create_app(config_class=Config):
         _ensure_blog_post_published_at_nullable()
         _ensure_file_share_columns()
         _ensure_calendar_event_columns()
+        _ensure_kanban_tables()
         _ensure_wiki_page_content_html_column()
         _ensure_node_group_role_share_tables()
         _ensure_security_clearance_records_table()
@@ -917,8 +984,8 @@ def create_app(config_class=Config):
         if theme_key not in ("core_team", "non_core_team"):
             theme_key = "core_team"
         portal_theme_class = "nc-theme-non-core-team" if theme_key == "non_core_team" else ""
-        portal_shell_name = portal_shell_name_for_theme(theme_key)
-        portal_tab_title = portal_browser_tab_title(portal, theme_key)
+        portal_shell_name = portal_display_name(portal, theme_key)
+        portal_tab_title = portal_shell_name
         return {
             "can_view_audit": can_audit,
             "can_view_admin": can_admin or can_access_users_admin or can_approve_registrations,

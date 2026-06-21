@@ -2136,6 +2136,82 @@ def api_email_settings_test():
     return jsonify({"ok": True, "message": msg})
 
 
+@bp.route("/api/settings/kanban/notifications", methods=["GET"])
+@login_required
+@admin_required_json
+def api_kanban_notifications_get():
+    from app.kanban_notifications import notification_settings_for_api
+
+    return jsonify(notification_settings_for_api())
+
+
+@bp.route("/api/settings/kanban", methods=["GET"])
+@login_required
+@admin_required_json
+def api_kanban_settings_get():
+    from app.kanban_settings import kanban_settings_for_api
+
+    return jsonify(kanban_settings_for_api())
+
+
+@bp.route("/api/settings/kanban", methods=["PUT"])
+@login_required
+@admin_required_json
+def api_kanban_settings_put():
+    from app.kanban_settings import kanban_settings_for_api, save_kanban_settings
+
+    payload = request.get_json(force=True, silent=True) or {}
+    if not isinstance(payload, dict):
+        return jsonify({"error": "invalid payload"}), 400
+    result = save_kanban_settings(payload)
+    if isinstance(result, tuple):
+        body, status = result
+        return jsonify(body), status
+    _audit("admin.kanban.settings", "setting", "kanban_settings", True, {})
+    return jsonify(result)
+
+
+@bp.route("/api/settings/kanban/notifications", methods=["PUT"])
+@login_required
+@admin_required_json
+def api_kanban_notifications_put():
+    from app.kanban_notifications import notification_settings_for_api, save_notification_settings
+
+    payload = request.get_json(force=True, silent=True) or {}
+    if not isinstance(payload, dict):
+        return jsonify({"error": "invalid payload"}), 400
+    result = save_notification_settings(payload)
+    _audit("admin.kanban.notifications", "setting", "kanban_notifications", True, {})
+    return jsonify(result)
+
+
+@bp.route("/api/settings/kanban/notifications/test", methods=["POST"])
+@login_required
+@admin_required_json
+def api_kanban_notifications_test():
+    from app.kanban_notifications import send_test_notification
+
+    payload = request.get_json(force=True, silent=True) or {}
+    to_addr = (payload.get("to") or payload.get("email") or "").strip()
+    event = str(payload.get("event") or "assigned").strip().lower()
+    settings_override = payload if isinstance(payload, dict) else None
+    ok, msg = send_test_notification(
+        to_addr=to_addr,
+        event=event,
+        settings_override=settings_override,
+    )
+    if not ok:
+        return jsonify({"ok": False, "error": msg}), 400
+    _audit(
+        "admin.kanban.notifications.test",
+        "setting",
+        "kanban_notifications",
+        True,
+        {"to": to_addr, "event": event},
+    )
+    return jsonify({"ok": True, "message": msg})
+
+
 def _branding_dir() -> Path:
     p = Path(current_app.instance_path) / "branding"
     p.mkdir(parents=True, exist_ok=True)

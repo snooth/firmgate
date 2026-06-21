@@ -16,6 +16,7 @@ COMMUNITY_EDITION_MODULES = frozenset(
         "news",
         "events",
         "wiki",
+        "kanban",
         "team_chat",
         "directory",
         "workforce_dashboard",

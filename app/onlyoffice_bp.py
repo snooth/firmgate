@@ -399,11 +399,11 @@ def editor(node_id: int):
                 "review": bool(can_edit) and not review_mode,
             },
         },
-        # OnlyOffice 6.1+: use "slide" (not deprecated "presentation").
-        "documentType": "text"
+        # OnlyOffice 6.1+: word / cell / slide (text / spreadsheet / presentation are deprecated).
+        "documentType": "word"
         if ext in ("doc", "docx", "odt", "rtf", "txt")
-        else "spreadsheet"
-        if ext in ("xls", "xlsx", "ods", "csv")
+        else "cell"
+        if ext in ("xls", "xlsx", "xlsm", "xlsb", "ods", "csv")
         else "slide",
         "editorConfig": {
             "callbackUrl": callback_url,

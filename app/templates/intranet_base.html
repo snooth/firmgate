@@ -86,10 +86,14 @@
   >
     <aside class="nc-intranet-sidebar" id="nc-intranet-sidebar" data-turbo-permanent aria-label="{{ portal_shell_name }} navigation">
       <nav class="nc-intranet-sidebar-nav nc-intranet-tabs" aria-label="{{ portal_shell_name }} sections">
-        {% macro intranet_sidebar_tab(key, label, endpoint) %}
+        {% macro intranet_sidebar_tab(key, label, endpoint, sub=false, endpoint_kwargs=None) %}
+        {% set tab_active = nav.get('active') == key %}
+        {% if key == 'kanban' and (nav.get('active') == 'kanban' or nav.get('active', '').startswith('kanban_board_')) %}
+          {% set tab_active = true %}
+        {% endif %}
         <a
-          class="nc-intranet-tab{% if nav.get('active') == key %} is-active{% endif %}"
-          href="{{ url_for(endpoint) }}"
+          class="nc-intranet-tab{% if sub %} nc-intranet-tab--sub{% endif %}{% if tab_active %} is-active{% endif %}"
+          href="{{ url_for(endpoint, **(endpoint_kwargs or {})) }}"
           data-nav-key="{{ key }}"
           title="{{ label }}"
           {% if nav.get('active') == key %}aria-current="page"{% endif %}
@@ -105,10 +109,38 @@
         {% endmacro %}
 
         {% macro intranet_sidebar_tab_with_subitems(key, label, endpoint) %}
-          {{ intranet_sidebar_tab(key, label, endpoint) }}
+          {% if key == 'kanban' and nav.get('kanban_sub_items') %}
+            {% set kanban_on_board = nav.get('active', '').startswith('kanban_board_') %}
+            <div
+              class="nc-intranet-nav-group nc-intranet-nav-group--kanban{% if kanban_on_board %} is-expanded{% endif %}"
+              data-nav-group="kanban"
+              data-nav-default-expanded="{{ '1' if kanban_on_board else '0' }}"
+            >
+              <div class="nc-intranet-nav-group-row">
+                {{ intranet_sidebar_tab(key, label, endpoint) }}
+                <button
+                  type="button"
+                  class="nc-intranet-nav-group-chevron"
+                  aria-expanded="{{ 'true' if kanban_on_board else 'false' }}"
+                  aria-controls="nc-kanban-nav-subitems"
+                  aria-label="Show KanBan boards"
+                  title="Show boards"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg>
+                </button>
+              </div>
+              <div class="nc-intranet-nav-subitems" id="nc-kanban-nav-subitems">
+                {% for sub_key, sub_label, sub_endpoint, sub_kwargs in nav.kanban_sub_items %}
+                  {{ intranet_sidebar_tab(sub_key, sub_label, sub_endpoint, sub=true, endpoint_kwargs=sub_kwargs) }}
+                {% endfor %}
+              </div>
+            </div>
+          {% else %}
+            {{ intranet_sidebar_tab(key, label, endpoint) }}
+          {% endif %}
           {% if key == 'timesheets' and nav.get('timesheets_sub_items') %}
             {% for sub_key, sub_label, sub_endpoint in nav.timesheets_sub_items %}
-              {{ intranet_sidebar_tab(sub_key, sub_label, sub_endpoint) }}
+              {{ intranet_sidebar_tab(sub_key, sub_label, sub_endpoint, sub=true) }}
             {% endfor %}
           {% endif %}
         {% endmacro %}
@@ -204,7 +236,7 @@
   })();
 </script>
 <script src="{{ url_for('static', filename='ai_stream_client.js') }}?v=5"></script>
-<script src="{{ url_for('static', filename='intranet_sidebar.js') }}?v=8" defer></script>
+<script src="{{ url_for('static', filename='intranet_sidebar.js') }}?v=10" defer></script>
 <script src="{{ url_for('static', filename='intranet_chat_badge.js') }}?v=1" defer></script>
 <script src="{{ url_for('static', filename='intranet_chess_badge.js') }}?v=2" defer></script>
 <script src="{{ url_for('static', filename='upload_summary.js') }}?v=2" defer></script>

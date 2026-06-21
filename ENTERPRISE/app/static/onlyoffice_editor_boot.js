@@ -11,6 +11,7 @@
   let docEditor = null;
   let hasUnsavedChanges = false;
   let closing = false;
+  let releaseEditSessionFn = null;
 
   function nudgeEditorLayout() {
     try {
@@ -67,6 +68,7 @@
   }
 
   function destroyAndGo(href) {
+    if (typeof releaseEditSessionFn === "function") releaseEditSessionFn();
     try {
       if (docEditor) docEditor.destroyEditor();
     } catch (_) {
@@ -109,4 +111,35 @@
   } else {
     nudgeEditorLayout();
   }
+
+  (function bindEditSessionPresence() {
+    const es = window.__ncEditSession;
+    if (!es || !es.track || !es.nodeId) return;
+    const base = String(es.apiBase || "/files").replace(/\/$/, "");
+    const url = `${base}/api/edit-session/${encodeURIComponent(String(es.nodeId))}`;
+    let released = false;
+
+    function touch() {
+      if (released) return;
+      fetch(url, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+      }).catch(function () {});
+    }
+
+    function release() {
+      if (released) return;
+      released = true;
+      fetch(url, { method: "DELETE", credentials: "same-origin", keepalive: true }).catch(function () {});
+    }
+
+    releaseEditSessionFn = release;
+    touch();
+    const heartbeat = window.setInterval(touch, 25000);
+    window.addEventListener("pagehide", function () {
+      window.clearInterval(heartbeat);
+      release();
+    });
+  })();
 })();

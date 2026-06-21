@@ -69,6 +69,8 @@
      data-time-zone="{{ app_time_zone|default('Australia/Melbourne') }}"
      data-time-offset-ms="{{ app_time_offset_ms|default(0) }}"
      data-files-tree-admin="{{ '1' if files_tree_admin else '0' }}"
+     data-portal-admin="{{ '1' if portal_admin|default(false) else '0' }}"
+     data-current-user-id="{{ current_user.id if current_user.is_authenticated else '' }}"
      data-upload-worker-url="{{ upload_worker_url|default('', true) }}">
   <div class="nc-files-inner">
     <div class="nc-controls">
@@ -127,6 +129,14 @@
           <button type="button" class="nc-sel-pill" id="sel-rename" hidden>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>
             Rename
+          </button>
+          <button type="button" class="nc-sel-pill" id="sel-lock" hidden title="Prevent others from editing this file">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
+            Lock for editing
+          </button>
+          <button type="button" class="nc-sel-pill" id="sel-unlock" hidden title="Release the edit lock">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 7.5-1"/></svg>
+            Release lock
           </button>
           <button type="button" class="nc-sel-pill" id="sel-download">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 3v12m0 0l4-4m-4 4l-4-4M4 21h16"/></svg>

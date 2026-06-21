@@ -15,6 +15,7 @@
         <button type="button" class="nc-admin-nav-item" data-tab="email" role="tab" aria-selected="false">Email Settings</button>
         <button type="button" class="nc-admin-nav-item" data-tab="portal" role="tab" aria-selected="false">Portal customisation</button>
         <button type="button" class="nc-admin-nav-item" data-tab="timesheets" role="tab" aria-selected="false">Timesheets management</button>
+        <button type="button" class="nc-admin-nav-item" data-tab="kanban" role="tab" aria-selected="false">KanBan</button>
         <button type="button" class="nc-admin-nav-item" data-tab="security_training" role="tab" aria-selected="false">Security Training</button>
         <button type="button" class="nc-admin-nav-item" data-tab="modules" role="tab" aria-selected="false">Modules</button>
         <button type="button" class="nc-admin-nav-item" data-tab="backup_restore" role="tab" aria-selected="false">Backup and restore</button>
@@ -535,7 +536,7 @@
           <h3 id="integrations-oo-heading" class="nc-admin-subhead">OnlyOffice Document Server</h3>
           <p class="nc-detail-muted">Configure your OnlyOffice Document Server URL so Office files can open in an embedded editor.</p>
           <p class="nc-detail-muted"><strong>Document Server URL</strong> — public HTTPS URL of ONLYOFFICE (same host browsers load for <code>api.js</code>), e.g. <code>https://onlyoffice.example.com</code>. Do not use <code>https://</code> against an internal IP:port unless that port really serves TLS; plain HTTP must use <code>http://</code>.</p>
-          <p class="nc-detail-muted"><strong>App public URL</strong> — public HTTPS base URL of <em>Firmgate</em> (where Flask runs), reachable by the Document Server so it can download files—e.g. <code>https://portal.example.com</code>. Not the OnlyOffice hostname.</p>
+          <p class="nc-detail-muted"><strong>App public URL</strong> — base URL of <em>Firmgate</em> that the Document Server uses to download files and receive save callbacks—e.g. <code>https://portal.example.com</code>. Not the OnlyOffice hostname. <strong>Local Docker:</strong> if OnlyOffice runs in Docker and Firmgate on your Mac, use <code>http://host.docker.internal:5001</code> (not <code>localhost</code> — that points at the container and causes “Download failed”).</p>
           <div class="nc-share-add-row">
             <label class="nc-detail-label" for="oo-url" style="flex:2;">Document Server URL</label>
             <label class="nc-detail-label" for="oo-jwt" style="flex:1;">JWT secret</label>
@@ -646,6 +647,140 @@
       </div>
     </div>
 
+    <div id="admin-tab-kanban" class="nc-admin-panel" hidden role="tabpanel">
+      <div class="nc-admin-section">
+        <div class="nc-admin-section-head">
+          <div>
+            <h2 class="nc-admin-section-title">KanBan</h2>
+            <p class="nc-detail-muted">Configure the team board, columns overview, and email notifications.</p>
+          </div>
+        </div>
+
+        <div class="nc-admin-ai-settings-subnav" id="admin-kanban-subnav" role="tablist" aria-label="KanBan settings">
+          <button type="button" class="nc-admin-ai-settings-tab is-active" id="admin-kanban-tab-board" role="tab" aria-selected="true" aria-controls="admin-kanban-pane-board" data-kanban-pane="board">Board</button>
+          <button type="button" class="nc-admin-ai-settings-tab" id="admin-kanban-tab-notifications" role="tab" aria-selected="false" aria-controls="admin-kanban-pane-notifications" data-kanban-pane="notifications">Notifications</button>
+        </div>
+
+        <div id="admin-kanban-pane-board" class="nc-admin-section-body nc-admin-kanban-pane" role="tabpanel" aria-labelledby="admin-kanban-tab-board">
+          <section class="nc-admin-card" aria-labelledby="kanban-board-heading">
+            <h3 id="kanban-board-heading" class="nc-admin-subhead">Board display</h3>
+            <p class="nc-detail-muted" style="margin:0 0 0.75rem;">Title and subtitle shown at the top of the KanBan page. Columns are managed on the board itself.</p>
+            <label class="nc-detail-label" for="kb-board-name">Board name</label>
+            <input type="text" id="kb-board-name" class="nc-detail-input" maxlength="120" placeholder="Team board" style="width:100%;max-width:28rem;" autocomplete="off">
+            <label class="nc-detail-label" for="kb-board-subtitle" style="margin-top:0.65rem;">Subtitle</label>
+            <input type="text" id="kb-board-subtitle" class="nc-detail-input" maxlength="240" placeholder="Drag cards between columns to update status." style="width:100%;max-width:36rem;" autocomplete="off">
+            <div class="nc-admin-form-actions" style="margin-top:0.85rem;flex-wrap:wrap;gap:0.5rem;">
+              <button type="button" class="nc-btn nc-btn-primary" id="kb-board-save">Save board settings</button>
+              <a class="nc-btn nc-btn-secondary" id="kb-board-open-link" href="/intranet/kanban">Open KanBan board</a>
+            </div>
+            <p id="kb-board-status" class="nc-detail-muted" style="margin:0.5rem 0 0;" aria-live="polite"></p>
+          </section>
+
+          <section class="nc-admin-card" style="margin-top:1rem;" aria-labelledby="kanban-columns-heading">
+            <h3 id="kanban-columns-heading" class="nc-admin-subhead">Columns overview</h3>
+            <p class="nc-detail-muted" id="kb-board-summary" style="margin:0 0 0.75rem;">Loading…</p>
+            <div id="kb-board-columns" class="nc-kb-admin-columns"></div>
+          </section>
+        </div>
+
+        <div id="admin-kanban-pane-notifications" class="nc-admin-section-body nc-admin-kanban-pane" role="tabpanel" aria-labelledby="admin-kanban-tab-notifications" hidden>
+          <section class="nc-admin-card" id="kanban-notify-settings-card" aria-labelledby="kanban-notify-heading">
+            <h3 id="kanban-notify-heading" class="nc-admin-subhead">Email notifications</h3>
+            <p class="nc-detail-muted" style="margin:0 0 0.75rem;">Email assignees and card watchers when KanBan cards are updated. Requires SMTP under <strong>Email Settings</strong>.</p>
+            <label class="nc-auth-remember" style="display:flex;align-items:flex-start;gap:0.45rem;margin-bottom:0.75rem;">
+              <input type="checkbox" id="kb-notify-enabled" style="margin-top:0.15rem;">
+              <span><strong>Enable KanBan email notifications</strong></span>
+            </label>
+
+            <fieldset class="nc-kb-notify-events" style="border:0;padding:0;margin:0 0 0.85rem;">
+              <legend class="nc-detail-label" style="margin-bottom:0.45rem;">Notify when</legend>
+              <label class="nc-auth-remember" style="display:flex;align-items:flex-start;gap:0.45rem;margin-bottom:0.35rem;">
+                <input type="checkbox" id="kb-notify-assigned" style="margin-top:0.15rem;">
+                <span>Someone is assigned to a card</span>
+              </label>
+              <label class="nc-auth-remember" style="display:flex;align-items:flex-start;gap:0.45rem;margin-bottom:0.35rem;">
+                <input type="checkbox" id="kb-notify-commented" style="margin-top:0.15rem;">
+                <span>A new comment is posted</span>
+              </label>
+              <label class="nc-auth-remember" style="display:flex;align-items:flex-start;gap:0.45rem;margin-bottom:0.35rem;">
+                <input type="checkbox" id="kb-notify-moved" style="margin-top:0.15rem;">
+                <span>A card is moved to another column</span>
+              </label>
+              <label class="nc-auth-remember" style="display:flex;align-items:flex-start;gap:0.45rem;margin-bottom:0.35rem;">
+                <input type="checkbox" id="kb-notify-marked-done" style="margin-top:0.15rem;">
+                <span>A card is marked done</span>
+              </label>
+              <label class="nc-auth-remember" style="display:flex;align-items:flex-start;gap:0.45rem;margin-bottom:0.35rem;">
+                <input type="checkbox" id="kb-notify-due-date" style="margin-top:0.15rem;">
+                <span>A due date is set or changed</span>
+              </label>
+            </fieldset>
+
+            <details class="nc-kb-notify-template" open>
+              <summary class="nc-detail-label" style="cursor:pointer;margin-bottom:0.45rem;">Assigned — email template</summary>
+              <label class="nc-detail-label" for="kb-notify-assigned-subject">Subject</label>
+              <input type="text" id="kb-notify-assigned-subject" class="nc-detail-input" style="width:100%;max-width:36rem;" autocomplete="off">
+              <label class="nc-detail-label" for="kb-notify-assigned-body" style="margin-top:0.55rem;">Body</label>
+              <textarea id="kb-notify-assigned-body" class="nc-detail-input" rows="6" style="width:100%;max-width:36rem;resize:vertical;font-family:inherit;"></textarea>
+            </details>
+            <details class="nc-kb-notify-template">
+              <summary class="nc-detail-label" style="cursor:pointer;margin:0.65rem 0 0.45rem;">Comment — email template</summary>
+              <label class="nc-detail-label" for="kb-notify-commented-subject">Subject</label>
+              <input type="text" id="kb-notify-commented-subject" class="nc-detail-input" style="width:100%;max-width:36rem;" autocomplete="off">
+              <label class="nc-detail-label" for="kb-notify-commented-body" style="margin-top:0.55rem;">Body</label>
+              <textarea id="kb-notify-commented-body" class="nc-detail-input" rows="6" style="width:100%;max-width:36rem;resize:vertical;font-family:inherit;"></textarea>
+            </details>
+            <details class="nc-kb-notify-template">
+              <summary class="nc-detail-label" style="cursor:pointer;margin:0.65rem 0 0.45rem;">Moved — email template</summary>
+              <label class="nc-detail-label" for="kb-notify-moved-subject">Subject</label>
+              <input type="text" id="kb-notify-moved-subject" class="nc-detail-input" style="width:100%;max-width:36rem;" autocomplete="off">
+              <label class="nc-detail-label" for="kb-notify-moved-body" style="margin-top:0.55rem;">Body</label>
+              <textarea id="kb-notify-moved-body" class="nc-detail-input" rows="6" style="width:100%;max-width:36rem;resize:vertical;font-family:inherit;"></textarea>
+            </details>
+            <details class="nc-kb-notify-template">
+              <summary class="nc-detail-label" style="cursor:pointer;margin:0.65rem 0 0.45rem;">Marked done — email template</summary>
+              <label class="nc-detail-label" for="kb-notify-marked-done-subject">Subject</label>
+              <input type="text" id="kb-notify-marked-done-subject" class="nc-detail-input" style="width:100%;max-width:36rem;" autocomplete="off">
+              <label class="nc-detail-label" for="kb-notify-marked-done-body" style="margin-top:0.55rem;">Body</label>
+              <textarea id="kb-notify-marked-done-body" class="nc-detail-input" rows="6" style="width:100%;max-width:36rem;resize:vertical;font-family:inherit;"></textarea>
+            </details>
+            <details class="nc-kb-notify-template">
+              <summary class="nc-detail-label" style="cursor:pointer;margin:0.65rem 0 0.45rem;">Due date — email template</summary>
+              <label class="nc-detail-label" for="kb-notify-due-date-subject">Subject</label>
+              <input type="text" id="kb-notify-due-date-subject" class="nc-detail-input" style="width:100%;max-width:36rem;" autocomplete="off">
+              <label class="nc-detail-label" for="kb-notify-due-date-body" style="margin-top:0.55rem;">Body</label>
+              <textarea id="kb-notify-due-date-body" class="nc-detail-input" rows="6" style="width:100%;max-width:36rem;resize:vertical;font-family:inherit;"></textarea>
+            </details>
+
+            <p class="nc-detail-muted" id="kb-notify-placeholders" style="margin:0.65rem 0 0.85rem;font-size:0.82rem;"></p>
+
+            <div class="nc-admin-form-actions" style="margin-top:0.85rem;flex-wrap:wrap;gap:0.5rem;">
+              <button type="button" class="nc-btn nc-btn-primary" id="kb-notify-save">Save notification settings</button>
+            </div>
+
+            <section class="nc-admin-card" style="margin-top:1rem;padding:1rem 1rem 0.85rem;" aria-labelledby="kb-notify-test-heading">
+              <h4 id="kb-notify-test-heading" class="nc-admin-subhead" style="margin-top:0;">Send test email</h4>
+              <p class="nc-detail-muted" style="margin:0 0 0.75rem;">Preview a notification using the templates above — including unsaved edits. Requires SMTP under <strong>Email Settings</strong>.</p>
+              <div class="nc-share-add-row" style="flex-wrap:wrap;align-items:flex-end;gap:0.5rem;">
+                <label class="nc-detail-label" for="kb-notify-test-event" style="margin:0;">Test event</label>
+                <select id="kb-notify-test-event" class="nc-detail-input" style="flex:0 0 10rem;">
+                  <option value="assigned">Assigned</option>
+                  <option value="commented">Comment</option>
+                  <option value="moved">Moved</option>
+                  <option value="marked_done">Marked done</option>
+                  <option value="due_date">Due date</option>
+                </select>
+                <label class="nc-detail-label" for="kb-notify-test-to" style="margin:0;">Test recipient</label>
+                <input type="email" id="kb-notify-test-to" class="nc-detail-input" placeholder="you@example.com" style="flex:1 1 12rem;max-width:16rem;" autocomplete="off">
+                <button type="button" class="nc-btn nc-btn-secondary" id="kb-notify-test">Send test email</button>
+              </div>
+            </section>
+            <p id="kb-notify-status" class="nc-detail-muted" style="margin:0.5rem 0 0;" aria-live="polite"></p>
+          </section>
+        </div>
+      </div>
+    </div>
+
     <div id="admin-tab-portal" class="nc-admin-panel" hidden role="tabpanel">
       <div class="nc-admin-section">
         <div class="nc-admin-section-head">
@@ -673,8 +808,8 @@
           <textarea id="portal-footer-text" class="nc-detail-input nc-footer-textarea" rows="5" placeholder="Footer text…"></textarea>
 
           <h3 class="nc-admin-subhead" style="margin-top:1.25rem;">Browser tab title</h3>
-          <p class="nc-detail-muted">Prefix shown in the browser tab for every page (for example <code>Firmgate — Home</code>). Leave blank to use the default portal name (<strong>Firmgate</strong> or <strong>Extranet</strong> from theme).</p>
-          <input type="text" id="portal-browser-tab-title" class="nc-detail-input" maxlength="80" placeholder="Leave blank for default portal name" autocomplete="off">
+          <p class="nc-detail-muted">Portal name and browser tab prefix (for example <code>SolStak — Home</code>). This name appears in the header, browser tab, and email sign-offs (for example “Sent by SolStak”). Leave blank to use the default portal name (<strong>Firmgate</strong> or <strong>Extranet</strong> from theme).</p>
+          <input type="text" id="portal-browser-tab-title" class="nc-detail-input" maxlength="80" placeholder="SolStak" autocomplete="off">
 
           <h3 class="nc-admin-subhead" style="margin-top:1.25rem;">Theme</h3>
           <p class="nc-detail-muted">Colour palette for Firmgate and portal pages. <strong>Extranet</strong> uses cool slate and indigo accents (distinct from the Firmgate teal look) and shows Extranet in the header instead of Firmgate. Save, then the page reloads to apply.</p>
@@ -1054,8 +1189,19 @@
         <div class="nc-admin-section-body">
           <p id="sw-package-disabled-hint" class="nc-detail-muted" style="display:none;"></p>
           <label class="nc-detail-label" for="sw-package-file">Release package (.zip)</label>
-          <div class="nc-share-add-row" style="margin-top:0.35rem;">
-            <input type="file" id="sw-package-file" class="nc-detail-input" accept=".zip,application/zip" style="flex:1;">
+          <div
+            id="sw-package-dropzone"
+            class="nc-sw-zip-drop"
+            role="button"
+            tabindex="0"
+            aria-label="Drop release zip here or browse"
+          >
+            <span class="nc-sw-zip-drop-ic" aria-hidden="true">↑</span>
+            <span class="nc-sw-zip-drop-label" id="sw-package-drop-label">Drag and drop release package here</span>
+            <span class="nc-sw-zip-drop-hint" id="sw-package-drop-hint">or click to browse</span>
+          </div>
+          <input type="file" id="sw-package-file" class="nc-detail-input" accept=".zip,application/zip,application/x-zip-compressed" hidden>
+          <div class="nc-admin-form-actions" style="margin-top:0.65rem;">
             <button type="button" class="nc-btn nc-btn-primary" id="sw-package-upgrade">Upload &amp; update</button>
           </div>
           <p id="sw-package-status" class="nc-status" role="status"></p>

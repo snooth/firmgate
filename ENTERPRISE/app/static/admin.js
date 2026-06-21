@@ -66,6 +66,7 @@
     setHidden("admin-tab-email", chosen === "email");
     setHidden("admin-tab-portal", chosen === "portal");
     setHidden("admin-tab-timesheets", chosen === "timesheets");
+    setHidden("admin-tab-kanban", chosen === "kanban");
     setHidden("admin-tab-security_clearance", chosen === "security_clearance");
     setHidden("admin-tab-security_training", chosen === "security_training");
     setHidden("admin-tab-security_encryption", chosen === "security_encryption");
@@ -88,6 +89,7 @@
     if (chosen === "ai_settings") loadAiSettings();
     if (chosen === "roles") refreshAccessControlMatrix();
     if (chosen === "email") loadEmailSettings();
+    if (chosen === "kanban") loadKanbanAdminSettings();
     if (chosen === "portal") loadPortalSettings();
     if (chosen === "timesheets") loadTimesheetSettings();
     if (chosen === "registrations") loadRegistrations();
@@ -1401,6 +1403,14 @@
       ],
     },
     {
+      title: "KanBan",
+      items: [
+        ["kanban.read", "View KanBan board"],
+        ["kanban.write", "Create / move KanBan cards"],
+        ["kanban.delete", "Delete KanBan cards and columns"],
+      ],
+    },
+    {
       title: "Security clearance",
       items: [
         ["security.read", "View security clearances"],
@@ -1913,6 +1923,7 @@
     { key: "news", label: "Blogs" },
     { key: "events", label: "Events" },
     { key: "wiki", label: "Wiki" },
+    { key: "kanban", label: "KanBan" },
     { key: "team_chat", label: "Team Chat" },
     { key: "directory", label: "Workforce" },
     { key: "workforce_dashboard", label: "Workforce Dashboard" },
@@ -2777,8 +2788,10 @@
     const bits = [];
     if (!j.is_git_repo)
       bits.push("This path is not a Git clone — use Upgrade from package, or deploy a Git checkout for Git-based updates.");
-    if (j.live_head && j.current_commit && j.live_head !== j.current_commit)
-      bits.push("Live HEAD differs from recorded current commit — record may be stale until you upgrade again.");
+    else if (j.is_package_deploy)
+      bits.push("Last upgrade was from a package — Git HEAD is unchanged (expected).");
+    else if (j.live_head && j.current_commit && j.live_head !== j.current_commit)
+      bits.push("Live HEAD differs from recorded current commit — run Upgrade from Git to sync the record.");
 
     if (topHint) {
       topHint.textContent = bits.join(" ");
@@ -2788,6 +2801,8 @@
     if (upBtn) upBtn.disabled = !upgradable;
     if (rbBtn) rbBtn.disabled = !(upgradable && j.rollback_available);
     if (pkgBtn) pkgBtn.disabled = !packageUpgradable;
+    const pkgDrop = document.getElementById("sw-package-dropzone");
+    if (pkgDrop) pkgDrop.classList.toggle("is-disabled", !packageUpgradable);
 
     const pel = document.getElementById("sw-prev-deployed");
     const cel = document.getElementById("sw-cur-deployed");
@@ -2853,44 +2868,143 @@
     });
   }
 
+  function isPackageZipFile(file) {
+    if (!file) return false;
+    const name = String(file.name || "").toLowerCase();
+    const type = String(file.type || "").toLowerCase();
+    return name.endsWith(".zip") || type === "application/zip" || type === "application/x-zip-compressed";
+  }
+
+  function setPackageFile(file) {
+    const fileEl = document.getElementById("sw-package-file");
+    const label = document.getElementById("sw-package-drop-label");
+    const hint = document.getElementById("sw-package-drop-hint");
+    const dropzone = document.getElementById("sw-package-dropzone");
+    if (!file || !isPackageZipFile(file)) {
+      if (fileEl) fileEl.value = "";
+      if (label) label.textContent = "Drag and drop release package here";
+      if (hint) {
+        hint.textContent = "or click to browse";
+        hint.hidden = false;
+      }
+      if (dropzone) dropzone.classList.remove("has-file");
+      return false;
+    }
+    if (fileEl) {
+      const dt = new DataTransfer();
+      dt.items.add(file);
+      fileEl.files = dt.files;
+    }
+    if (label) label.textContent = file.name;
+    if (hint) {
+      const mb = file.size / (1024 * 1024);
+      hint.textContent = `${mb >= 0.1 ? mb.toFixed(1) : "<0.1"} MB — drop another file to replace`;
+      hint.hidden = false;
+    }
+    if (dropzone) dropzone.classList.add("has-file");
+    return true;
+  }
+
+  async function runPackageUpgrade() {
+    const fileEl = document.getElementById("sw-package-file");
+    const swPkgBtn = document.getElementById("sw-package-upgrade");
+    const f = fileEl && fileEl.files && fileEl.files[0] ? fileEl.files[0] : null;
+    if (!f) {
+      setStatus("sw-package-status", "Choose or drop a release zip file first.");
+      return;
+    }
+    if (
+      !window.confirm(
+        "Upload and apply this release package?\n\nThe server keeps instance/, .env, and .venv. Python dependencies are reinstalled from requirements.txt. A light backup of .env and the database is taken first.\n\nContinue?"
+      )
+    ) {
+      return;
+    }
+    if (swPkgBtn) swPkgBtn.disabled = true;
+    setStatus("sw-package-status", "Uploading and applying package… this may take several minutes.");
+    try {
+      const fd = new FormData();
+      fd.append("file", f, f.name || "release.zip");
+      const r = await fetch(u("/api/settings/software-version/package-upgrade"), {
+        method: "POST",
+        credentials: "same-origin",
+        body: fd,
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        setStatus("sw-package-status", j.error || "Package upgrade failed.");
+        return;
+      }
+      setStatus("sw-package-status", j.message || "Package upgrade complete.");
+      setPackageFile(null);
+    } catch (e) {
+      setStatus("sw-package-status", String(e && e.message ? e.message : e) || "Package upgrade failed.");
+    } finally {
+      await loadSoftwareVersion();
+    }
+  }
+
   const swPkgBtn = document.getElementById("sw-package-upgrade");
   if (swPkgBtn) {
-    swPkgBtn.addEventListener("click", async () => {
-      const fileEl = document.getElementById("sw-package-file");
-      const f = fileEl && fileEl.files && fileEl.files[0] ? fileEl.files[0] : null;
-      if (!f) {
-        setStatus("sw-package-status", "Choose a release zip file first.");
+    swPkgBtn.addEventListener("click", () => {
+      void runPackageUpgrade();
+    });
+  }
+
+  const swPackageDropzone = document.getElementById("sw-package-dropzone");
+  const swPackageFile = document.getElementById("sw-package-file");
+  if (swPackageDropzone && swPackageFile) {
+    let dragDepth = 0;
+    const setDrag = (on) => swPackageDropzone.classList.toggle("is-drag", !!on);
+    const openPicker = () => {
+      if (swPackageDropzone.classList.contains("is-disabled")) return;
+      swPackageFile.click();
+    };
+
+    swPackageDropzone.addEventListener("click", openPicker);
+    swPackageDropzone.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        openPicker();
+      }
+    });
+    swPackageFile.addEventListener("change", () => {
+      const file = swPackageFile.files && swPackageFile.files[0] ? swPackageFile.files[0] : null;
+      if (file && !setPackageFile(file)) {
+        setStatus("sw-package-status", "Release package must be a .zip file.");
+      } else {
+        setStatus("sw-package-status", "");
+      }
+    });
+
+    ["dragenter", "dragover"].forEach((ev) => {
+      swPackageDropzone.addEventListener(ev, (e) => {
+        if (swPackageDropzone.classList.contains("is-disabled")) return;
+        e.preventDefault();
+        e.stopPropagation();
+        if (ev === "dragenter") dragDepth += 1;
+        setDrag(true);
+      });
+    });
+    swPackageDropzone.addEventListener("dragleave", (e) => {
+      if (swPackageDropzone.classList.contains("is-disabled")) return;
+      e.preventDefault();
+      dragDepth = Math.max(0, dragDepth - 1);
+      if (dragDepth === 0) setDrag(false);
+    });
+    swPackageDropzone.addEventListener("drop", (e) => {
+      if (swPackageDropzone.classList.contains("is-disabled")) return;
+      e.preventDefault();
+      e.stopPropagation();
+      dragDepth = 0;
+      setDrag(false);
+      const file = e.dataTransfer?.files?.[0];
+      if (!file) return;
+      if (!setPackageFile(file)) {
+        setStatus("sw-package-status", "Release package must be a .zip file.");
         return;
       }
-      if (
-        !window.confirm(
-          "Upload and apply this release package?\n\nThe server keeps instance/, .env, and .venv. Python dependencies are reinstalled from requirements.txt. A light backup of .env and the database is taken first.\n\nContinue?"
-        )
-      ) {
-        return;
-      }
-      swPkgBtn.disabled = true;
-      setStatus("sw-package-status", "Uploading and applying package… this may take several minutes.");
-      try {
-        const fd = new FormData();
-        fd.append("file", f, f.name || "release.zip");
-        const r = await fetch(u("/api/settings/software-version/package-upgrade"), {
-          method: "POST",
-          credentials: "same-origin",
-          body: fd,
-        });
-        const j = await r.json().catch(() => ({}));
-        if (!r.ok) {
-          setStatus("sw-package-status", j.error || "Package upgrade failed.");
-          return;
-        }
-        setStatus("sw-package-status", j.message || "Package upgrade complete.");
-        if (fileEl) fileEl.value = "";
-      } catch (e) {
-        setStatus("sw-package-status", String(e && e.message ? e.message : e) || "Package upgrade failed.");
-      } finally {
-        await loadSoftwareVersion();
-      }
+      setStatus("sw-package-status", "");
     });
   }
 
@@ -3158,7 +3272,14 @@
       setStatus("admin-integrations-status", (j.error || "OnlyOffice test failed") + hints);
       return;
     }
-    setStatus("admin-integrations-status", "OnlyOffice connected: healthcheck OK, editor API OK.");
+    const warn = (j.warnings || []).length ? `\n${(j.warnings || []).join(" ")}` : "";
+    const hints = (j.hints || []).length ? `\n${(j.hints || []).join(" ")}` : "";
+    setStatus(
+      "admin-integrations-status",
+      (j.warnings || []).length
+        ? `OnlyOffice reachable, but check App public URL:${warn}${hints}`
+        : `OnlyOffice connected: healthcheck OK, editor API OK.${hints}`
+    );
   }
 
   const ooSave = document.getElementById("oo-save");
@@ -3396,6 +3517,152 @@
     renderEmailProviderHelp(j.provider || "custom");
   }
 
+  const KANBAN_ADMIN_PANE_KEY = "admin.kanbanPane";
+
+  function setKanbanBoardStatus(msg) {
+    const el = document.getElementById("kb-board-status");
+    if (el) el.textContent = msg || "";
+  }
+
+  function setKanbanNotifyStatus(msg) {
+    const el = document.getElementById("kb-notify-status");
+    if (el) el.textContent = msg || "";
+  }
+
+  function showKanbanAdminPane(pane, { persist = true } = {}) {
+    const chosen = pane === "notifications" ? "notifications" : "board";
+    document.querySelectorAll(".nc-admin-kanban-pane").forEach((el) => {
+      el.hidden = el.id !== `admin-kanban-pane-${chosen}`;
+    });
+    document.querySelectorAll("[data-kanban-pane]").forEach((btn) => {
+      const on = btn.getAttribute("data-kanban-pane") === chosen;
+      btn.classList.toggle("is-active", on);
+      btn.setAttribute("aria-selected", String(on));
+    });
+    if (persist) {
+      try {
+        window.localStorage.setItem(KANBAN_ADMIN_PANE_KEY, chosen);
+      } catch (_e) {}
+    }
+  }
+
+  function renderKanbanColumnsOverview(data) {
+    const summaryEl = document.getElementById("kb-board-summary");
+    const listEl = document.getElementById("kb-board-columns");
+    if (summaryEl) {
+      summaryEl.textContent = `${Number(data.column_count || 0)} columns · ${Number(data.card_count || 0)} cards on the board.`;
+    }
+    if (!listEl) return;
+    const cols = Array.isArray(data.columns) ? data.columns : [];
+    if (!cols.length) {
+      listEl.innerHTML = '<p class="nc-detail-muted">No columns yet. Open the board to add columns.</p>';
+      return;
+    }
+    listEl.innerHTML = cols
+      .map(
+        (col) => `<div class="nc-kb-admin-col-row">
+          <span class="nc-kb-admin-col-title">${escapeHtml(col.title || "Untitled")}</span>
+          <span class="nc-detail-muted">${Number(col.card_count || 0)} cards</span>
+        </div>`
+      )
+      .join("");
+  }
+
+  async function loadKanbanBoardSettings() {
+    const r = await api("/api/settings/kanban", { method: "GET" });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      setKanbanBoardStatus(j.error || "Failed to load KanBan settings.");
+      return;
+    }
+    const nameEl = document.getElementById("kb-board-name");
+    const subtitleEl = document.getElementById("kb-board-subtitle");
+    const openLink = document.getElementById("kb-board-open-link");
+    if (nameEl) nameEl.value = j.board_name || "";
+    if (subtitleEl) {
+      subtitleEl.value = j.board_subtitle || (j.defaults && j.defaults.board_subtitle) || "";
+    }
+    if (openLink && j.kanban_url) openLink.href = j.kanban_url;
+    renderKanbanColumnsOverview(j);
+    setKanbanBoardStatus("");
+  }
+
+  function readKanbanNotifyForm() {
+    return {
+      enabled: !!document.getElementById("kb-notify-enabled")?.checked,
+      notify_assigned: !!document.getElementById("kb-notify-assigned")?.checked,
+      notify_commented: !!document.getElementById("kb-notify-commented")?.checked,
+      notify_moved: !!document.getElementById("kb-notify-moved")?.checked,
+      notify_marked_done: !!document.getElementById("kb-notify-marked-done")?.checked,
+      notify_due_date: !!document.getElementById("kb-notify-due-date")?.checked,
+      assigned_subject: (document.getElementById("kb-notify-assigned-subject")?.value || "").trim(),
+      assigned_body: (document.getElementById("kb-notify-assigned-body")?.value || "").trim(),
+      commented_subject: (document.getElementById("kb-notify-commented-subject")?.value || "").trim(),
+      commented_body: (document.getElementById("kb-notify-commented-body")?.value || "").trim(),
+      moved_subject: (document.getElementById("kb-notify-moved-subject")?.value || "").trim(),
+      moved_body: (document.getElementById("kb-notify-moved-body")?.value || "").trim(),
+      marked_done_subject: (document.getElementById("kb-notify-marked-done-subject")?.value || "").trim(),
+      marked_done_body: (document.getElementById("kb-notify-marked-done-body")?.value || "").trim(),
+      due_date_subject: (document.getElementById("kb-notify-due-date-subject")?.value || "").trim(),
+      due_date_body: (document.getElementById("kb-notify-due-date-body")?.value || "").trim(),
+    };
+  }
+
+  async function loadKanbanNotifySettings() {
+    const card = document.getElementById("kanban-notify-settings-card");
+    if (!card) return;
+    const r = await api("/api/settings/kanban/notifications", { method: "GET" });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      setKanbanNotifyStatus(j.error || "Failed to load KanBan notification settings.");
+      return;
+    }
+    const enabledEl = document.getElementById("kb-notify-enabled");
+    const assignedEl = document.getElementById("kb-notify-assigned");
+    const commentedEl = document.getElementById("kb-notify-commented");
+    const movedEl = document.getElementById("kb-notify-moved");
+    const doneEl = document.getElementById("kb-notify-marked-done");
+    const dueEl = document.getElementById("kb-notify-due-date");
+    const placeholdersEl = document.getElementById("kb-notify-placeholders");
+    if (enabledEl) enabledEl.checked = j.enabled !== false;
+    if (assignedEl) assignedEl.checked = j.notify_assigned !== false;
+    if (commentedEl) commentedEl.checked = j.notify_commented !== false;
+    if (movedEl) movedEl.checked = j.notify_moved !== false;
+    if (doneEl) doneEl.checked = j.notify_marked_done !== false;
+    if (dueEl) dueEl.checked = j.notify_due_date !== false;
+    const fields = [
+      ["assigned", "kb-notify-assigned-subject", "kb-notify-assigned-body"],
+      ["commented", "kb-notify-commented-subject", "kb-notify-commented-body"],
+      ["moved", "kb-notify-moved-subject", "kb-notify-moved-body"],
+      ["marked_done", "kb-notify-marked-done-subject", "kb-notify-marked-done-body"],
+      ["due_date", "kb-notify-due-date-subject", "kb-notify-due-date-body"],
+    ];
+    fields.forEach(([key, subId, bodyId]) => {
+      const subEl = document.getElementById(subId);
+      const bodyEl = document.getElementById(bodyId);
+      const defaults = j.defaults || {};
+      if (subEl) subEl.value = j[`${key}_subject`] || defaults[`${key}_subject`] || "";
+      if (bodyEl) bodyEl.value = j[`${key}_body`] || defaults[`${key}_body`] || "";
+    });
+    if (placeholdersEl) {
+      placeholdersEl.textContent = `Placeholders: ${(j.placeholders || []).join(", ")}`;
+    }
+    const testToEl = document.getElementById("kb-notify-test-to");
+    if (testToEl && !testToEl.value.trim() && j.test_recipient_default) {
+      testToEl.value = j.test_recipient_default;
+    }
+  }
+
+  async function loadKanbanAdminSettings() {
+    if (!document.getElementById("admin-tab-kanban")) return;
+    let pane = "board";
+    try {
+      pane = window.localStorage.getItem(KANBAN_ADMIN_PANE_KEY) || "board";
+    } catch (_e) {}
+    showKanbanAdminPane(pane, { persist: false });
+    await Promise.all([loadKanbanBoardSettings(), loadKanbanNotifySettings()]);
+  }
+
   async function testEmailSettings() {
     setStatus("admin-email-status", "Sending test email…");
     const to = (document.getElementById("email-test-to")?.value || "").trim();
@@ -3425,6 +3692,73 @@
   }
   const emailTest = document.getElementById("email-test");
   if (emailTest) emailTest.addEventListener("click", () => testEmailSettings());
+
+  const kbBoardSave = document.getElementById("kb-board-save");
+  if (kbBoardSave) {
+    kbBoardSave.addEventListener("click", async () => {
+      setKanbanBoardStatus("Saving…");
+      const r = await api("/api/settings/kanban", {
+        method: "PUT",
+        body: JSON.stringify({
+          board_name: (document.getElementById("kb-board-name")?.value || "").trim(),
+          board_subtitle: (document.getElementById("kb-board-subtitle")?.value || "").trim(),
+        }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        setKanbanBoardStatus(j.error || "Save failed.");
+        return;
+      }
+      setKanbanBoardStatus("Saved.");
+      renderKanbanColumnsOverview(j);
+    });
+  }
+
+  document.getElementById("admin-kanban-subnav")?.addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-kanban-pane]");
+    if (!btn) return;
+    showKanbanAdminPane(btn.getAttribute("data-kanban-pane") || "board");
+  });
+
+  const kbNotifySave = document.getElementById("kb-notify-save");
+  if (kbNotifySave) {
+    kbNotifySave.addEventListener("click", async () => {
+      setKanbanNotifyStatus("Saving…");
+      const r = await api("/api/settings/kanban/notifications", {
+        method: "PUT",
+        body: JSON.stringify(readKanbanNotifyForm()),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        setKanbanNotifyStatus(j.error || "Save failed.");
+        return;
+      }
+      setKanbanNotifyStatus("Saved.");
+      await loadKanbanNotifySettings();
+    });
+  }
+  const kbNotifyTest = document.getElementById("kb-notify-test");
+  if (kbNotifyTest) {
+    kbNotifyTest.addEventListener("click", async () => {
+      const to = (document.getElementById("kb-notify-test-to")?.value || "").trim();
+      if (!to) {
+        setKanbanNotifyStatus("Enter a test recipient email.");
+        return;
+      }
+      setKanbanNotifyStatus("Sending test email…");
+      const event = document.getElementById("kb-notify-test-event")?.value || "assigned";
+      const r = await api("/api/settings/kanban/notifications/test", {
+        method: "POST",
+        body: JSON.stringify({ to, event, ...readKanbanNotifyForm() }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || j.ok === false) {
+        setKanbanNotifyStatus(j.error || "Test failed.");
+        return;
+      }
+      setKanbanNotifyStatus(j.message || "Test email sent.");
+    });
+  }
 
   const emailProvider = document.getElementById("email-provider");
   if (emailProvider) {

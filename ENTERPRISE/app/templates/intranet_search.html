@@ -18,14 +18,30 @@
   {%- endif -%}
 {%- endmacro %}
 
-<div class="nc-intranet-hero">
+<div class="nc-intranet-hero nc-intranet-hero--search">
   <div>
     <h1>Search</h1>
-    <p class="nc-intranet-muted">Results for <strong>{{ q }}</strong></p>
+    {% if q %}
+    <p class="nc-intranet-muted">
+      Results for <strong>{{ q }}</strong>
+      {% if search_scope == 'documents' %} in Documents{% else %} across {{ portal_shell_name }}{% endif %}
+    </p>
+    {% else %}
+    <p class="nc-intranet-muted">Enter a search term in the bar above.</p>
+    {% endif %}
   </div>
+  {% if q %}
+  <div class="nc-intranet-hero-actions">
+    {% if search_scope == 'all' %}
+    <a class="nc-btn nc-btn-secondary" href="{{ url_for('intranet.intranet_search', q=q) }}">Documents only</a>
+    {% else %}
+    <a class="nc-btn nc-btn-secondary" href="{{ url_for('intranet.intranet_search', q=q, scope='all') }}">Search everywhere</a>
+    {% endif %}
+  </div>
+  {% endif %}
 </div>
 
-<div class="nc-intranet-grid">
+<div class="nc-intranet-grid{% if search_scope == 'documents' %} nc-intranet-grid--search-docs{% endif %}">
   <section class="nc-intranet-card">
     <h2>Documents</h2>
     {% for d in results.documents %}
@@ -43,6 +59,7 @@
     {% endfor %}
   </section>
 
+  {% if search_scope == 'all' %}
   <section class="nc-intranet-card">
     <h2>Blogs</h2>
     {% for p in results.news %}
@@ -87,6 +104,6 @@
       <div class="nc-intranet-muted">No matching people.</div>
     {% endfor %}
   </section>
+  {% endif %}
 </div>
 {% endblock %}
-

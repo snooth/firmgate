@@ -22,12 +22,28 @@ def portal_shell_name(theme_key: str | None = None) -> str:
     return portal_core_name()
 
 
-def portal_browser_tab_title(portal: Any, theme_key: str | None = None) -> str:
-    """Label used in HTML <title> tags; falls back to portal shell name."""
+def portal_display_name(portal: Any, theme_key: str | None = None) -> str:
+    """User-facing portal name from Browser tab title, else theme default (Firmgate / Extranet)."""
     custom = str(_portal_dict(portal).get("browser_tab_title") or "").strip()
     if custom:
         return custom[:80]
     return portal_shell_name(theme_key)
+
+
+def portal_display_name_from_settings(*, theme_key: str | None = None) -> str:
+    from app.settings import get_setting
+
+    portal = get_setting("portal", default={}) or {}
+    if theme_key is None:
+        from app.registration_service import portal_is_extranet
+
+        theme_key = "non_core_team" if portal_is_extranet() else "core_team"
+    return portal_display_name(portal, theme_key)
+
+
+def portal_browser_tab_title(portal: Any, theme_key: str | None = None) -> str:
+    """Label used in HTML <title> tags; falls back to portal shell name."""
+    return portal_display_name(portal, theme_key)
 
 
 def _portal_dict(portal: Any) -> dict[str, Any]:
@@ -58,3 +74,17 @@ def portal_logo_url(portal: Any, *, static_url: Callable[[str], str] | None = No
 
 def portal_logo_is_default(portal: Any) -> bool:
     return portal_logo_enabled(portal) and not portal_has_custom_logo(portal)
+
+
+def portal_logo_email_url(portal: Any) -> str:
+    """Absolute URL for portal logo images in outbound email."""
+    if not portal_logo_enabled(portal):
+        return ""
+    try:
+        from flask import url_for
+
+        if portal_has_custom_logo(portal):
+            return url_for("admin.portal_logo_public", _external=True)
+        return url_for("static", filename=DEFAULT_LOGO_STATIC, _external=True)
+    except Exception:
+        return ""

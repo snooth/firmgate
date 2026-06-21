@@ -19,8 +19,9 @@ from itsdangerous import BadSignature, TimestampSigner
 from app import access
 from app.intranet_bp import _nav as intranet_nav
 from app.extensions import db
+from app.document_version_service import append_document_version
 from app.file_storage import store_stream_and_digest
-from app.models import FileNode, FileVersion, utcnow
+from app.models import FileNode, FileNodeEditSession, FileVersion, utcnow
 from app.document_editor_settings import PROVIDER_OFFICE365, get_document_editor_provider, redirect_with_query
 from app.settings import get_setting
 
@@ -36,10 +37,18 @@ def _signer() -> TimestampSigner:
     return TimestampSigner(str(secret))
 
 
-def _signed_token(node_id: int, user_id: int, *, version_id: int | None = None) -> str:
+def _signed_token(
+    node_id: int,
+    user_id: int,
+    *,
+    version_id: int | None = None,
+    review: bool = False,
+) -> str:
     payload: dict[str, Any] = {"node_id": node_id, "user_id": user_id}
     if version_id is not None:
         payload["version_id"] = int(version_id)
+    if review:
+        payload["review"] = True
     return _signer().sign(json.dumps(payload, separators=(",", ":")).encode("utf-8")).decode("utf-8")
 
 
@@ -205,9 +214,42 @@ def _node_or_404(node_id: int) -> FileNode:
     return node
 
 
-def _document_session_key(node_id: int) -> str:
-    """Unique per editor open; OnlyOffice must not reuse keys across sessions."""
-    return f"{node_id}-{secrets.token_hex(16)}"
+def _onlyoffice_review_doc_key(node_id: int, version_id: int) -> str:
+    return f"{node_id}-{version_id}-review"
+
+
+def _onlyoffice_view_doc_key(node_id: int, version_id: int, sha256: str) -> str:
+    """View-only key tied to content so reopen after edits avoids Document Server cache clashes."""
+    digest = (sha256 or "0").strip().lower()[:32]
+    return f"{node_id}-{version_id}-{digest}"
+
+
+def _resolve_onlyoffice_edit_doc_key(node: FileNode, version: FileVersion) -> str:
+    """Stable key while editors are open; fresh key when a new editing session starts.
+
+    OnlyOffice caches documents by key. Reusing the same key after saves (same version id,
+    new bytes) triggers "Version changed" and can corrupt the file on reload.
+    """
+    from app.file_edit_session_service import SESSION_STALE_AFTER, _prune_stale_sessions
+
+    _prune_stale_sessions()
+    locked = db.session.query(FileNode).filter_by(id=int(node.id)).with_for_update().one()
+    cutoff = utcnow() - SESSION_STALE_AFTER
+    active_count = (
+        db.session.query(FileNodeEditSession)
+        .filter(
+            FileNodeEditSession.file_node_id == locked.id,
+            FileNodeEditSession.last_seen_at >= cutoff,
+        )
+        .count()
+    )
+    if active_count > 0 and locked.onlyoffice_doc_key:
+        return locked.onlyoffice_doc_key
+
+    key = f"{locked.id}-{version.id}-{secrets.token_hex(8)}"
+    locked.onlyoffice_doc_key = key
+    db.session.commit()
+    return key
 
 
 def _apply_onlyoffice_save_to_version(
@@ -218,7 +260,7 @@ def _apply_onlyoffice_save_to_version(
     download_url: str,
     original_name: str,
 ) -> bool:
-    """Persist Document Server output onto an existing version row (same version id for the session)."""
+    """Persist Document Server output as a new version (prior versions kept)."""
     log = current_app.logger
     try:
         with _open_onlyoffice_saved_file(download_url) as resp:
@@ -231,19 +273,28 @@ def _apply_onlyoffice_save_to_version(
         )
         return False
 
-    fv.storage_relpath = relpath
-    fv.size_bytes = size
-    fv.sha256 = sha256
-    if mime:
-        fv.mime_type = mime
-    fv.is_current = True
-    db.session.query(FileVersion).filter(
-        FileVersion.file_node_id == node.id,
-        FileVersion.id != fv.id,
-    ).update({"is_current": False}, synchronize_session=False)
-    node.updated_at = utcnow()
-    db.session.commit()
-    return True
+    created, new_fv = append_document_version(
+        node,
+        user_id=user_id,
+        relpath=relpath,
+        size=size,
+        sha256=sha256,
+        mime=mime,
+    )
+    if created and new_fv:
+        log.warning(
+            "onlyoffice callback new version node_id=%s version_number=%s version_id=%s",
+            node.id,
+            new_fv.version_number,
+            new_fv.id,
+        )
+    elif new_fv:
+        log.warning(
+            "onlyoffice callback unchanged node_id=%s version_number=%s",
+            node.id,
+            new_fv.version_number,
+        )
+    return new_fv is not None
 
 
 @bp.route("/editor/<int:node_id>")
@@ -264,6 +315,18 @@ def editor(node_id: int):
         abort(403)
     can_edit, _ = access.can_access_node(current_user, node, "write")
 
+    from app.file_lock_service import get_lock_for_node
+
+    lock_row = get_lock_for_node(node.id)
+    locked_by_other = bool(
+        lock_row and int(lock_row.locked_by_id) != int(current_user.id)
+    )
+    if locked_by_other:
+        can_edit = False
+
+    review_mode = (request.args.get("review") or "").strip().lower() in ("1", "true", "yes", "review")
+    req_version_id = request.args.get("version_id", type=int)
+
     cur = (
         db.session.query(FileVersion)
         .filter_by(file_node_id=node.id, is_current=True)
@@ -273,10 +336,36 @@ def editor(node_id: int):
     if not cur:
         abort(404)
 
+    target_version = cur
+    if req_version_id is not None:
+        fv = db.session.get(FileVersion, int(req_version_id))
+        if not fv or fv.file_node_id != node.id:
+            abort(404)
+        target_version = fv
+        if not fv.is_current:
+            review_mode = True
+
+    if review_mode:
+        ok_versions, _ = access.can_access_node(current_user, node, "versions")
+        if not ok_versions:
+            abort(403)
+        can_edit = False
+
+    editing_mode = bool(can_edit) and not review_mode
+    if editing_mode:
+        from app.file_edit_session_service import touch_edit_session
+
+        touch_edit_session(node, current_user)
+
     # Pin version_id in the signed token so /file serves immutable bytes for this session.
     # (Serving "current" after an autosave callback changes the file under the same key and
     # triggers OnlyOffice "Version changed" / reload, which can discard in-progress edits.)
-    token = _signed_token(node.id, current_user.id, version_id=cur.id)
+    token = _signed_token(
+        node.id,
+        current_user.id,
+        version_id=target_version.id,
+        review=review_mode,
+    )
     token_q = urllib.parse.quote(token, safe="")
     base_app = _onlyoffice_app_base_url()
     file_url = base_app + f"/onlyoffice/file/{node.id}?token={token_q}"
@@ -284,32 +373,42 @@ def editor(node_id: int):
 
     ext = (node.name.rsplit(".", 1)[-1] if "." in node.name else "").lower()
     # OnlyOffice requires `document.key` to match pattern `0-9-.a-zA-Z_=` (no colon).
-    key = _document_session_key(node.id)
+    # Edit sessions share one key until all editors close; view/review keys include content id.
+    if review_mode:
+        key = _onlyoffice_review_doc_key(node.id, target_version.id)
+    elif editing_mode:
+        key = _resolve_onlyoffice_edit_doc_key(node, target_version)
+    else:
+        key = _onlyoffice_view_doc_key(node.id, target_version.id, target_version.sha256)
+    display_name = (current_user.full_name or current_user.username or f"User {current_user.id}").strip()
+    doc_title = node.name
+    if review_mode:
+        doc_title = f"{node.name} — Previous version v{target_version.version_number}"
 
     doc_cfg = {
         "document": {
             "fileType": ext,
             "key": key,
-            "title": node.name,
+            "title": doc_title,
             "url": file_url,
             "permissions": {
-                "edit": bool(can_edit),
+                "edit": bool(can_edit) and not review_mode,
                 "download": True,
                 "print": True,
-                "comment": True,
-                "review": bool(can_edit),
+                "comment": not review_mode,
+                "review": bool(can_edit) and not review_mode,
             },
         },
-        # OnlyOffice 6.1+: use "slide" (not deprecated "presentation").
-        "documentType": "text"
+        # OnlyOffice 6.1+: word / cell / slide (text / spreadsheet / presentation are deprecated).
+        "documentType": "word"
         if ext in ("doc", "docx", "odt", "rtf", "txt")
-        else "spreadsheet"
-        if ext in ("xls", "xlsx", "ods", "csv")
+        else "cell"
+        if ext in ("xls", "xlsx", "xlsm", "xlsb", "ods", "csv")
         else "slide",
         "editorConfig": {
             "callbackUrl": callback_url,
             "mode": "edit" if can_edit else "view",
-            "user": {"id": str(current_user.id), "name": current_user.username},
+            "user": {"id": str(current_user.id), "name": display_name},
         },
     }
 
@@ -317,6 +416,8 @@ def editor(node_id: int):
     force_view = (request.args.get("view") or "").strip().lower() in ("1", "true", "yes", "view")
     slideshow = (request.args.get("slideshow") or "").strip().lower() in ("1", "true", "yes")
     embed = (request.args.get("embed") or "").strip().lower() in ("1", "true", "yes")
+    if review_mode:
+        force_view = True
     if force_view:
         doc_cfg["editorConfig"]["mode"] = "view"
         try:
@@ -325,7 +426,22 @@ def editor(node_id: int):
         except Exception:
             pass
     elif can_edit:
-        doc_cfg.setdefault("editorConfig", {}).setdefault("customization", {})["forcesave"] = True
+        ec = doc_cfg.setdefault("editorConfig", {})
+        ec.setdefault("customization", {})["forcesave"] = True
+        ec["coEditing"] = {"mode": "fast", "change": True}
+    if review_mode:
+        doc_cfg["document"]["info"] = {
+            "owner": "Version history (read-only preview)",
+            "uploaded": target_version.created_at.isoformat() if target_version.created_at else "",
+        }
+        try:
+            doc_cfg["document"]["permissions"]["edit"] = False
+            doc_cfg["document"]["permissions"]["review"] = False
+            doc_cfg["document"]["permissions"]["comment"] = False
+        except Exception:
+            pass
+        doc_cfg["editorConfig"]["mode"] = "view"
+        doc_cfg["editorConfig"].pop("coEditing", None)
     if slideshow:
         # Best-effort "presentation mode" UX: locked view mode + minimal chrome.
         doc_cfg["editorConfig"]["mode"] = "view"
@@ -367,7 +483,6 @@ def editor(node_id: int):
         doc_cfg["token"] = token
 
     shell = (request.args.get("shell") or "").strip().lower()
-    doc_title = node.name
     close_url = _onlyoffice_close_url(shell=shell, node=node)
     # StartSlideShow via Automation API connector (embed template); presentations only.
     slideshow_start = bool(slideshow and ext in _SLIDE_EXT)
@@ -376,9 +491,21 @@ def editor(node_id: int):
         "doc_config": json.dumps(doc_cfg),
         "doc_title": doc_title,
         "close_url": close_url,
-        "onlyoffice_force_view": bool(force_view),
+        "onlyoffice_force_view": bool(force_view or locked_by_other or review_mode),
         "onlyoffice_slideshow": bool(slideshow),
         "onlyoffice_slideshow_start": slideshow_start,
+        "onlyoffice_locked_by_other": locked_by_other,
+        "onlyoffice_lock_holder": (
+            (lock_row.locked_by.full_name or lock_row.locked_by.username)
+            if locked_by_other and lock_row and lock_row.locked_by
+            else None
+        ),
+        "onlyoffice_version_review": review_mode,
+        "onlyoffice_version_number": target_version.version_number if review_mode else None,
+        "onlyoffice_track_edit_session": doc_cfg.get("editorConfig", {}).get("mode") == "edit"
+        and bool(doc_cfg.get("document", {}).get("permissions", {}).get("edit")),
+        "onlyoffice_node_id": node.id,
+        "files_api_base": url_for("files.api_list").rsplit("/api/list", 1)[0],
     }
     if embed:
         return render_template("onlyoffice_embed.html", **ctx)
@@ -440,6 +567,9 @@ def callback(node_id: int):
     if not payload or payload.get("node_id") != node_id:
         return jsonify({"error": "forbidden"}), 403
 
+    if payload.get("review"):
+        return jsonify({"error": 0})
+
     body = request.get_json(force=True, silent=True) or {}
     status = body.get("status")
     try:
@@ -477,6 +607,13 @@ def callback(node_id: int):
         return jsonify({"error": 0})
 
     user_id = int(payload.get("user_id") or 0) or 1
+    from app.file_lock_service import get_lock_for_node
+
+    lock_row = get_lock_for_node(node.id)
+    if lock_row and int(lock_row.locked_by_id) != user_id:
+        log.warning("onlyoffice callback denied node_id=%s locked by %s", node_id, lock_row.locked_by_id)
+        return jsonify({"error": 1})
+
     pin_version_id = payload.get("version_id")
     if pin_version_id is not None:
         try:
@@ -496,7 +633,11 @@ def callback(node_id: int):
             original_name=node.name,
         )
         if ok:
-            log.warning("onlyoffice callback saved node_id=%s version_id=%s", node_id, pin_version_id)
+            log.warning(
+                "onlyoffice callback saved node_id=%s session_version_id=%s",
+                node_id,
+                pin_version_id,
+            )
         else:
             log.error("onlyoffice callback save failed node_id=%s version_id=%s", node_id, pin_version_id)
         return jsonify({"error": 0 if ok else 1})
@@ -513,28 +654,19 @@ def callback(node_id: int):
         )
         return jsonify({"error": 1})
 
-    cur = (
-        db.session.query(FileVersion)
-        .filter_by(file_node_id=node.id, is_current=True)
-        .order_by(FileVersion.version_number.desc())
-        .first()
-    )
-    next_v = (cur.version_number + 1) if cur else 1
-    if cur:
-        cur.is_current = False
-    fv = FileVersion(
-        file_node_id=node.id,
-        version_number=next_v,
-        storage_relpath=relpath,
-        size_bytes=size,
+    created, new_fv = append_document_version(
+        node,
+        user_id=user_id,
+        relpath=relpath,
+        size=size,
         sha256=sha256,
-        mime_type=mime,
-        created_at=utcnow(),
-        created_by_id=user_id,
-        is_current=True,
+        mime=mime,
     )
-    db.session.add(fv)
-    node.updated_at = utcnow()
-    db.session.commit()
-    return jsonify({"error": 0})
+    if created and new_fv:
+        log.warning(
+            "onlyoffice callback legacy new version node_id=%s version_number=%s",
+            node_id,
+            new_fv.version_number,
+        )
+    return jsonify({"error": 0 if new_fv else 1})
 

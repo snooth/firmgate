@@ -17,6 +17,7 @@ from app.document_editor_settings import (
     get_document_editor_provider,
     redirect_with_query,
 )
+from app.document_version_service import append_document_version
 from app.extensions import db
 from app.file_storage import store_stream_and_digest
 from app.intranet_bp import _nav as intranet_nav
@@ -61,22 +62,18 @@ def _node_or_404(node_id: int) -> FileNode:
     return node
 
 
-def _apply_graph_bytes_to_version(*, node: FileNode, fv: FileVersion, data: bytes, mime: str | None) -> bool:
+def _apply_graph_bytes_to_version(*, node: FileNode, fv: FileVersion, data: bytes, mime: str | None, user_id: int) -> bool:
     stream = BytesIO(data)
-    relpath, size, sha256 = store_stream_and_digest(stream)
-    fv.storage_relpath = relpath
-    fv.size_bytes = size
-    fv.sha256 = sha256
-    if mime:
-        fv.mime_type = mime
-    fv.is_current = True
-    db.session.query(FileVersion).filter(
-        FileVersion.file_node_id == node.id,
-        FileVersion.id != fv.id,
-    ).update({"is_current": False}, synchronize_session=False)
-    node.updated_at = utcnow()
-    db.session.commit()
-    return True
+    relpath, size, sha256, guessed_mime = store_stream_and_digest(stream, node.name)
+    created, new_fv = append_document_version(
+        node,
+        user_id=user_id,
+        relpath=relpath,
+        size=size,
+        sha256=sha256,
+        mime=mime or guessed_mime,
+    )
+    return new_fv is not None
 
 
 @bp.route("/editor/<int:node_id>")
@@ -95,6 +92,15 @@ def editor(node_id: int):
     if not ok:
         abort(403)
     can_edit, _ = access.can_access_node(current_user, node, "write")
+
+    from app.file_lock_service import get_lock_for_node
+
+    lock_row = get_lock_for_node(node.id)
+    locked_by_other = bool(
+        lock_row and int(lock_row.locked_by_id) != int(current_user.id)
+    )
+    if locked_by_other:
+        can_edit = False
 
     cur = (
         db.session.query(FileVersion)
@@ -117,7 +123,7 @@ def editor(node_id: int):
             mime_type=cur.mime_type,
         )
         force_view = (request.args.get("view") or "").strip().lower() in ("1", "true", "yes", "view")
-        edit_mode = bool(can_edit) and not force_view
+        edit_mode = bool(can_edit) and not force_view and not locked_by_other
         edit_url = create_office_link(
             drive_id=uploaded["drive_id"],
             item_id=uploaded["item_id"],
@@ -147,7 +153,13 @@ def editor(node_id: int):
         "close_url": close_url,
         "sync_url": f"/office365/sync/{node.id}",
         "sync_token": sync_token,
-        "can_sync": bool(can_edit and not force_view),
+        "can_sync": bool(can_edit and not force_view and not locked_by_other),
+        "locked_by_other": locked_by_other,
+        "lock_holder": (
+            (lock_row.locked_by.full_name or lock_row.locked_by.username)
+            if locked_by_other and lock_row and lock_row.locked_by
+            else None
+        ),
     }
     if embed:
         return render_template("office365_embed.html", **ctx)
@@ -173,6 +185,12 @@ def sync(node_id: int):
         return jsonify({"ok": False, "error": "Forbidden"}), 403
 
     node = _node_or_404(node_id)
+    from app.file_lock_service import get_lock_for_node
+
+    lock_row = get_lock_for_node(node.id)
+    if lock_row and int(lock_row.locked_by_id) != int(current_user.id):
+        return jsonify({"ok": False, "error": "File is locked by another user"}), 423
+
     can_edit, _ = access.can_access_node(current_user, node, "write")
     if not can_edit or not session.get("can_edit"):
         return jsonify({"ok": True, "skipped": True})
@@ -189,7 +207,13 @@ def sync(node_id: int):
 
     try:
         data = download_drive_item(drive_id=drive_id, item_id=item_id)
-        ok = _apply_graph_bytes_to_version(node=node, fv=fv, data=data, mime=fv.mime_type)
+        ok = _apply_graph_bytes_to_version(
+            node=node,
+            fv=fv,
+            data=data,
+            mime=fv.mime_type,
+            user_id=int(current_user.id),
+        )
     except Exception as e:
         log.exception("office365 sync failed node_id=%s", node_id)
         return jsonify({"ok": False, "error": str(e)}), 502

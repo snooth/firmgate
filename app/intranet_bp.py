@@ -198,6 +198,7 @@ def _nav(active: str) -> dict:
         ("news", "Blogs", "intranet.news_page"),
         ("events", "Events", "intranet.events_page"),
         ("wiki", "Wiki", "intranet.wiki_page"),
+        ("kanban", "KanBan", "intranet.kanban_page"),
         ("team_chat", "Team Chat", "intranet.team_chat_page"),
         ("directory", "Workforce", "intranet.directory_page"),
         ("workforce_dashboard", "Workforce Dashboard", "intranet.workforce_dashboard_page"),
@@ -310,6 +311,25 @@ def _nav(active: str) -> dict:
             ("timesheets_collection", "Timesheet Collection", "intranet.timesheets_collection_page"),
         ]
 
+    has_kanban = any(it[0] == "kanban" for it in filtered)
+    kanban_sub_items: list[tuple[str, str, str, dict[str, int]]] = []
+    if has_kanban and current_user.is_authenticated:
+        try:
+            from app.kanban_service import ensure_default_board, list_accessible_boards
+
+            ensure_default_board(user_id=int(current_user.id))
+            for board in list_accessible_boards(current_user):
+                kanban_sub_items.append(
+                    (
+                        f"kanban_board_{int(board.id)}",
+                        (board.name or "Board").strip()[:80] or "Board",
+                        "intranet.kanban_board_page",
+                        {"board_id": int(board.id)},
+                    )
+                )
+        except Exception:
+            kanban_sub_items = []
+
     return {
         "active": active,
         "items": standard_items,
@@ -318,6 +338,7 @@ def _nav(active: str) -> dict:
         "enterprise_ai_modules": enterprise_ai,
         "enterprise_modules": enterprise_mods,
         "timesheets_sub_items": timesheets_sub_items,
+        "kanban_sub_items": kanban_sub_items,
     }
 
 

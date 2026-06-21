@@ -6,7 +6,7 @@ import re
 from typing import Any
 
 from app.email_service import send_email
-from app.branding import portal_shell_name
+from app.branding import portal_display_name_from_settings
 from app.mfa_service import mfa_enrolled
 from app.registration_service import (
     ATTR_REGISTRATION_PENDING,
@@ -90,9 +90,7 @@ def _render_template(template: str, context: dict[str, str]) -> str:
 
 
 def _portal_name() -> str:
-    from app.registration_service import portal_is_extranet
-
-    return portal_shell_name("non_core_team" if portal_is_extranet() else "core_team")
+    return portal_display_name_from_settings()
 
 
 def _admin_registrations_url() -> str:

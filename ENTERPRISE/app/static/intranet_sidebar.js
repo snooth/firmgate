@@ -2,6 +2,7 @@
   "use strict";
 
   const STORAGE_KEY = "firmgate.intranetSidebarCollapsed";
+  const KANBAN_NAV_KEY = "firmgate.kanbanNavExpanded";
 
   /** Read active section from a document (current or incoming Turbo response). */
   function readNavActiveKey(doc) {
@@ -32,9 +33,13 @@
     if (!nav) return;
     normalizeSidebarNavTabs();
     nav.querySelectorAll(".nc-intranet-tab[data-nav-key]").forEach((tab) => {
-      const on = tab.dataset.navKey === key;
+      const navKey = tab.dataset.navKey;
+      let on = navKey === key;
+      if (!on && navKey === "kanban" && (key === "kanban" || key.startsWith("kanban_board_"))) {
+        on = true;
+      }
       tab.classList.toggle("is-active", on);
-      if (on) tab.setAttribute("aria-current", "page");
+      if (tab.dataset.navKey === key) tab.setAttribute("aria-current", "page");
       else tab.removeAttribute("aria-current");
     });
   }
@@ -69,6 +74,8 @@
       btn.setAttribute("aria-expanded", collapsed ? "false" : "true");
       btn.setAttribute("aria-label", collapsed ? "Expand navigation" : "Collapse navigation");
       btn.title = collapsed ? "Expand navigation" : "Collapse navigation";
+      const label = btn.querySelector(".nc-intranet-sidebar-toggle-label");
+      if (label) label.textContent = collapsed ? "Expand menu" : "Collapse menu";
     }
     const syncLayout = () => {
       if (typeof window.ncSyncViewerOffsetsSoon === "function") {
@@ -95,8 +102,73 @@
     } catch (_e) {}
   }
 
+  function readKanbanNavStored() {
+    try {
+      return window.localStorage.getItem(KANBAN_NAV_KEY);
+    } catch (_e) {
+      return null;
+    }
+  }
+
+  function storeKanbanNavExpanded(expanded) {
+    try {
+      window.localStorage.setItem(KANBAN_NAV_KEY, expanded ? "1" : "0");
+    } catch (_e) {}
+  }
+
+  function setKanbanNavExpanded(group, expanded, persist) {
+    const chevron = group.querySelector(".nc-intranet-nav-group-chevron");
+    const subitems = group.querySelector(".nc-intranet-nav-subitems");
+    if (!chevron || !subitems) return;
+    group.classList.toggle("is-expanded", expanded);
+    subitems.hidden = !expanded;
+    chevron.setAttribute("aria-expanded", expanded ? "true" : "false");
+    chevron.setAttribute("aria-label", expanded ? "Hide KanBan boards" : "Show KanBan boards");
+    chevron.title = expanded ? "Hide boards" : "Show boards";
+    if (persist) storeKanbanNavExpanded(expanded);
+  }
+
+  function initKanbanNavGroup(activeKey) {
+    const group = document.querySelector(".nc-intranet-nav-group--kanban");
+    if (!group) return;
+    const key =
+      activeKey !== undefined && activeKey !== null
+        ? String(activeKey)
+        : readNavActiveKey(document);
+
+    if (group.dataset.kanbanNavWired !== "1") {
+      group.dataset.kanbanNavWired = "1";
+      const chevron = group.querySelector(".nc-intranet-nav-group-chevron");
+      if (chevron) {
+        chevron.addEventListener("click", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          setKanbanNavExpanded(group, !group.classList.contains("is-expanded"), true);
+        });
+      }
+    }
+
+    const stored = readKanbanNavStored();
+    if (stored === "1") {
+      setKanbanNavExpanded(group, true, false);
+      return;
+    }
+    if (stored === "0") {
+      setKanbanNavExpanded(group, false, false);
+      return;
+    }
+
+    if (key.startsWith("kanban_board_")) {
+      setKanbanNavExpanded(group, true, false);
+      return;
+    }
+
+    setKanbanNavExpanded(group, false, false);
+  }
+
   function init() {
     syncIntranetNavActive();
+    initKanbanNavGroup();
     const btn = sidebarToggle();
     if (!btn) return;
     applyCollapsed(readStored());
@@ -119,5 +191,6 @@
   document.addEventListener("turbo:before-render", (event) => {
     const key = readNavActiveKey(event.detail.newBody);
     syncIntranetNavActive(key);
+    initKanbanNavGroup(key);
   });
 })();

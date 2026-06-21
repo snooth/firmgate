@@ -36,14 +36,15 @@
     return `${v.toFixed(dec)} ${u[i]}`;
   }
 
-  function requestConflict(existing, file, canReplace) {
+  function requestConflict(existing, file, canReplace, options) {
     return new Promise((resolve) => {
       const requestId = `cr_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
       function onResp(ev) {
         const d = ev.detail;
         if (!d || d.requestId !== requestId) return;
         document.removeEventListener("nc-upload-conflict-response", onResp);
-        const choice = d.choice === "replace" || d.choice === "keep" ? d.choice : "cancel";
+        const choice =
+          d.choice === "replace" || d.choice === "replace_all" || d.choice === "keep" ? d.choice : "cancel";
         resolve(choice);
       }
       document.addEventListener("nc-upload-conflict-response", onResp);
@@ -58,10 +59,25 @@
               lastModified: file.lastModified,
             },
             canReplace: canReplace !== false,
+            showReplaceAll: !!(options && options.showReplaceAll),
           },
         })
       );
     });
+  }
+
+  async function resolveUploadFileConflict(existing, file, canReplace, conflictCtx) {
+    if (conflictCtx.replaceAll) {
+      return canReplace === false ? "keep" : "replace";
+    }
+    const choice = await requestConflict(existing, file, canReplace, {
+      showReplaceAll: conflictCtx.totalFiles > 1,
+    });
+    if (choice === "replace_all") {
+      conflictCtx.replaceAll = true;
+      return "replace";
+    }
+    return choice;
   }
 
   function uploadSingleFile(uploadUrl, parentId, file, onProgress) {
@@ -201,6 +217,7 @@
     let skipped = 0;
     let failed = 0;
     let lastFailHint = "";
+    const conflictCtx = { replaceAll: false, totalFiles };
 
     for (let i = 0; i < list.length; i++) {
       const file = list[i];
@@ -211,7 +228,7 @@
       );
       const cd = await cu.json().catch(() => ({}));
       if (cu.ok && cd.conflict) {
-        const choice = await requestConflict(cd.existing, file, cd.can_replace !== false);
+        const choice = await resolveUploadFileConflict(cd.existing, file, cd.can_replace !== false, conflictCtx);
         if (choice === "cancel") {
           return {
             uploaded,
@@ -302,6 +319,7 @@
     let skipped = 0;
     let failed = 0;
     let lastFailHint = "";
+    const conflictCtx = { replaceAll: false, totalFiles };
 
     for (let i = 0; i < list.length; i++) {
       const f = list[i];
@@ -325,7 +343,7 @@
       );
       const cd = await cu.json().catch(() => ({}));
       if (cu.ok && cd.conflict) {
-        const choice = await requestConflict(cd.existing, f, cd.can_replace !== false);
+        const choice = await resolveUploadFileConflict(cd.existing, f, cd.can_replace !== false, conflictCtx);
         if (choice === "cancel") {
           return {
             uploaded,

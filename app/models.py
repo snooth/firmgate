@@ -447,6 +447,152 @@ class CalendarEvent(db.Model):
     created_by = db.relationship("User")
 
 
+class KanbanBoard(db.Model):
+    __tablename__ = "kanban_boards"
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(120), nullable=False, default="KanBan")
+    subtitle = db.Column(db.String(240), nullable=True)
+    shared_users = db.Column(db.JSON, nullable=False, default=list)
+    shared_groups = db.Column(db.JSON, nullable=False, default=list)
+    created_at = db.Column(db.DateTime(timezone=True), default=utcnow, nullable=False, index=True)
+    created_by_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True, index=True)
+
+    created_by = db.relationship("User")
+    columns = db.relationship(
+        "KanbanColumn",
+        back_populates="board",
+        cascade="all, delete-orphan",
+        order_by="KanbanColumn.position",
+    )
+    activity = db.relationship(
+        "KanbanBoardActivity",
+        back_populates="board",
+        cascade="all, delete-orphan",
+        order_by="KanbanBoardActivity.created_at.desc()",
+    )
+
+
+class KanbanColumn(db.Model):
+    __tablename__ = "kanban_columns"
+
+    id = db.Column(db.Integer, primary_key=True)
+    board_id = db.Column(db.Integer, db.ForeignKey("kanban_boards.id"), nullable=False, index=True)
+    title = db.Column(db.String(120), nullable=False)
+    position = db.Column(db.Integer, nullable=False, default=0, index=True)
+    color_token = db.Column(db.String(32), nullable=True)
+
+    board = db.relationship("KanbanBoard", back_populates="columns")
+    cards = db.relationship(
+        "KanbanCard",
+        back_populates="column",
+        cascade="all, delete-orphan",
+        order_by="KanbanCard.position",
+    )
+
+
+class KanbanCard(db.Model):
+    __tablename__ = "kanban_cards"
+
+    id = db.Column(db.Integer, primary_key=True)
+    column_id = db.Column(db.Integer, db.ForeignKey("kanban_columns.id"), nullable=False, index=True)
+    title = db.Column(db.String(255), nullable=False)
+    body = db.Column(db.String(4000), nullable=True)
+    body_html = db.Column(db.Text, nullable=True)
+    position = db.Column(db.Integer, nullable=False, default=0, index=True)
+    assignee_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True, index=True)
+    priority = db.Column(db.String(16), nullable=False, default="medium", index=True)
+    due_at = db.Column(db.DateTime(timezone=True), nullable=True, index=True)
+    created_at = db.Column(db.DateTime(timezone=True), default=utcnow, nullable=False, index=True)
+    updated_at = db.Column(db.DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False)
+    created_by_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True, index=True)
+    deleted_at = db.Column(db.DateTime(timezone=True), nullable=True, index=True)
+    deleted_by_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True, index=True)
+
+    column = db.relationship("KanbanColumn", back_populates="cards")
+    assignee = db.relationship("User", foreign_keys=[assignee_id])
+    created_by = db.relationship("User", foreign_keys=[created_by_id])
+    deleted_by = db.relationship("User", foreign_keys=[deleted_by_id])
+    comments = db.relationship(
+        "KanbanCardComment",
+        back_populates="card",
+        cascade="all, delete-orphan",
+        order_by="KanbanCardComment.created_at.desc()",
+    )
+    attachments = db.relationship(
+        "KanbanCardAttachment",
+        back_populates="card",
+        cascade="all, delete-orphan",
+        order_by="KanbanCardAttachment.created_at.desc()",
+    )
+    activity = db.relationship(
+        "KanbanCardActivity",
+        back_populates="card",
+        cascade="all, delete-orphan",
+        order_by="KanbanCardActivity.created_at.desc()",
+    )
+
+
+class KanbanCardComment(db.Model):
+    __tablename__ = "kanban_card_comments"
+
+    id = db.Column(db.Integer, primary_key=True)
+    card_id = db.Column(db.Integer, db.ForeignKey("kanban_cards.id"), nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    body = db.Column(db.String(4000), nullable=False, default="")
+    body_html = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime(timezone=True), default=utcnow, nullable=False, index=True)
+
+    card = db.relationship("KanbanCard", back_populates="comments")
+    user = db.relationship("User")
+
+
+class KanbanCardAttachment(db.Model):
+    __tablename__ = "kanban_card_attachments"
+
+    id = db.Column(db.Integer, primary_key=True)
+    card_id = db.Column(db.Integer, db.ForeignKey("kanban_cards.id"), nullable=False, index=True)
+    filename = db.Column(db.String(255), nullable=False)
+    storage_relpath = db.Column(db.String(512), nullable=False)
+    size = db.Column(db.Integer, nullable=False, default=0)
+    mime_type = db.Column(db.String(128), nullable=True)
+    uploaded_by_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True, index=True)
+    created_at = db.Column(db.DateTime(timezone=True), default=utcnow, nullable=False, index=True)
+
+    card = db.relationship("KanbanCard", back_populates="attachments")
+    uploaded_by = db.relationship("User")
+
+
+class KanbanCardActivity(db.Model):
+    __tablename__ = "kanban_card_activity"
+
+    id = db.Column(db.Integer, primary_key=True)
+    card_id = db.Column(db.Integer, db.ForeignKey("kanban_cards.id"), nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True, index=True)
+    action = db.Column(db.String(64), nullable=False)
+    details = db.Column(db.JSON, nullable=True)
+    created_at = db.Column(db.DateTime(timezone=True), default=utcnow, nullable=False, index=True)
+
+    card = db.relationship("KanbanCard", back_populates="activity")
+    user = db.relationship("User")
+
+
+class KanbanBoardActivity(db.Model):
+    __tablename__ = "kanban_board_activity"
+
+    id = db.Column(db.Integer, primary_key=True)
+    board_id = db.Column(db.Integer, db.ForeignKey("kanban_boards.id"), nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True, index=True)
+    card_id = db.Column(db.Integer, db.ForeignKey("kanban_cards.id"), nullable=True, index=True)
+    action = db.Column(db.String(64), nullable=False, default="")
+    details = db.Column(db.JSON, nullable=False, default=dict)
+    created_at = db.Column(db.DateTime(timezone=True), default=utcnow, nullable=False, index=True)
+
+    board = db.relationship("KanbanBoard", back_populates="activity")
+    user = db.relationship("User")
+    card = db.relationship("KanbanCard")
+
+
 class AuditLog(db.Model):
     __tablename__ = "audit_logs"
     id = db.Column(db.Integer, primary_key=True)
