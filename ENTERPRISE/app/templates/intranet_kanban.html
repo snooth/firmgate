@@ -1,0 +1,45 @@
+{% extends "intranet_base.html" %}
+{% block title %}{{ portal_tab_title }} — KanBan{% endblock %}
+
+{% block intranet_body %}
+<div class="nc-intranet-hero nc-kanban-home-hero">
+  <div>
+    <h1>KanBan</h1>
+    <p class="nc-intranet-muted">Your team boards — open a board or create a new one.</p>
+  </div>
+  {% if kanban_can_create %}
+  <button type="button" class="nc-btn nc-btn-primary" id="nc-kanban-create-board">+ New board</button>
+  {% endif %}
+</div>
+
+<div
+  class="nc-intranet-card nc-kanban-home"
+  id="nc-kanban-home"
+  data-api-boards="{{ url_for('intranet.api_kanban_boards') }}"
+  data-can-create="{{ '1' if kanban_can_create else '0' }}"
+  data-kanban-home-url="{{ url_for('intranet.kanban_page') }}"
+>
+  <div class="nc-kanban-home-status" id="nc-kanban-home-status" role="status" aria-live="polite"></div>
+  <div class="nc-kanban-home-grid" id="nc-kanban-home-grid" aria-label="KanBan boards"></div>
+  <p class="nc-crm2-empty nc-kanban-home-empty" id="nc-kanban-home-empty" hidden>No boards yet.</p>
+</div>
+
+<dialog id="nc-kanban-create-dialog" class="nc-modal" aria-labelledby="nc-kanban-create-title">
+  <form id="nc-kanban-create-form" class="nc-modal-body">
+    <h2 id="nc-kanban-create-title">Create board</h2>
+    <label class="nc-detail-label" for="nc-kanban-create-name">Board name</label>
+    <input class="nc-detail-input" type="text" id="nc-kanban-create-name" maxlength="120" required placeholder="e.g. Product roadmap">
+    <label class="nc-detail-label" for="nc-kanban-create-subtitle">Subtitle <span class="nc-detail-muted">(optional)</span></label>
+    <input class="nc-detail-input" type="text" id="nc-kanban-create-subtitle" maxlength="240" placeholder="Short description for this board">
+    <div class="nc-modal-actions">
+      <button type="button" class="nc-btn nc-btn-secondary" id="nc-kanban-create-cancel">Cancel</button>
+      <button type="submit" class="nc-btn nc-btn-primary">Create board</button>
+    </div>
+  </form>
+</dialog>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script src="{{ url_for('static', filename='intranet_kanban_home.js') }}?v=4" data-turbo-eval="always"></script>
+{% endblock %}

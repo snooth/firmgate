@@ -531,6 +531,31 @@ class KanbanCard(db.Model):
         cascade="all, delete-orphan",
         order_by="KanbanCardActivity.created_at.desc()",
     )
+    card_assignees = db.relationship(
+        "KanbanCardAssignee",
+        back_populates="card",
+        cascade="all, delete-orphan",
+        order_by="KanbanCardAssignee.id.asc()",
+    )
+    notes = db.relationship(
+        "KanbanCardNote",
+        back_populates="card",
+        cascade="all, delete-orphan",
+        order_by="KanbanCardNote.created_at.desc()",
+    )
+
+
+class KanbanCardAssignee(db.Model):
+    __tablename__ = "kanban_card_assignees"
+    __table_args__ = (db.UniqueConstraint("card_id", "user_id", name="uq_kanban_card_assignee"),)
+
+    id = db.Column(db.Integer, primary_key=True)
+    card_id = db.Column(db.Integer, db.ForeignKey("kanban_cards.id"), nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    created_at = db.Column(db.DateTime(timezone=True), default=utcnow, nullable=False, index=True)
+
+    card = db.relationship("KanbanCard", back_populates="card_assignees")
+    user = db.relationship("User")
 
 
 class KanbanCardComment(db.Model):
@@ -545,6 +570,25 @@ class KanbanCardComment(db.Model):
 
     card = db.relationship("KanbanCard", back_populates="comments")
     user = db.relationship("User")
+
+
+class KanbanCardNote(db.Model):
+    __tablename__ = "kanban_card_notes"
+
+    id = db.Column(db.Integer, primary_key=True)
+    card_id = db.Column(db.Integer, db.ForeignKey("kanban_cards.id"), nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    body = db.Column(db.String(4000), nullable=False, default="")
+    created_at = db.Column(db.DateTime(timezone=True), default=utcnow, nullable=False, index=True)
+    updated_at = db.Column(db.DateTime(timezone=True), nullable=True)
+    updated_by_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True, index=True)
+    muted_at = db.Column(db.DateTime(timezone=True), nullable=True, index=True)
+    muted_by_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True, index=True)
+
+    card = db.relationship("KanbanCard", back_populates="notes")
+    user = db.relationship("User", foreign_keys=[user_id])
+    updated_by = db.relationship("User", foreign_keys=[updated_by_id])
+    muted_by = db.relationship("User", foreign_keys=[muted_by_id])
 
 
 class KanbanCardAttachment(db.Model):

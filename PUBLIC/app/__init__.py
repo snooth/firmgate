@@ -5,10 +5,10 @@ from flask import Flask
 from config import Config
 from app.branding import (
     portal_core_name,
+    portal_display_name,
     portal_has_custom_logo,
     portal_logo_url as resolve_portal_logo_url,
 )
-from app.branding import portal_display_name
 from app.extensions import db, login_manager
 
 
@@ -166,8 +166,10 @@ def _ensure_kanban_tables() -> None:
         KanbanBoardActivity,
         KanbanCard,
         KanbanCardActivity,
+        KanbanCardAssignee,
         KanbanCardAttachment,
         KanbanCardComment,
+        KanbanCardNote,
         KanbanColumn,
     )
 
@@ -219,6 +221,18 @@ def _ensure_kanban_tables() -> None:
         KanbanCardAttachment.__table__.create(db.engine, checkfirst=True)
     if not insp.has_table("kanban_card_activity"):
         KanbanCardActivity.__table__.create(db.engine, checkfirst=True)
+    if not insp.has_table("kanban_card_assignees"):
+        KanbanCardAssignee.__table__.create(db.engine, checkfirst=True)
+        with db.engine.begin() as conn:
+            conn.execute(
+                text(
+                    "INSERT INTO kanban_card_assignees (card_id, user_id, created_at) "
+                    "SELECT id, assignee_id, CURRENT_TIMESTAMP FROM kanban_cards "
+                    "WHERE assignee_id IS NOT NULL"
+                )
+            )
+    if not insp.has_table("kanban_card_notes"):
+        KanbanCardNote.__table__.create(db.engine, checkfirst=True)
     if not insp.has_table("kanban_board_activity"):
         KanbanBoardActivity.__table__.create(db.engine, checkfirst=True)
 

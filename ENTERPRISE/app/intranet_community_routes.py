@@ -24,6 +24,7 @@ from app.models import (
     KanbanCardActivity,
     KanbanCardAttachment,
     KanbanCardComment,
+    KanbanCardNote,
     KanbanColumn,
     Group,
     User,
@@ -1296,9 +1297,38 @@ def _kanban_card_or_404(card_id: int, *, include_deleted: bool = False) -> Kanba
 
 def _kanban_notify_safe(fn, *args, **kwargs) -> None:
     try:
-        fn(*args, **kwargs)
+        result = fn(*args, **kwargs)
     except Exception:
         current_app.logger.exception("KanBan email notification failed")
+        return
+    if not isinstance(result, dict):
+        return
+    event = result.get("event") or getattr(fn, "__name__", "kanban")
+    skipped = result.get("skipped")
+    if skipped:
+        if skipped == "no_recipients":
+            current_app.logger.info("KanBan notify %s skipped: no recipients with email", event)
+        elif skipped == "disabled":
+            current_app.logger.info("KanBan notify %s skipped: notifications disabled", event)
+        elif skipped == "email_not_configured":
+            msgs = result.get("messages") or []
+            detail = msgs[0] if msgs else "email not configured"
+            current_app.logger.warning("KanBan notify %s skipped: %s", event, detail)
+        else:
+            current_app.logger.info("KanBan notify %s skipped: %s", event, skipped)
+        return
+    sent = int(result.get("sent") or 0)
+    failed = int(result.get("failed") or 0)
+    if sent:
+        current_app.logger.info("KanBan notify %s sent %s email(s)", event, sent)
+    if failed:
+        msgs = result.get("messages") or []
+        current_app.logger.warning(
+            "KanBan notify %s failed for %s recipient(s)%s",
+            event,
+            failed,
+            f": {'; '.join(str(m) for m in msgs[:3])}" if msgs else "",
+        )
 
 
 @bp.route("/kanban", methods=["GET"])
@@ -1538,7 +1568,17 @@ def api_kanban_card_create():
     board = _kanban_board_for_column(col)
     if not _kanban_can_write_board(board):
         return jsonify({"error": "forbidden"}), 403
-    from app.kanban_service import is_todo_column, log_kanban_activity, next_card_position, normalize_kanban_priority, serialize_board, serialize_card_detail
+    from app.kanban_service import (
+        card_assignee_ids,
+        is_todo_column,
+        log_kanban_activity,
+        next_card_position,
+        normalize_kanban_priority,
+        parse_assignee_ids,
+        serialize_board,
+        serialize_card_detail,
+        set_card_assignees,
+    )
 
     if not is_todo_column(col):
         return jsonify({"error": "Cards can only be added to the To do column."}), 400
@@ -1555,6 +1595,16 @@ def api_kanban_card_create():
     )
     db.session.add(card)
     db.session.flush()
+    try:
+        assignee_ids = parse_assignee_ids(payload)
+        if assignee_ids:
+            set_card_assignees(card, assignee_ids)
+    except ValueError:
+        db.session.rollback()
+        return jsonify({"error": "invalid assignee_ids"}), 400
+    except LookupError:
+        db.session.rollback()
+        return jsonify({"error": "assignee not found"}), 404
     log_kanban_activity(card, user_id=int(current_user.id), action="created", details={"title": title})
     try:
         db.session.commit()
@@ -1563,7 +1613,11 @@ def api_kanban_card_create():
         return jsonify({"error": "Could not create card."}), 500
     board = db.session.get(KanbanBoard, col.board_id)
     card = db.session.get(KanbanCard, card.id)
-    return jsonify({"ok": True, "board": serialize_board(board), "card": serialize_card_detail(card)})
+    from app.kanban_notifications import notify_card_assigned
+
+    if card_assignee_ids(card):
+        _kanban_notify_safe(notify_card_assigned, card, current_user, previous_ids=[])
+    return jsonify({"ok": True, "board": serialize_board(board), "card": serialize_card_detail(card, viewer=current_user)})
 
 
 @bp.route("/api/kanban/cards/<int:card_id>", methods=["GET", "PATCH", "DELETE"])
@@ -1579,7 +1633,7 @@ def api_kanban_card_mutate(card_id: int):
             return jsonify({"error": "forbidden"}), 403
         from app.kanban_service import serialize_card_detail
 
-        return jsonify({"card": serialize_card_detail(card)})
+        return jsonify({"card": serialize_card_detail(card, viewer=current_user)})
 
     if request.method == "DELETE":
         if not board:
@@ -1614,10 +1668,19 @@ def api_kanban_card_mutate(card_id: int):
     if not board or not _kanban_can_write_board(board):
         return jsonify({"error": "forbidden"}), 403
     payload = request.get_json(force=True, silent=True) or {}
-    from app.kanban_service import log_kanban_activity, move_card, normalize_kanban_priority, serialize_board, serialize_card_detail
+    from app.kanban_service import (
+        card_assignee_ids,
+        log_kanban_activity,
+        move_card,
+        normalize_kanban_priority,
+        parse_assignee_ids,
+        serialize_board,
+        serialize_card_detail,
+        set_card_assignees,
+    )
     from app.wiki_sanitize import sanitize_wiki_html
 
-    prev_assignee_id = int(card.assignee_id) if card.assignee_id else None
+    prev_assignee_ids = card_assignee_ids(card)
     changes: dict[str, object] = {}
     if "title" in payload:
         title = str(payload.get("title") or "").strip()[:255]
@@ -1633,21 +1696,16 @@ def api_kanban_card_mutate(card_id: int):
         card.body_html = cleaned or None
         card.body = None
         changes["description"] = True
-    if "assignee_id" in payload:
-        raw = payload.get("assignee_id")
-        if raw in (None, "", 0, "0"):
-            card.assignee_id = None
-            changes["assignee_id"] = None
-        else:
-            try:
-                uid = int(raw)
-            except (TypeError, ValueError):
-                return jsonify({"error": "invalid assignee_id"}), 400
-            user = db.session.get(User, uid)
-            if not user or not user.is_active:
-                return jsonify({"error": "assignee not found"}), 404
-            card.assignee_id = uid
-            changes["assignee_id"] = uid
+    try:
+        assignee_ids = parse_assignee_ids(payload)
+    except (TypeError, ValueError):
+        return jsonify({"error": "invalid assignee_ids"}), 400
+    if assignee_ids is not None:
+        try:
+            set_card_assignees(card, assignee_ids)
+        except LookupError:
+            return jsonify({"error": "assignee not found"}), 404
+        changes["assignee_ids"] = assignee_ids
     if "due_at" in payload:
         card.due_at = _kanban_parse_due_at(payload.get("due_at"))
         changes["due_at"] = card.due_at.isoformat() if card.due_at else None
@@ -1685,8 +1743,10 @@ def api_kanban_card_mutate(card_id: int):
     card = db.session.get(KanbanCard, card.id)
     from app.kanban_notifications import notify_card_assigned, notify_card_due_date, notify_card_moved
 
-    if card.assignee_id and int(card.assignee_id) != int(prev_assignee_id or 0):
-        _kanban_notify_safe(notify_card_assigned, card, current_user)
+    if "assignee_ids" in changes:
+        added_ids = [uid for uid in (changes.get("assignee_ids") or []) if int(uid) not in set(prev_assignee_ids)]
+        if added_ids:
+            _kanban_notify_safe(notify_card_assigned, card, current_user, previous_ids=prev_assignee_ids)
     if "due_at" in changes:
         _kanban_notify_safe(notify_card_due_date, card, current_user)
     if "from_column" in changes:
@@ -1697,7 +1757,7 @@ def api_kanban_card_mutate(card_id: int):
             from_column=str(changes.get("from_column") or ""),
             to_column=str(changes.get("to_column") or ""),
         )
-    return jsonify({"ok": True, "board": serialize_board(board), "card": serialize_card_detail(card)})
+    return jsonify({"ok": True, "board": serialize_board(board), "card": serialize_card_detail(card, viewer=current_user)})
 
 
 @bp.route("/api/kanban/cards/<int:card_id>/done", methods=["POST"])
@@ -1716,7 +1776,7 @@ def api_kanban_card_mark_done(card_id: int):
     if not done_col:
         return jsonify({"error": "No Done column configured."}), 400
     if int(card.column_id) == int(done_col.id):
-        return jsonify({"ok": True, "board": serialize_board(board), "card": serialize_card_detail(card)})
+        return jsonify({"ok": True, "board": serialize_board(board), "card": serialize_card_detail(card, viewer=current_user)})
     move_card(card=card, column_id=int(done_col.id), position=0)
     log_kanban_activity(
         card,
@@ -1734,7 +1794,7 @@ def api_kanban_card_mark_done(card_id: int):
     from app.kanban_notifications import notify_card_marked_done
 
     _kanban_notify_safe(notify_card_marked_done, card, current_user, column_name=done_col.title or "Done")
-    return jsonify({"ok": True, "board": serialize_board(board), "card": serialize_card_detail(card)})
+    return jsonify({"ok": True, "board": serialize_board(board), "card": serialize_card_detail(card, viewer=current_user)})
 
 
 @bp.route("/api/kanban/cards/<int:card_id>/comment-images", methods=["POST"])
@@ -1834,7 +1894,128 @@ def api_kanban_card_comment_create(card_id: int):
     from app.kanban_notifications import notify_card_commented
 
     _kanban_notify_safe(notify_card_commented, card, current_user, comment_preview=preview)
-    return jsonify({"ok": True, "card": serialize_card_detail(card)})
+    return jsonify({"ok": True, "card": serialize_card_detail(card, viewer=current_user)})
+
+
+@bp.route("/api/kanban/cards/<int:card_id>/notes", methods=["POST"])
+@login_required
+def api_kanban_card_note_create(card_id: int):
+    card = _kanban_card_or_404(card_id)
+    board = _kanban_board_for_card(card)
+    if not _kanban_can_read_board(board):
+        return jsonify({"error": "forbidden"}), 403
+    payload = request.get_json(force=True, silent=True) or {}
+    from app.kanban_service import log_kanban_activity, serialize_card_detail
+
+    body = str(payload.get("body") or "").strip()[:4000]
+    if not body:
+        return jsonify({"error": "body required"}), 400
+
+    row = KanbanCardNote(
+        card_id=card.id,
+        user_id=int(current_user.id),
+        body=body,
+    )
+    db.session.add(row)
+    log_kanban_activity(
+        card,
+        user_id=int(current_user.id),
+        action="note_added",
+        details={"preview": body[:120]},
+    )
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        return jsonify({"error": "Could not add note."}), 500
+    card = db.session.get(KanbanCard, card.id)
+    return jsonify({"ok": True, "card": serialize_card_detail(card, viewer=current_user)})
+
+
+@bp.route("/api/kanban/cards/<int:card_id>/notes/<int:note_id>", methods=["PATCH", "DELETE"])
+@login_required
+def api_kanban_card_note_mutate(card_id: int, note_id: int):
+    card = _kanban_card_or_404(card_id)
+    board = _kanban_board_for_card(card)
+    if not _kanban_can_read_board(board):
+        return jsonify({"error": "forbidden"}), 403
+    if not _kanban_can_admin_delete_board():
+        return jsonify({"error": "forbidden"}), 403
+
+    row = db.session.get(KanbanCardNote, note_id)
+    if not row or int(row.card_id) != int(card.id):
+        return jsonify({"error": "not found"}), 404
+
+    from app.kanban_service import log_kanban_activity, serialize_card_detail
+    from app.models import utcnow
+
+    if request.method == "DELETE":
+        preview = (row.body or "")[:120]
+        db.session.delete(row)
+        log_kanban_activity(
+            card,
+            user_id=int(current_user.id),
+            action="note_deleted",
+            details={"preview": preview},
+        )
+        try:
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+            return jsonify({"error": "Could not delete note."}), 500
+        card = db.session.get(KanbanCard, card.id)
+        return jsonify({"ok": True, "card": serialize_card_detail(card, viewer=current_user)})
+
+    payload = request.get_json(force=True, silent=True) or {}
+    changed = False
+    if "muted" in payload:
+        muted = payload.get("muted")
+        if muted is True:
+            row.muted_at = utcnow()
+            row.muted_by_id = int(current_user.id)
+            log_kanban_activity(
+                card,
+                user_id=int(current_user.id),
+                action="note_muted",
+                details={"preview": (row.body or "")[:120]},
+            )
+            changed = True
+        elif muted is False:
+            row.muted_at = None
+            row.muted_by_id = None
+            log_kanban_activity(
+                card,
+                user_id=int(current_user.id),
+                action="note_unmuted",
+                details={"preview": (row.body or "")[:120]},
+            )
+            changed = True
+        else:
+            return jsonify({"error": "invalid muted value"}), 400
+    if "body" in payload:
+        body = str(payload.get("body") or "").strip()[:4000]
+        if not body:
+            return jsonify({"error": "body required"}), 400
+        row.body = body
+        row.updated_at = utcnow()
+        row.updated_by_id = int(current_user.id)
+        log_kanban_activity(
+            card,
+            user_id=int(current_user.id),
+            action="note_edited",
+            details={"preview": body[:120]},
+        )
+        changed = True
+    if not changed:
+        return jsonify({"error": "no changes"}), 400
+
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        return jsonify({"error": "Could not update note."}), 500
+    card = db.session.get(KanbanCard, card.id)
+    return jsonify({"ok": True, "card": serialize_card_detail(card, viewer=current_user)})
 
 
 @bp.route("/api/kanban/cards/<int:card_id>/attachments", methods=["POST"])
@@ -1875,7 +2056,7 @@ def api_kanban_card_attachment_upload(card_id: int):
         db.session.rollback()
         return jsonify({"error": "Could not save attachment."}), 500
     card = db.session.get(KanbanCard, card.id)
-    return jsonify({"ok": True, "card": serialize_card_detail(card)})
+    return jsonify({"ok": True, "card": serialize_card_detail(card, viewer=current_user)})
 
 
 @bp.route("/api/kanban/attachments/<int:attachment_id>", methods=["GET", "DELETE"])
@@ -1919,7 +2100,7 @@ def api_kanban_attachment_mutate(attachment_id: int):
         db.session.rollback()
         return jsonify({"error": "Could not delete attachment."}), 500
     card = db.session.get(KanbanCard, card.id)
-    return jsonify({"ok": True, "card": serialize_card_detail(card)})
+    return jsonify({"ok": True, "card": serialize_card_detail(card, viewer=current_user)})
 
 
 @bp.route("/api/kanban/cards/<int:card_id>/move", methods=["PATCH"])

@@ -18696,6 +18696,7 @@ body.nc-page-intranet .nc-intranet-app:has(.nc-ai-chat-layout) .nc-intranet-hero
   overflow-x: auto;
   padding-bottom: 0.35rem;
   scrollbar-gutter: stable;
+  min-height: 0;
 }
 
 .nc-kanban-col.nc-crm2-col {
@@ -18722,8 +18723,8 @@ body.nc-page-intranet .nc-intranet-app:has(.nc-ai-chat-layout) .nc-intranet-hero
 }
 
 .nc-kanban-col-body.nc-crm2-col-body {
-  flex: 1;
-  min-height: 320px;
+  flex: 1 1 auto;
+  min-height: 10rem;
   background: rgba(248, 250, 252, 0.92);
   border-color: rgba(148, 163, 184, 0.22);
   transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
@@ -18741,7 +18742,44 @@ body.nc-page-intranet .nc-intranet-app:has(.nc-ai-chat-layout) .nc-intranet-hero
 
 .nc-kanban-card.nc-crm2-deal {
   cursor: grab;
+  padding: 0;
+  overflow: hidden;
   transition: transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease;
+}
+
+.nc-kanban-card-rag {
+  display: block;
+  width: 100%;
+  height: 4px;
+  flex-shrink: 0;
+}
+
+.nc-kanban-rag--red {
+  background: linear-gradient(90deg, #ef4444 0%, #dc2626 100%);
+}
+
+.nc-kanban-rag--amber {
+  background: linear-gradient(90deg, #fbbf24 0%, #f59e0b 100%);
+}
+
+.nc-kanban-rag--green {
+  background: linear-gradient(90deg, #4ade80 0%, #22c55e 100%);
+}
+
+.nc-kanban-rag--neutral {
+  background: linear-gradient(90deg, rgba(148, 163, 184, 0.55) 0%, rgba(100, 116, 139, 0.65) 100%);
+}
+
+.nc-kanban-card-body {
+  padding: 0.55rem 0.6rem;
+}
+
+.nc-kanban-detail > .nc-kanban-card-rag {
+  border-radius: 14px 14px 0 0;
+}
+
+.nc-kanban-card.nc-crm2-deal .nc-kanban-card-rag {
+  border-radius: 13px 13px 0 0;
 }
 
 .nc-kanban-card.nc-crm2-deal:hover {
@@ -18851,6 +18889,8 @@ dialog.nc-kanban-detail-modal::backdrop {
   flex-direction: column;
   max-height: min(88vh, 900px);
   background: #fff;
+  overflow: hidden;
+  border-radius: 14px;
 }
 
 .nc-kanban-detail-head {
@@ -19046,6 +19086,39 @@ dialog.nc-kanban-detail-modal::backdrop {
   flex-wrap: wrap;
 }
 
+.nc-kanban-chip-field-main--assignees {
+  gap: 0.45rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.nc-kanban-assignee-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+  max-width: 100%;
+}
+
+.nc-kanban-assignee-add {
+  min-width: 8.5rem;
+  flex: 1 1 8.5rem;
+}
+
+.nc-kanban-card-avatars {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  flex-shrink: 0;
+}
+
+.nc-kanban-card-avatar-more {
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: rgba(15, 23, 42, 0.55);
+  margin-left: 0.1rem;
+}
+
 .nc-kanban-chip-slot {
   position: relative;
   display: inline-flex;
@@ -19153,15 +19226,33 @@ dialog.nc-kanban-detail-modal::backdrop {
   display: flex;
   align-items: center;
   gap: 0.45rem;
+  flex-wrap: wrap;
 }
 
-.nc-kanban-due-input {
-  flex: 1;
-  min-width: 0;
+.nc-kanban-due-date {
+  flex: 1.25;
+  min-width: 9.5rem;
+}
+
+.nc-kanban-due-time {
+  flex: 0.95;
+  min-width: 7.5rem;
+}
+
+.nc-kanban-due-time::-webkit-calendar-picker-indicator,
+.nc-kanban-due-date::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 0.72;
 }
 
 .nc-kanban-due-menu {
   min-width: 11rem;
+}
+
+.nc-kanban-detail-menu-item--divider {
+  border-top: 1px solid rgba(148, 163, 184, 0.22);
+  margin-top: 0.2rem;
+  padding-top: 0.65rem;
 }
 
 .nc-kanban-section-label {
@@ -19233,6 +19324,7 @@ dialog.nc-kanban-detail-modal::backdrop {
 }
 
 .nc-kanban-comment-list,
+.nc-kanban-note-list,
 .nc-kanban-attachment-list,
 .nc-kanban-activity-list {
   list-style: none;
@@ -19248,6 +19340,76 @@ dialog.nc-kanban-detail-modal::backdrop {
   border-radius: 12px;
   padding: 0.75rem 0.85rem;
   background: rgba(248, 250, 252, 0.7);
+}
+
+.nc-kanban-notes-block {
+  margin-top: 1.1rem;
+}
+
+.nc-kanban-note {
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 12px;
+  padding: 0.75rem 0.85rem;
+  background: rgba(248, 250, 252, 0.7);
+}
+
+.nc-kanban-note--muted {
+  opacity: 0.72;
+  border-style: dashed;
+  background: rgba(248, 250, 252, 0.45);
+}
+
+.nc-kanban-note-head-copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.nc-kanban-note-body {
+  margin-top: 0.55rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: rgba(15, 23, 42, 0.82);
+  line-height: 1.45;
+}
+
+.nc-kanban-note-muted-badge {
+  display: inline-block;
+  margin-left: 0.35rem;
+  padding: 0.08rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: rgba(146, 64, 14, 0.92);
+  background: rgba(254, 243, 199, 0.95);
+}
+
+.nc-kanban-note-actions,
+.nc-kanban-note-edit-actions,
+.nc-kanban-note-compose-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-top: 0.55rem;
+}
+
+.nc-kanban-note-compose {
+  margin-top: 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.nc-kanban-note-input,
+.nc-kanban-note-edit-input {
+  width: 100%;
+  min-height: 4.5rem;
+  resize: vertical;
+}
+
+.nc-kanban-notes-empty {
+  margin-top: 0.35rem;
 }
 
 .nc-kanban-comment-head,
@@ -19593,4 +19755,88 @@ html.nc-intranet-sidebar-collapsed .nc-intranet-nav-subitems,
 
 .nc-kanban-board-back:hover {
   color: rgba(37, 99, 235, 0.92);
+}
+
+/* KanBan board page: outer card fills viewport; grows when columns overflow */
+body.nc-page-intranet .main.nc-intranet-main:has(#nc-kanban-root) {
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100dvh - var(--nc-intranet-chrome-h));
+  box-sizing: border-box;
+}
+
+body.nc-page-intranet .main.nc-intranet-main:has(#nc-kanban-root) > .nc-intranet-shell {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+body.nc-page-intranet .nc-intranet-app:has(#nc-kanban-root) {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+body.nc-page-intranet .nc-intranet-app:has(#nc-kanban-root) > .nc-intranet-stage {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+}
+
+body.nc-page-intranet .nc-intranet-app:has(#nc-kanban-root) .nc-intranet-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  min-width: 0;
+}
+
+body.nc-page-intranet .nc-intranet-app:has(#nc-kanban-root) .nc-intranet-body > .nc-intranet-hero {
+  flex: 0 0 auto;
+}
+
+#nc-kanban-root.nc-intranet-card--kanban {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  box-sizing: border-box;
+}
+
+#nc-kanban-root .nc-kanban-layout {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+#nc-kanban-root .nc-kanban-main {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+#nc-kanban-root .nc-kanban-head,
+#nc-kanban-root .nc-kanban-filters,
+#nc-kanban-root .nc-kanban-status {
+  flex: 0 0 auto;
+}
+
+#nc-kanban-root .nc-kanban-board.nc-crm2-pipe {
+  flex: 1 1 auto;
+  min-height: 14rem;
+  grid-auto-rows: minmax(min-content, 1fr);
+}
+
+#nc-kanban-root .nc-kanban-col.nc-crm2-col {
+  align-self: stretch;
+  min-height: 0;
+}
+
+#nc-kanban-root .nc-kanban-col-body.nc-crm2-col-body {
+  min-height: 10rem;
 }

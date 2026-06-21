@@ -7,7 +7,6 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
-from app.branding import portal_display_name_from_settings
 from app.email_service import send_email
 from app.models import User
 from app.timesheet_signed import get_signed_timesheet, normalize_month
@@ -99,6 +98,12 @@ def _timesheets_url() -> str:
         return url_for("intranet.timesheets_page", _external=True)
     except Exception:
         return "/intranet/timesheets"
+
+
+def _portal_name() -> str:
+    from app.branding import portal_display_name_from_settings
+
+    return portal_display_name_from_settings()
 
 
 def _month_label(month: str) -> str:
@@ -268,7 +273,7 @@ def build_template_context(user: User, month: str) -> dict[str, str]:
         "month": month,
         "month_label": _month_label(month),
         "timesheets_url": _timesheets_url(),
-        "portal_name": portal_display_name_from_settings(),
+        "portal_name": _portal_name(),
     }
 
 
@@ -280,7 +285,7 @@ def sample_template_context() -> dict[str, str]:
         "month": "2026-06",
         "month_label": "June 2026",
         "timesheets_url": _timesheets_url(),
-        "portal_name": portal_display_name_from_settings(),
+        "portal_name": _portal_name(),
     }
 
 
