@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import html
-from datetime import datetime
+import json
+from datetime import date, datetime, timedelta, timezone
+from pathlib import Path
 from typing import Any
 
 from app.email_service import send_email
@@ -16,6 +18,7 @@ EVENT_COMMENTED = "commented"
 EVENT_MOVED = "moved"
 EVENT_MARKED_DONE = "marked_done"
 EVENT_DUE_DATE = "due_date"
+EVENT_DUE_REMINDER = "due_reminder"
 
 EVENTS: tuple[str, ...] = (
     EVENT_ASSIGNED,
@@ -23,7 +26,11 @@ EVENTS: tuple[str, ...] = (
     EVENT_MOVED,
     EVENT_MARKED_DONE,
     EVENT_DUE_DATE,
+    EVENT_DUE_REMINDER,
 )
+
+DEFAULT_DUE_REMINDER_DAYS = 1
+MAX_DUE_REMINDER_DAYS = 90
 
 _EVENT_META: dict[str, dict[str, str]] = {
     EVENT_ASSIGNED: {
@@ -93,6 +100,19 @@ View card: {card_url}
 — {portal_name}
 """,
     },
+    EVENT_DUE_REMINDER: {
+        "toggle_key": "notify_due_reminder",
+        "label": "Due date reminder",
+        "default_subject": 'KanBan: "{card_title}" is due in {due_in_label}',
+        "default_body": """Hi {first_name},
+
+This is a reminder that the KanBan card "{card_title}" is due on {due_at_label} ({due_in_label} from today).
+
+View card: {card_url}
+
+— {portal_name}
+""",
+    },
 }
 
 _PLACEHOLDERS: tuple[str, ...] = (
@@ -107,6 +127,8 @@ _PLACEHOLDERS: tuple[str, ...] = (
     "{to_column}",
     "{due_at}",
     "{due_at_label}",
+    "{days_before}",
+    "{due_in_label}",
     "{comment_preview}",
     "{portal_name}",
 )
@@ -200,7 +222,19 @@ def _due_at_label(value: datetime | None) -> str:
     if not value:
         return "none"
     try:
-        return value.strftime("%d/%m/%Y, %I:%M %p").replace(" 0", " ")
+        import zoneinfo
+
+        from app.settings import get_setting
+
+        cfg = get_setting("time", default={}) or {}
+        tz_name = str(cfg.get("timezone") or "Australia/Melbourne").strip() or "Australia/Melbourne"
+        try:
+            tz = zoneinfo.ZoneInfo(tz_name)
+        except Exception:
+            tz = zoneinfo.ZoneInfo("Australia/Melbourne")
+        dt = value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+        dt = dt.astimezone(tz)
+        return dt.strftime("%d/%m/%Y, %I:%M %p").replace(" 0", " ")
     except Exception:
         return value.isoformat()
 
@@ -212,11 +246,62 @@ def _event_subject_body(settings: dict[str, Any], event: str) -> tuple[str, str]
     return subject, body
 
 
-def get_notification_settings() -> dict[str, Any]:
+def _normalize_due_reminder_days(raw: Any, *, default: int = DEFAULT_DUE_REMINDER_DAYS) -> int:
+    try:
+        days = int(raw)
+    except (TypeError, ValueError):
+        days = default
+    return max(0, min(MAX_DUE_REMINDER_DAYS, days))
+
+
+def _due_in_label(days_before: int) -> str:
+    n = max(0, int(days_before))
+    if n == 0:
+        return "today"
+    if n == 1:
+        return "1 day"
+    return f"{n} days"
+
+
+def _default_notification_settings() -> dict[str, Any]:
+    out: dict[str, Any] = {
+        "enabled": True,
+        "due_reminder_days_before": DEFAULT_DUE_REMINDER_DAYS,
+    }
+    for event in EVENTS:
+        meta = _EVENT_META[event]
+        out[meta["toggle_key"]] = True
+        out[f"{event}_subject"] = meta["default_subject"]
+        out[f"{event}_body"] = meta["default_body"]
+    return out
+
+
+def _stored_notification_settings() -> dict[str, Any]:
     from app.settings import get_setting
 
-    v = _coerce(get_setting(SETTING_KEY, default={}))
+    return _coerce(get_setting(SETTING_KEY, default={}))
+
+
+def _notification_settings_look_unconfigured(raw: dict[str, Any]) -> bool:
+    if not raw or raw.get("_configured"):
+        return not raw
+    if _coerce_bool(raw.get("enabled"), default=False):
+        return False
+    for event in EVENTS:
+        if _coerce_bool(raw.get(_EVENT_META[event]["toggle_key"]), default=False):
+            return False
+    return True
+
+
+def get_notification_settings() -> dict[str, Any]:
+    v = _stored_notification_settings()
+    if _notification_settings_look_unconfigured(v):
+        return _default_notification_settings()
     out: dict[str, Any] = {"enabled": _coerce_bool(v.get("enabled"), default=True)}
+    out["due_reminder_days_before"] = _normalize_due_reminder_days(
+        v.get("due_reminder_days_before"),
+        default=DEFAULT_DUE_REMINDER_DAYS,
+    )
     for event in EVENTS:
         meta = _EVENT_META[event]
         out[meta["toggle_key"]] = _coerce_bool(v.get(meta["toggle_key"]), default=True)
@@ -229,7 +314,8 @@ def notification_settings_for_api() -> dict[str, Any]:
     from flask_login import current_user
 
     s = get_notification_settings()
-    defaults: dict[str, Any] = {"enabled": True}
+    stored = _stored_notification_settings()
+    defaults: dict[str, Any] = {"enabled": True, "due_reminder_days_before": DEFAULT_DUE_REMINDER_DAYS}
     toggles: dict[str, bool] = {}
     for event in EVENTS:
         meta = _EVENT_META[event]
@@ -245,6 +331,7 @@ def notification_settings_for_api() -> dict[str, Any]:
         test_recipient_default = _user_email(current_user)
     return {
         **s,
+        "configured": bool(stored.get("_configured")),
         "events": toggles,
         "placeholders": list(_PLACEHOLDERS),
         "defaults": defaults,
@@ -266,6 +353,9 @@ def save_notification_settings(payload: dict[str, Any]) -> dict[str, Any]:
             nxt[f"{event}_subject"] = str(payload.get(f"{event}_subject") or "").strip()[:500]
         if f"{event}_body" in payload:
             nxt[f"{event}_body"] = str(payload.get(f"{event}_body") or "").strip()[:20000]
+    if "due_reminder_days_before" in payload:
+        nxt["due_reminder_days_before"] = _normalize_due_reminder_days(payload.get("due_reminder_days_before"))
+    nxt["_configured"] = True
     set_setting(SETTING_KEY, nxt)
     return notification_settings_for_api()
 
@@ -278,6 +368,7 @@ def _build_context(
     comment_preview: str = "",
     from_column: str = "",
     to_column: str = "",
+    days_before: int = 0,
 ) -> dict[str, str]:
     col = card.column
     column_name = (col.title if col else "") or ""
@@ -307,6 +398,8 @@ def _build_context(
         "to_column": to_column or column_name,
         "due_at": due.isoformat() if due else "",
         "due_at_label": _due_at_label(due),
+        "days_before": str(int(days_before)),
+        "due_in_label": _due_in_label(int(days_before)),
         "comment_preview": (comment_preview or "").strip()[:500],
         "portal_name": _portal_name(),
         "portal_logo_url": _portal_logo_url(),
@@ -373,6 +466,21 @@ def _event_email_content(event: str, ctx: dict[str, str]) -> tuple[str, str, lis
             f"to <strong>{_esc(due_label or 'none')}</strong>."
         )
         return headline, message, [("Due", due_label)] if due_label else []
+
+    if event == EVENT_DUE_REMINDER:
+        due_in = ctx.get("due_in_label") or ""
+        headline = "Due date reminder"
+        message = (
+            f'The KanBan card <strong>{_esc(card_title)}</strong> is due on '
+            f"<strong>{_esc(due_label or 'soon')}</strong>"
+        )
+        if due_in:
+            message += f" ({_esc(due_in)} from today)"
+        message += "."
+        meta = [("Due", due_label)]
+        if due_in:
+            meta.append(("Reminder", due_in))
+        return headline, message, meta
 
     headline = "KanBan update"
     return headline, f"There is an update on <strong>{_esc(card_title)}</strong>.", []
@@ -532,6 +640,24 @@ def _dedupe_users(users: list[User]) -> list[User]:
     return out
 
 
+def reload_card_for_notify(card: KanbanCard | int) -> KanbanCard | None:
+    from app.extensions import db
+    from app.models import KanbanCardAssignee
+    from sqlalchemy.orm import selectinload
+
+    card_id = int(card.id if isinstance(card, KanbanCard) else card)
+    return (
+        db.session.query(KanbanCard)
+        .options(
+            selectinload(KanbanCard.card_assignees).selectinload(KanbanCardAssignee.user),
+            selectinload(KanbanCard.column),
+            selectinload(KanbanCard.assignee),
+        )
+        .filter(KanbanCard.id == card_id)
+        .first()
+    )
+
+
 def _send_event(
     event: str,
     *,
@@ -541,6 +667,8 @@ def _send_event(
     comment_preview: str = "",
     from_column: str = "",
     to_column: str = "",
+    exclude_actor: bool = True,
+    days_before: int = 0,
 ) -> dict[str, Any]:
     settings = get_notification_settings()
     result: dict[str, Any] = {"event": event, "sent": 0, "failed": 0, "skipped": None, "messages": []}
@@ -556,7 +684,14 @@ def _send_event(
         return result
 
     actor_id = int(actor.id)
-    targets = _dedupe_users([u for u in recipients if int(u.id) != actor_id and _user_email(u)])
+    filtered: list[User] = []
+    for user in recipients:
+        if exclude_actor and int(user.id) == actor_id:
+            continue
+        if not _user_email(user):
+            continue
+        filtered.append(user)
+    targets = _dedupe_users(filtered)
     if not targets:
         result["skipped"] = "no_recipients"
         return result
@@ -570,6 +705,7 @@ def _send_event(
             comment_preview=comment_preview,
             from_column=from_column,
             to_column=to_column,
+            days_before=days_before,
         )
         subject = _render_template(subject_tpl, ctx)[:500]
         body = _render_template(body_tpl, ctx)
@@ -602,55 +738,69 @@ def _card_watchers(card: KanbanCard, *, include_assignee: bool = True, include_c
     return _dedupe_users(out)
 
 
+def _notify_card_assignees_primary(
+    event: str,
+    *,
+    card: KanbanCard,
+    actor: User,
+    **kwargs: Any,
+) -> dict[str, Any]:
+    """Notify assignees (always, including the actor). Fall back to the card creator."""
+    from app.kanban_service import card_assignee_users
+
+    card = reload_card_for_notify(card) or card
+    assignees = card_assignee_users(card)
+    if assignees:
+        return _send_event(event, card=card, actor=actor, recipients=assignees, exclude_actor=False, **kwargs)
+    return _send_event(
+        event,
+        card=card,
+        actor=actor,
+        recipients=_card_watchers(card, include_assignee=False, include_creator=True),
+        exclude_actor=True,
+        **kwargs,
+    )
+
+
 def notify_card_assigned(card: KanbanCard, actor: User, *, previous_ids: list[int] | None = None) -> dict[str, Any]:
     from app.kanban_service import card_assignee_users
 
+    card = reload_card_for_notify(card) or card
     prev = {int(uid) for uid in (previous_ids or [])}
-    actor_id = int(actor.id)
-    recipients = [
-        user
-        for user in card_assignee_users(card)
-        if int(user.id) not in prev and int(user.id) != actor_id
-    ]
-    return _send_event(EVENT_ASSIGNED, card=card, actor=actor, recipients=recipients)
+    recipients = [user for user in card_assignee_users(card) if int(user.id) not in prev]
+    return _send_event(EVENT_ASSIGNED, card=card, actor=actor, recipients=recipients, exclude_actor=False)
 
 
 def notify_card_commented(card: KanbanCard, actor: User, *, comment_preview: str) -> dict[str, Any]:
-    return _send_event(
+    return _notify_card_assignees_primary(
         EVENT_COMMENTED,
         card=card,
         actor=actor,
-        recipients=_card_watchers(card),
         comment_preview=comment_preview,
     )
 
 
 def notify_card_moved(card: KanbanCard, actor: User, *, from_column: str, to_column: str) -> dict[str, Any]:
-    return _send_event(
+    return _notify_card_assignees_primary(
         EVENT_MOVED,
         card=card,
         actor=actor,
-        recipients=_card_watchers(card),
         from_column=from_column,
         to_column=to_column,
     )
 
 
 def notify_card_marked_done(card: KanbanCard, actor: User, *, column_name: str) -> dict[str, Any]:
-    return _send_event(
+    return _notify_card_assignees_primary(
         EVENT_MARKED_DONE,
         card=card,
         actor=actor,
-        recipients=_card_watchers(card),
         to_column=column_name,
     )
 
 
 def notify_card_due_date(card: KanbanCard, actor: User) -> dict[str, Any]:
-    from app.kanban_service import card_assignee_users
-
-    recipients = card_assignee_users(card) or _card_watchers(card, include_assignee=False, include_creator=False)
-    return _send_event(EVENT_DUE_DATE, card=card, actor=actor, recipients=recipients)
+    return _notify_card_assignees_primary(EVENT_DUE_DATE, card=card, actor=actor)
 
 
 def _settings_from_payload(payload: dict[str, Any] | None) -> dict[str, Any]:
@@ -669,6 +819,8 @@ def _settings_from_payload(payload: dict[str, Any] | None) -> dict[str, Any]:
             settings[sub_key] = str(payload.get(sub_key) or "").strip()
         if body_key in payload:
             settings[body_key] = str(payload.get(body_key) or "").strip()
+    if "due_reminder_days_before" in payload:
+        settings["due_reminder_days_before"] = _normalize_due_reminder_days(payload.get("due_reminder_days_before"))
     return settings
 
 
@@ -707,10 +859,13 @@ def send_test_notification(
         comment_preview="This is a sample comment preview.",
         from_column="To do",
         to_column="In progress",
+        days_before=int(settings.get("due_reminder_days_before") or DEFAULT_DUE_REMINDER_DAYS),
     )
     ctx["first_name"] = "there"
     ctx["display_name"] = addr.split("@", 1)[0] or "there"
     ctx["email"] = addr
+    if event == EVENT_DUE_REMINDER:
+        ctx["actor_name"] = _portal_name()
     subject = f"[Test] {_render_template(subject_tpl, ctx)}"[:500]
     body = _render_template(body_tpl, ctx)
     ok, msg = _send_kanban_email(
@@ -723,3 +878,217 @@ def send_test_notification(
     if ok:
         return True, f"Test email sent to {addr}."
     return False, msg or "Test email failed."
+
+
+def _due_reminder_sent_log_path() -> Path:
+    from flask import current_app
+
+    path = Path(current_app.instance_path) / "kanban_due_reminder_sent.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def _load_due_reminder_sent_log() -> dict[str, str]:
+    path = _due_reminder_sent_log_path()
+    if not path.exists():
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(data, dict):
+            return {}
+        return {str(k): str(v) for k, v in data.items()}
+    except Exception:
+        return {}
+
+
+def _save_due_reminder_sent_log(data: dict[str, str]) -> None:
+    _due_reminder_sent_log_path().write_text(json.dumps(data, indent=2), encoding="utf-8")
+
+
+def _due_reminder_log_key(*, card_id: int, user_id: int, due_on: date, days_before: int) -> str:
+    return f"{int(card_id)}:{int(user_id)}:{due_on.isoformat()}:{int(days_before)}"
+
+
+def _due_reminder_was_sent(*, card_id: int, user_id: int, due_on: date, days_before: int) -> bool:
+    key = _due_reminder_log_key(card_id=card_id, user_id=user_id, due_on=due_on, days_before=days_before)
+    return key in _load_due_reminder_sent_log()
+
+
+def _record_due_reminder_sent(*, card_id: int, user_id: int, due_on: date, days_before: int) -> None:
+    key = _due_reminder_log_key(card_id=card_id, user_id=user_id, due_on=due_on, days_before=days_before)
+    log = _load_due_reminder_sent_log()
+    log[key] = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+    _save_due_reminder_sent_log(log)
+
+
+def _local_now() -> datetime:
+    import zoneinfo
+
+    from app.settings import get_setting
+
+    cfg = get_setting("time", default={}) or {}
+    tz_name = str(cfg.get("timezone") or "Australia/Melbourne").strip() or "Australia/Melbourne"
+    try:
+        tz = zoneinfo.ZoneInfo(tz_name)
+    except Exception:
+        tz = zoneinfo.ZoneInfo("Australia/Melbourne")
+    return datetime.now(tz)
+
+
+def _due_reminder_ready(settings: dict[str, Any] | None = None) -> tuple[bool, int, str]:
+    settings = settings or get_notification_settings()
+    if not _coerce_bool(settings.get("enabled"), default=True):
+        return False, 0, "KanBan notifications disabled"
+    if not _event_enabled(settings, EVENT_DUE_REMINDER):
+        return False, 0, "Due date reminders disabled"
+    days_before = _normalize_due_reminder_days(settings.get("due_reminder_days_before"))
+    if days_before < 1:
+        return False, 0, "Due reminder days not configured"
+    email_ok, email_msg = _outbound_email_ready()
+    if not email_ok:
+        return False, days_before, email_msg or "Email not configured"
+    return True, days_before, ""
+
+
+def _column_is_done(col) -> bool:
+    from app.kanban_service import is_todo_column
+
+    if not col:
+        return False
+    title = (col.title or "").strip().lower().replace("-", " ")
+    if title in {"done", "finished", "complete", "completed"} or title.endswith(" done"):
+        return True
+    if title == "to do" or title == "todo" or is_todo_column(col):
+        return False
+    token = (col.color_token or "").strip().lower()
+    return token == "green"
+
+
+def _card_is_open(card: KanbanCard) -> bool:
+    if card.deleted_at is not None or not card.due_at:
+        return False
+    return not _column_is_done(card.column)
+
+
+def _system_actor() -> User | None:
+    from app.extensions import db
+
+    return db.session.query(User).filter(User.is_active.is_(True)).order_by(User.id.asc()).first()
+
+
+def send_due_reminder_to_user(
+    *,
+    card: KanbanCard,
+    recipient: User,
+    actor: User,
+    days_before: int,
+    settings: dict[str, Any] | None = None,
+) -> tuple[bool, str]:
+    settings = settings or get_notification_settings()
+    if not _event_enabled(settings, EVENT_DUE_REMINDER):
+        return False, "Due date reminders disabled"
+    email_ok, email_msg = _outbound_email_ready()
+    if not email_ok:
+        return False, email_msg or "Email not configured"
+    card = reload_card_for_notify(card) or card
+    subject_tpl, body_tpl = _event_subject_body(settings, EVENT_DUE_REMINDER)
+    ctx = _build_context(
+        card=card,
+        actor=actor,
+        recipient=recipient,
+        days_before=int(days_before),
+    )
+    ctx["actor_name"] = _portal_name()
+    subject = _render_template(subject_tpl, ctx)[:500]
+    body = _render_template(body_tpl, ctx)
+    ok, msg = _send_kanban_email(
+        to_addr=_user_email(recipient),
+        subject=subject,
+        body=body,
+        event=EVENT_DUE_REMINDER,
+        ctx=ctx,
+    )
+    return ok, msg
+
+
+def run_kanban_due_reminders(*, force: bool = False, settings: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Email assignees when a card due date is N days away (portal local date)."""
+    from app.extensions import db
+    from app.kanban_service import card_assignee_users
+    from app.models import KanbanCard
+
+    settings = settings or get_notification_settings()
+    ready, days_before, reason = _due_reminder_ready(settings)
+    result: dict[str, Any] = {
+        "ok": True,
+        "skipped": None,
+        "days_before": days_before,
+        "sent": 0,
+        "failed": 0,
+        "checked": 0,
+        "messages": [],
+    }
+    if not ready:
+        result["skipped"] = reason
+        return result
+
+    actor = _system_actor()
+    if not actor:
+        result["ok"] = False
+        result["skipped"] = "no_active_users"
+        return result
+
+    local_now = _local_now()
+    today_local = local_now.date()
+    local_tz = local_now.tzinfo or timezone.utc
+
+    cards = (
+        db.session.query(KanbanCard)
+        .filter(KanbanCard.deleted_at.is_(None), KanbanCard.due_at.isnot(None))
+        .all()
+    )
+
+    for card in cards:
+        if not _card_is_open(card):
+            continue
+        due_local = card.due_at.astimezone(local_tz).date()
+        if due_local != today_local + timedelta(days=days_before):
+            continue
+        result["checked"] += 1
+        assignees = card_assignee_users(card)
+        if not assignees:
+            continue
+        for user in assignees:
+            if not _user_email(user):
+                continue
+            if not force and _due_reminder_was_sent(
+                card_id=int(card.id),
+                user_id=int(user.id),
+                due_on=due_local,
+                days_before=days_before,
+            ):
+                continue
+            ok, msg = send_due_reminder_to_user(
+                card=card,
+                recipient=user,
+                actor=actor,
+                days_before=days_before,
+                settings=settings,
+            )
+            if ok:
+                result["sent"] += 1
+                if not force:
+                    _record_due_reminder_sent(
+                        card_id=int(card.id),
+                        user_id=int(user.id),
+                        due_on=due_local,
+                        days_before=days_before,
+                    )
+            else:
+                result["failed"] += 1
+                result["messages"].append(f"{_user_email(user)}: {msg}")
+    return result
+
+
+def run_scheduled_kanban_due_reminders() -> dict[str, Any]:
+    return run_kanban_due_reminders(force=False)

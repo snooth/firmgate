@@ -87,6 +87,7 @@
     if (chosen === "email") loadEmailSettings();
     if (chosen === "kanban") loadKanbanAdminSettings();
     if (chosen === "portal") loadPortalSettings();
+    else resetPortalScalePreview();
     if (chosen === "timesheets") loadTimesheetSettings();
     if (chosen === "registrations") loadRegistrations();
 
@@ -3357,6 +3358,8 @@ ${(j.hints || []).join(" ")}` : "";
       notify_moved: !!document.getElementById("kb-notify-moved")?.checked,
       notify_marked_done: !!document.getElementById("kb-notify-marked-done")?.checked,
       notify_due_date: !!document.getElementById("kb-notify-due-date")?.checked,
+      notify_due_reminder: !!document.getElementById("kb-notify-due-reminder")?.checked,
+      due_reminder_days_before: Number(document.getElementById("kb-notify-due-reminder-days")?.value || 1),
       assigned_subject: (document.getElementById("kb-notify-assigned-subject")?.value || "").trim(),
       assigned_body: (document.getElementById("kb-notify-assigned-body")?.value || "").trim(),
       commented_subject: (document.getElementById("kb-notify-commented-subject")?.value || "").trim(),
@@ -3367,12 +3370,16 @@ ${(j.hints || []).join(" ")}` : "";
       marked_done_body: (document.getElementById("kb-notify-marked-done-body")?.value || "").trim(),
       due_date_subject: (document.getElementById("kb-notify-due-date-subject")?.value || "").trim(),
       due_date_body: (document.getElementById("kb-notify-due-date-body")?.value || "").trim(),
+      due_reminder_subject: (document.getElementById("kb-notify-due-reminder-subject")?.value || "").trim(),
+      due_reminder_body: (document.getElementById("kb-notify-due-reminder-body")?.value || "").trim(),
     };
   }
 
   async function loadKanbanNotifySettings() {
     const card = document.getElementById("kanban-notify-settings-card");
     if (!card) return;
+    const saveBtn = document.getElementById("kb-notify-save");
+    if (saveBtn) saveBtn.disabled = true;
     const r = await api("/api/settings/kanban/notifications", { method: "GET" });
     const j = await r.json().catch(() => ({}));
     if (!r.ok) {
@@ -3385,6 +3392,8 @@ ${(j.hints || []).join(" ")}` : "";
     const movedEl = document.getElementById("kb-notify-moved");
     const doneEl = document.getElementById("kb-notify-marked-done");
     const dueEl = document.getElementById("kb-notify-due-date");
+    const dueReminderEl = document.getElementById("kb-notify-due-reminder");
+    const dueReminderDaysEl = document.getElementById("kb-notify-due-reminder-days");
     const placeholdersEl = document.getElementById("kb-notify-placeholders");
     if (enabledEl) enabledEl.checked = j.enabled !== false;
     if (assignedEl) assignedEl.checked = j.notify_assigned !== false;
@@ -3392,12 +3401,24 @@ ${(j.hints || []).join(" ")}` : "";
     if (movedEl) movedEl.checked = j.notify_moved !== false;
     if (doneEl) doneEl.checked = j.notify_marked_done !== false;
     if (dueEl) dueEl.checked = j.notify_due_date !== false;
+    if (dueReminderEl) dueReminderEl.checked = j.notify_due_reminder !== false;
+    if (dueReminderDaysEl) {
+      const days = Number(j.due_reminder_days_before);
+      dueReminderDaysEl.value = String(Number.isFinite(days) && days > 0 ? days : 1);
+    }
+    if (saveBtn) saveBtn.disabled = false;
+    if (j.enabled === false) {
+      setKanbanNotifyStatus("KanBan email notifications are currently disabled. Enable them below and save.");
+    } else {
+      setKanbanNotifyStatus("");
+    }
     const fields = [
       ["assigned", "kb-notify-assigned-subject", "kb-notify-assigned-body"],
       ["commented", "kb-notify-commented-subject", "kb-notify-commented-body"],
       ["moved", "kb-notify-moved-subject", "kb-notify-moved-body"],
       ["marked_done", "kb-notify-marked-done-subject", "kb-notify-marked-done-body"],
       ["due_date", "kb-notify-due-date-subject", "kb-notify-due-date-body"],
+      ["due_reminder", "kb-notify-due-reminder-subject", "kb-notify-due-reminder-body"],
     ];
     fields.forEach(([key, subId, bodyId]) => {
       const subEl = document.getElementById(subId);
@@ -3481,6 +3502,34 @@ ${(j.hints || []).join(" ")}` : "";
     if (!btn) return;
     showKanbanAdminPane(btn.getAttribute("data-kanban-pane") || "board");
   });
+
+  const kbNotifyDueReminderNow = document.getElementById("kb-notify-due-reminder-now");
+  if (kbNotifyDueReminderNow) {
+    kbNotifyDueReminderNow.addEventListener("click", async () => {
+      setKanbanNotifyStatus("Sending due date reminders…");
+      const r = await api("/api/settings/kanban/notifications/send-due-reminders", {
+        method: "POST",
+        body: JSON.stringify(readKanbanNotifyForm()),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || j.ok === false) {
+        setKanbanNotifyStatus(j.error || j.skipped || "Could not send due date reminders.");
+        return;
+      }
+      const sent = Number(j.sent || 0);
+      const failed = Number(j.failed || 0);
+      const checked = Number(j.checked || 0);
+      if (j.skipped) {
+        setKanbanNotifyStatus(String(j.skipped));
+        return;
+      }
+      setKanbanNotifyStatus(
+        failed
+          ? `Sent ${sent} reminder(s) from ${checked} matching card(s); ${failed} failed.`
+          : `Sent ${sent} reminder(s) from ${checked} matching card(s).`
+      );
+    });
+  }
 
   const kbNotifySave = document.getElementById("kb-notify-save");
   if (kbNotifySave) {
@@ -3710,6 +3759,38 @@ ${(j.hints || []).join(" ")}` : "";
   adminAuditAction?.addEventListener("change", () => loadAdminActivity({ resetPage: true }));
   adminAuditSort?.addEventListener("change", () => loadAdminActivity({ resetPage: true }));
 
+  let portalScaleSaved = 100;
+
+  function clampPortalScale(value) {
+    const n = Number(value);
+    if (!Number.isFinite(n)) return 100;
+    return Math.max(75, Math.min(150, Math.round(n)));
+  }
+
+  function applyPortalScalePreview(percent) {
+    const scale = clampPortalScale(percent);
+    const factor = scale / 100;
+    document.documentElement.style.zoom = factor === 1 ? "" : String(factor);
+  }
+
+  function resetPortalScalePreview() {
+    applyPortalScalePreview(portalScaleSaved);
+  }
+
+  function updatePortalScaleLabel(percent) {
+    const scale = clampPortalScale(percent);
+    const range = document.getElementById("portal-scale-range");
+    const output = document.getElementById("portal-scale-value");
+    if (range) range.value = String(scale);
+    if (output) output.textContent = `${scale}%`;
+    return scale;
+  }
+
+  function syncPortalScaleUi(percent, { applyPreview = true } = {}) {
+    const scale = updatePortalScaleLabel(percent);
+    if (applyPreview) applyPortalScalePreview(scale);
+  }
+
   async function loadPortalSettings() {
     const r = await api("/api/settings/portal", { method: "GET" });
     const j = await r.json().catch(() => ({}));
@@ -3732,6 +3813,8 @@ ${(j.hints || []).join(" ")}` : "";
       if (theme === "non_core_team") rExtranet.checked = true;
       else rIntranet.checked = true;
     }
+    portalScaleSaved = clampPortalScale(j.portal_scale ?? 100);
+    syncPortalScaleUi(portalScaleSaved);
     if (preview && img) {
       if (j.logo_url) {
         img.src = j.logo_url + (j.logo_is_default ? "" : "?t=" + Date.now());
@@ -3938,6 +4021,22 @@ ${(j.hints || []).join(" ")}` : "";
     setTimeout(() => window.location.reload(), 250);
   }
 
+  const portalScaleRange = document.getElementById("portal-scale-range");
+  const portalScaleReset = document.getElementById("portal-scale-reset");
+  if (portalScaleRange) {
+    portalScaleRange.addEventListener("input", () => {
+      updatePortalScaleLabel(portalScaleRange.value);
+    });
+    portalScaleRange.addEventListener("change", () => {
+      syncPortalScaleUi(portalScaleRange.value);
+    });
+  }
+  if (portalScaleReset) {
+    portalScaleReset.addEventListener("click", () => {
+      syncPortalScaleUi(100);
+    });
+  }
+
   const portalSave = document.getElementById("portal-save");
   if (portalSave) {
     portalSave.addEventListener("click", async () => {
@@ -3946,9 +4045,10 @@ ${(j.hints || []).join(" ")}` : "";
       const browser_tab_title = (document.getElementById("portal-browser-tab-title")?.value || "").trim();
       const themeSel = document.querySelector('input[name="portal-theme"]:checked');
       const theme = themeSel && themeSel.value === "non_core_team" ? "non_core_team" : "core_team";
+      const portal_scale = clampPortalScale(document.getElementById("portal-scale-range")?.value ?? 100);
       const r = await api("/api/settings/portal", {
         method: "PUT",
-        body: JSON.stringify({ logo_enabled, footer_text, browser_tab_title, theme }),
+        body: JSON.stringify({ logo_enabled, footer_text, browser_tab_title, theme, portal_scale }),
       });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) {
@@ -3958,6 +4058,10 @@ ${(j.hints || []).join(" ")}` : "";
       const tabTitle = document.getElementById("portal-browser-tab-title");
       if (tabTitle && typeof j.browser_tab_title === "string") {
         tabTitle.value = j.browser_tab_title;
+      }
+      if (typeof j.portal_scale === "number") {
+        portalScaleSaved = clampPortalScale(j.portal_scale);
+        syncPortalScaleUi(portalScaleSaved);
       }
       setStatus(
         "admin-portal-status",

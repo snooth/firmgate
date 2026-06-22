@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import Any
 
 from app.extensions import db
@@ -115,6 +116,14 @@ def _user_label(user: User | None) -> str:
     return (user.full_name or user.username or user.email or "").strip()
 
 
+def _serialize_due_at(value: datetime | None) -> str | None:
+    if not value:
+        return None
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    return value.isoformat()
+
+
 def _active_cards(cards: list[KanbanCard] | None) -> list[KanbanCard]:
     rows = cards or []
     return [c for c in rows if getattr(c, "deleted_at", None) is None]
@@ -162,6 +171,39 @@ def kanban_user_group_ids(user: User) -> set[int]:
     return {int(g.id) for g in (user.groups or [])}
 
 
+def kanban_module_allowed(user: User | None) -> bool:
+    """True when Administration → Modules allows this user to use KanBan (mirrors intranet nav)."""
+    if not user or not getattr(user, "is_active", True):
+        return False
+    from app import rbac
+
+    if rbac.user_has_permission(user, rbac.PERMISSION_ADMIN):
+        return True
+    try:
+        from app.community_edition import community_module_available
+        from app.settings import get_setting
+
+        if not community_module_available("kanban"):
+            return False
+        cfg = get_setting("modules", default={}) or {}
+        mods = cfg.get("modules") if isinstance(cfg, dict) else None
+        mods = mods if isinstance(mods, dict) else {}
+        rule = mods.get("kanban") if isinstance(mods, dict) else None
+        rule = rule if isinstance(rule, dict) else {}
+        if rule.get("enabled") is False:
+            return False
+        if not bool(rule.get("restricted")):
+            return True
+        ids = rule.get("allowed_user_ids")
+        ids = ids if isinstance(ids, list) else []
+        uid = getattr(user, "id", None)
+        if uid is None:
+            return False
+        return int(uid) in {int(x) for x in ids}
+    except Exception:
+        return False
+
+
 def kanban_user_board_access(user: User, board: KanbanBoard) -> str | None:
     from app import rbac
 
@@ -176,11 +218,34 @@ def kanban_user_board_access(user: User, board: KanbanBoard) -> str | None:
     for entry in normalize_group_shares(board.shared_groups):
         if int(entry["group_id"]) in group_ids:
             return "write" if entry.get("can_edit") else "read"
-    if rbac.user_has_permission(user, rbac.PERMISSION_KANBAN_WRITE):
-        return "write"
-    if rbac.user_has_permission(user, rbac.PERMISSION_KANBAN_READ):
-        return "read"
     return None
+
+
+def kanban_is_board_creator(user: User, board: KanbanBoard) -> bool:
+    if not user or board.created_by_id is None:
+        return False
+    try:
+        return int(board.created_by_id) == int(user.id)
+    except (TypeError, ValueError):
+        return False
+
+
+def kanban_can_manage_board_shares(user: User, board: KanbanBoard) -> bool:
+    from app import rbac
+
+    if rbac.user_has_permission(user, rbac.PERMISSION_ADMIN):
+        return True
+    return kanban_is_board_creator(user, board)
+
+
+def apply_board_shares(board: KanbanBoard, *, users: list[dict[str, Any]], groups: list[dict[str, Any]]) -> None:
+    """Persist board share lists; flag JSON columns dirty for all backends."""
+    from sqlalchemy.orm.attributes import flag_modified
+
+    board.shared_users = normalize_user_shares(users)
+    board.shared_groups = normalize_group_shares(groups)
+    flag_modified(board, "shared_users")
+    flag_modified(board, "shared_groups")
 
 
 def kanban_can_read_board(user: User, board: KanbanBoard) -> bool:
@@ -291,7 +356,7 @@ def serialize_board_share_group(entry: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def serialize_board_general(board: KanbanBoard, *, access: str | None = None) -> dict[str, Any]:
+def serialize_board_general(board: KanbanBoard, *, access: str | None = None, user: User | None = None) -> dict[str, Any]:
     users = normalize_user_shares(board.shared_users)
     groups = normalize_group_shares(board.shared_groups)
     deleted_count = (
@@ -300,18 +365,19 @@ def serialize_board_general(board: KanbanBoard, *, access: str | None = None) ->
         .filter(KanbanColumn.board_id == int(board.id), KanbanCard.deleted_at.isnot(None))
         .count()
     )
+    can_manage_shares = bool(user and kanban_can_manage_board_shares(user, board))
     out: dict[str, Any] = {
         "board_id": int(board.id),
         "board_name": board.name or "KanBan",
         "board_subtitle": (board.subtitle or DEFAULT_BOARD_SUBTITLE).strip(),
         "access": access or "",
         "can_edit_settings": access in ("write", "admin"),
-        "can_manage_shares": access in ("write", "admin"),
+        "can_manage_shares": can_manage_shares,
         "shared_users": [serialize_board_share_user(u) for u in users],
         "shared_groups": [serialize_board_share_group(g) for g in groups],
         "deleted_count": int(deleted_count),
     }
-    if access in ("write", "admin"):
+    if can_manage_shares:
         out["share_targets"] = list_kanban_share_targets()
     return out
 
@@ -544,7 +610,7 @@ def serialize_card(card: KanbanCard, *, include_counts: bool = False) -> dict[st
         "assignee_id": int(assignee_rows[0]["id"]) if assignee_rows else None,
         "assignee_name": assignee_rows[0]["name"] if assignee_rows else "",
         "priority": normalize_kanban_priority(getattr(card, "priority", None)),
-        "due_at": card.due_at.isoformat() if card.due_at else None,
+        "due_at": _serialize_due_at(card.due_at),
         "created_at": card.created_at.isoformat() if card.created_at else None,
         "updated_at": card.updated_at.isoformat() if card.updated_at else None,
         "created_by_id": int(card.created_by_id) if card.created_by_id else None,

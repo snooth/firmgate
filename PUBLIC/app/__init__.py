@@ -8,6 +8,7 @@ from app.branding import (
     portal_display_name,
     portal_has_custom_logo,
     portal_logo_url as resolve_portal_logo_url,
+    portal_scale_percent,
 )
 from app.extensions import db, login_manager
 
@@ -904,6 +905,7 @@ def create_app(config_class=Config):
         portal_theme_class = "nc-theme-non-core-team" if theme_key == "non_core_team" else ""
         portal_shell_name = portal_display_name(portal, theme_key)
         portal_tab_title = portal_shell_name
+        portal_scale = portal_scale_percent(portal)
         return {
             "can_view_audit": can_audit,
             "can_view_admin": can_admin or can_access_users_admin or can_approve_registrations,
@@ -934,6 +936,7 @@ def create_app(config_class=Config):
             "portal_theme_class": portal_theme_class,
             "portal_shell_name": portal_shell_name,
             "portal_tab_title": portal_tab_title,
+            "portal_scale": portal_scale,
             "app_time_zone": (time_cfg.get("timezone") or "Australia/Melbourne"),
             "app_time_offset_ms": int(time_cfg.get("manual_offset_ms") or 0) if bool(time_cfg.get("manual_enabled")) else 0,
         }
@@ -977,6 +980,12 @@ def create_app(config_class=Config):
                         run_scheduled_timesheet_reminders()
                     except Exception:
                         app.logger.exception("timesheet reminder scheduler failed")
+                    try:
+                        from app.kanban_notifications import run_scheduled_kanban_due_reminders
+
+                        run_scheduled_kanban_due_reminders()
+                    except Exception:
+                        app.logger.exception("kanban due reminder scheduler failed")
 
         threading.Thread(target=_timesheet_reminder_loop, daemon=True, name="timesheet-reminders").start()
 

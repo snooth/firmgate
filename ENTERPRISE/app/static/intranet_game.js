@@ -1,4 +1,4 @@
-/** Games hub — Chess, Lemmings, Sky Control. */
+/** Games hub — Chess, Lemmings, Sky Control, Space Invaders. */
 (function () {
   const hub = document.querySelector(".nc-game-hub");
   if (!hub) return;
@@ -9,9 +9,10 @@
     chess: document.getElementById("nc-game-panel-chess"),
     lemmings: document.getElementById("nc-game-panel-lemmings"),
     "flight-sim": document.getElementById("nc-game-panel-flight-sim"),
+    "space-invaders": document.getElementById("nc-game-panel-space-invaders"),
   };
 
-  const GAME_IDS = ["chess", "lemmings", "flight-sim"];
+  const GAME_IDS = ["chess", "lemmings", "flight-sim", "space-invaders"];
 
   let lemmingsLoaded = false;
 
@@ -39,6 +40,11 @@
     if (id === "lemmings") bootLemmings();
     if (id === "flight-sim" && typeof window.ncSkyControlRefreshLeaderboard === "function") {
       window.ncSkyControlRefreshLeaderboard();
+    }
+    if (id === "space-invaders") {
+      if (typeof window.ncSpaceInvadersOnTabVisible === "function") window.ncSpaceInvadersOnTabVisible();
+    } else if (typeof window.ncSpaceInvadersOnTabHidden === "function") {
+      window.ncSpaceInvadersOnTabHidden();
     }
   }
 

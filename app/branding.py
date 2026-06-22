@@ -88,3 +88,19 @@ def portal_logo_email_url(portal: Any) -> str:
         return url_for("static", filename=DEFAULT_LOGO_STATIC, _external=True)
     except Exception:
         return ""
+
+
+def portal_scale_percent(portal: Any) -> int:
+    """Whole-portal UI scale (75–150). 100 = default size."""
+    raw = _portal_dict(portal).get("portal_scale")
+    if raw is None:
+        return 100
+    try:
+        val = int(round(float(raw)))
+    except (TypeError, ValueError):
+        return 100
+    return max(75, min(150, val))
+
+
+def portal_scale_factor(portal: Any) -> float:
+    return portal_scale_percent(portal) / 100.0

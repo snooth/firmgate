@@ -6,7 +6,7 @@ Enterprise-only modules remain in app.enterprise.intranet_routes.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import quote
 from uuid import uuid4
@@ -1159,6 +1159,11 @@ def api_wiki_page_feedback_put(slug: str):
     return jsonify({"ok": True, "feedback": _wiki_feedback_bundle(r)})
 
 
+def _kanban_request_json() -> dict:
+    data = request.get_json(silent=True, cache=True) or {}
+    return data if isinstance(data, dict) else {}
+
+
 def _kanban_board_id_from_request(*, required: bool = True) -> int | None:
     raw = None
     if request.view_args and request.view_args.get("board_id") is not None:
@@ -1166,8 +1171,8 @@ def _kanban_board_id_from_request(*, required: bool = True) -> int | None:
     elif request.args.get("board_id") not in (None, ""):
         raw = request.args.get("board_id")
     elif request.method in ("POST", "PUT", "PATCH"):
-        payload = request.get_json(silent=True) or {}
-        if isinstance(payload, dict) and payload.get("board_id") not in (None, ""):
+        payload = _kanban_request_json()
+        if payload.get("board_id") not in (None, ""):
             raw = payload.get("board_id")
     if raw is None:
         if required:
@@ -1217,14 +1222,20 @@ def _kanban_can_delete_board(board: KanbanBoard | None = None) -> bool:
 
 
 def _kanban_can_read() -> bool:
-    from app.kanban_service import ensure_default_board, list_accessible_boards
+    from app.kanban_service import kanban_module_allowed, list_accessible_boards
 
     if rbac.user_has_permission(current_user, rbac.PERMISSION_ADMIN):
         return True
-    if rbac.user_has_permission(current_user, rbac.PERMISSION_KANBAN_READ):
+    if kanban_module_allowed(current_user):
         return True
-    ensure_default_board(user_id=int(current_user.id))
     return bool(list_accessible_boards(current_user))
+
+
+def _kanban_can_manage_board_shares(board: KanbanBoard | None = None) -> bool:
+    from app.kanban_service import kanban_can_manage_board_shares
+
+    target = board or _kanban_board()
+    return kanban_can_manage_board_shares(current_user, target)
 
 
 def _kanban_can_write() -> bool:
@@ -1236,9 +1247,13 @@ def _kanban_can_delete() -> bool:
 
 
 def _kanban_can_create_board() -> bool:
-    return rbac.user_has_permission(current_user, rbac.PERMISSION_ADMIN) or rbac.user_has_permission(
-        current_user, rbac.PERMISSION_KANBAN_WRITE
-    )
+    from app.kanban_service import kanban_module_allowed
+
+    if rbac.user_has_permission(current_user, rbac.PERMISSION_ADMIN):
+        return True
+    if kanban_module_allowed(current_user):
+        return True
+    return rbac.user_has_permission(current_user, rbac.PERMISSION_KANBAN_WRITE)
 
 
 def _kanban_can_admin_delete_board() -> bool:
@@ -1280,10 +1295,23 @@ def _kanban_parse_due_at(raw) -> datetime | None:
         if not text:
             return None
         try:
-            return datetime.fromisoformat(text.replace("Z", "+00:00"))
+            dt = datetime.fromisoformat(text.replace("Z", "+00:00"))
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            return dt
         except ValueError:
             return None
     return None
+
+
+def _kanban_due_at_equal(left: datetime | None, right: datetime | None) -> bool:
+    if left is None and right is None:
+        return True
+    if left is None or right is None:
+        return False
+    l = left if left.tzinfo else left.replace(tzinfo=timezone.utc)
+    r = right if right.tzinfo else right.replace(tzinfo=timezone.utc)
+    return int(l.timestamp()) == int(r.timestamp())
 
 
 def _kanban_card_or_404(card_id: int, *, include_deleted: bool = False) -> KanbanCard:
@@ -1307,15 +1335,15 @@ def _kanban_notify_safe(fn, *args, **kwargs) -> None:
     skipped = result.get("skipped")
     if skipped:
         if skipped == "no_recipients":
-            current_app.logger.info("KanBan notify %s skipped: no recipients with email", event)
+            current_app.logger.warning("KanBan notify %s skipped: no recipients with email", event)
         elif skipped == "disabled":
-            current_app.logger.info("KanBan notify %s skipped: notifications disabled", event)
+            current_app.logger.warning("KanBan notify %s skipped: notifications disabled in Admin → KanBan → Notifications", event)
         elif skipped == "email_not_configured":
             msgs = result.get("messages") or []
             detail = msgs[0] if msgs else "email not configured"
             current_app.logger.warning("KanBan notify %s skipped: %s", event, detail)
         else:
-            current_app.logger.info("KanBan notify %s skipped: %s", event, skipped)
+            current_app.logger.warning("KanBan notify %s skipped: %s", event, skipped)
         return
     sent = int(result.get("sent") or 0)
     failed = int(result.get("failed") or 0)
@@ -1336,9 +1364,6 @@ def _kanban_notify_safe(fn, *args, **kwargs) -> None:
 def kanban_page():
     if not _kanban_can_read():
         abort(403)
-    from app.kanban_service import ensure_default_board
-
-    ensure_default_board(user_id=int(current_user.id))
     return render_template(
         "intranet_kanban.html",
         nav=_nav("kanban"),
@@ -1360,7 +1385,7 @@ def kanban_board_page(board_id: int):
         kanban_can_edit=_kanban_can_write_board(board),
         kanban_can_delete=_kanban_can_delete_board(board),
         kanban_can_delete_board=_kanban_can_admin_delete_board(),
-        kanban_can_manage_shares=_kanban_can_write_board(board),
+        kanban_can_manage_shares=_kanban_can_manage_board_shares(board),
     )
 
 
@@ -1369,10 +1394,9 @@ def kanban_board_page(board_id: int):
 def api_kanban_boards():
     if not _kanban_can_read():
         return jsonify({"error": "forbidden"}), 403
-    from app.kanban_service import create_board, ensure_default_board, list_accessible_boards, serialize_board_summary
+    from app.kanban_service import create_board, list_accessible_boards, serialize_board_summary
 
     if request.method == "GET":
-        ensure_default_board(user_id=int(current_user.id))
         boards = list_accessible_boards(current_user)
         return jsonify({"boards": [serialize_board_summary(b, user=current_user) for b in boards]})
 
@@ -1429,7 +1453,7 @@ def api_kanban_board_mutate(board_id: int):
                 {
                     "ok": True,
                     "board": serialize_board(board),
-                    "general": serialize_board_general(board, access=access),
+                    "general": serialize_board_general(board, access=access, user=current_user),
                 }
             )
         log_board_activity(
@@ -1579,17 +1603,26 @@ def api_kanban_card_create():
         serialize_card_detail,
         set_card_assignees,
     )
+    from app.wiki_sanitize import sanitize_wiki_html
 
     if not is_todo_column(col):
         return jsonify({"error": "Cards can only be added to the To do column."}), 400
 
     body = str(payload.get("body") or "").strip()[:4000] or None
+    body_html = None
+    if "body_html" in payload:
+        cleaned = sanitize_wiki_html(str(payload.get("body_html") or ""))
+        body_html = cleaned or None
+        body = None
     priority = normalize_kanban_priority(payload.get("priority"))
+    due_at = _kanban_parse_due_at(payload.get("due_at")) if "due_at" in payload else None
     card = KanbanCard(
         column_id=col.id,
         title=title,
         body=body,
+        body_html=body_html,
         priority=priority,
+        due_at=due_at,
         position=next_card_position(col.id),
         created_by_id=int(current_user.id),
     )
@@ -1597,15 +1630,21 @@ def api_kanban_card_create():
     db.session.flush()
     try:
         assignee_ids = parse_assignee_ids(payload)
-        if assignee_ids:
-            set_card_assignees(card, assignee_ids)
     except ValueError:
         db.session.rollback()
         return jsonify({"error": "invalid assignee_ids"}), 400
-    except LookupError:
-        db.session.rollback()
-        return jsonify({"error": "assignee not found"}), 404
-    log_kanban_activity(card, user_id=int(current_user.id), action="created", details={"title": title})
+    if assignee_ids is not None:
+        try:
+            set_card_assignees(card, assignee_ids)
+        except LookupError:
+            db.session.rollback()
+            return jsonify({"error": "assignee not found"}), 404
+    activity_details: dict[str, object] = {"title": title}
+    if due_at:
+        activity_details["due_at"] = due_at.isoformat()
+    if assignee_ids is not None:
+        activity_details["assignee_ids"] = assignee_ids
+    log_kanban_activity(card, user_id=int(current_user.id), action="created", details=activity_details)
     try:
         db.session.commit()
     except Exception:
@@ -1613,10 +1652,12 @@ def api_kanban_card_create():
         return jsonify({"error": "Could not create card."}), 500
     board = db.session.get(KanbanBoard, col.board_id)
     card = db.session.get(KanbanCard, card.id)
-    from app.kanban_notifications import notify_card_assigned
+    from app.kanban_notifications import notify_card_assigned, notify_card_due_date
 
     if card_assignee_ids(card):
         _kanban_notify_safe(notify_card_assigned, card, current_user, previous_ids=[])
+    if due_at:
+        _kanban_notify_safe(notify_card_due_date, card, current_user)
     return jsonify({"ok": True, "board": serialize_board(board), "card": serialize_card_detail(card, viewer=current_user)})
 
 
@@ -1707,8 +1748,10 @@ def api_kanban_card_mutate(card_id: int):
             return jsonify({"error": "assignee not found"}), 404
         changes["assignee_ids"] = assignee_ids
     if "due_at" in payload:
-        card.due_at = _kanban_parse_due_at(payload.get("due_at"))
-        changes["due_at"] = card.due_at.isoformat() if card.due_at else None
+        new_due = _kanban_parse_due_at(payload.get("due_at"))
+        if not _kanban_due_at_equal(card.due_at, new_due):
+            card.due_at = new_due
+            changes["due_at"] = card.due_at.isoformat() if card.due_at else None
     if "priority" in payload:
         card.priority = normalize_kanban_priority(payload.get("priority"))
         changes["priority"] = card.priority
@@ -2165,14 +2208,14 @@ def api_kanban_general_get():
     from app.kanban_service import serialize_board_general
 
     access = _kanban_access_for(board) or ""
-    return jsonify({"general": serialize_board_general(board, access=access)})
+    return jsonify({"general": serialize_board_general(board, access=access, user=current_user)})
 
 
 @bp.route("/api/kanban/share-targets", methods=["GET"])
 @login_required
 def api_kanban_share_targets():
     board = _kanban_board(_kanban_board_id_from_request())
-    if not _kanban_can_write_board(board):
+    if not _kanban_can_manage_board_shares(board):
         return jsonify({"error": "forbidden"}), 403
     from app.kanban_service import list_kanban_share_targets
 
@@ -2183,13 +2226,12 @@ def api_kanban_share_targets():
 @login_required
 def api_kanban_shares_put():
     board = _kanban_board(_kanban_board_id_from_request())
-    if not _kanban_can_write_board(board):
+    if not _kanban_can_manage_board_shares(board):
         return jsonify({"error": "forbidden"}), 403
-    payload = request.get_json(force=True, silent=True) or {}
+    payload = _kanban_request_json()
     from app.kanban_service import (
+        apply_board_shares,
         log_board_activity,
-        normalize_group_shares,
-        normalize_user_shares,
         serialize_board_general,
     )
 
@@ -2221,8 +2263,9 @@ def api_kanban_shares_put():
         if not group:
             continue
         group_rows.append({"group_id": gid, "can_edit": bool(row.get("can_edit"))})
-    board.shared_users = normalize_user_shares(user_rows)
-    board.shared_groups = normalize_group_shares(group_rows)
+    apply_board_shares(board, users=user_rows, groups=group_rows)
+    if board.created_by_id is None:
+        board.created_by_id = int(current_user.id)
     log_board_activity(
         board,
         user_id=int(current_user.id),
@@ -2235,7 +2278,7 @@ def api_kanban_shares_put():
         db.session.rollback()
         return jsonify({"error": "Could not save sharing settings."}), 500
     access = _kanban_access_for(board) or ""
-    return jsonify({"ok": True, "general": serialize_board_general(board, access=access)})
+    return jsonify({"ok": True, "general": serialize_board_general(board, access=access, user=current_user)})
 
 
 @bp.route("/api/kanban/deleted", methods=["GET"])

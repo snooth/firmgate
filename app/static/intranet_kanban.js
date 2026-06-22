@@ -99,6 +99,7 @@
   const shareUserAddBtn = document.getElementById("nc-kanban-share-user-add");
   const shareGroupAddBtn = document.getElementById("nc-kanban-share-group-add");
   const sharesSaveBtn = document.getElementById("nc-kanban-shares-save");
+  const sharingStatusEl = document.getElementById("nc-kanban-sharing-status");
   const deletedList = document.getElementById("nc-kanban-deleted-list");
   const deletedEmpty = document.getElementById("nc-kanban-deleted-empty");
   const deletedCountBadge = document.getElementById("nc-kanban-general-deleted-count");
@@ -134,6 +135,12 @@
 
   function setStatus(msg) {
     if (statusEl) statusEl.textContent = msg || "";
+  }
+
+  function setSharingStatus(msg) {
+    const text = msg || "";
+    if (sharingStatusEl) sharingStatusEl.textContent = text;
+    if (text) setStatus(text);
   }
 
   function boardQuery(url) {
@@ -200,11 +207,20 @@
     return line;
   }
 
+  function dueIsoToInstant(iso) {
+    if (!iso) return null;
+    const text = String(iso).trim();
+    if (!text) return null;
+    const normalized = /[zZ]|[+-]\d{2}:?\d{2}$/.test(text) ? text : `${text}Z`;
+    const d = new Date(normalized);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+
   function isoToDueParts(iso) {
     if (!iso) return { date: "", time: "" };
     try {
-      const d = new Date(iso);
-      if (Number.isNaN(d.getTime())) return { date: "", time: "" };
+      const d = dueIsoToInstant(iso);
+      if (!d) return { date: "", time: "" };
       const pad = (n) => String(n).padStart(2, "0");
       return {
         date: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`,
@@ -226,6 +242,14 @@
     } catch (_) {
       return null;
     }
+  }
+
+  function dueAtFormChanged(storedIso, formIso) {
+    const stored = dueIsoToInstant(storedIso);
+    const form = dueIsoToInstant(formIso);
+    if (!stored && !form) return false;
+    if (!stored || !form) return true;
+    return stored.getTime() !== form.getTime();
   }
 
   function setDueFormValues(dueAtIso) {
@@ -1345,15 +1369,22 @@
     });
     if (generalTab === "deleted") void loadDeletedCards();
     if (generalTab === "activity") void loadBoardActivity();
-    if (generalTab === "sharing") {
-      const userCount = shareUserSelect ? shareUserSelect.options.length : 0;
-      const groupCount = shareGroupSelect ? shareGroupSelect.options.length : 0;
-      if (userCount <= 1 && groupCount <= 1) void loadShareTargets();
+    if (generalTab === "sharing" && canManageShares) {
+      void ensureShareTargetsLoaded();
     }
   }
 
-  function openGeneralPanel(tabName) {
-    if (tabName) setGeneralTab(tabName);
+  async function ensureShareTargetsLoaded() {
+    if (!canManageShares) return false;
+    if ((shareTargets.users || []).length + (shareTargets.groups || []).length > 0) {
+      populateShareTargetSelects();
+      return true;
+    }
+    return loadShareTargets();
+  }
+
+  async function openGeneralPanel(tabName) {
+    if (tabName) generalTab = tabName;
     if (!generalPanel) return;
     generalPanel.hidden = false;
     if (generalBackdrop) {
@@ -1362,7 +1393,7 @@
     }
     root.classList.add("is-general-open");
     if (boardMenuBtn) boardMenuBtn.setAttribute("aria-expanded", "true");
-    void loadGeneralPanel();
+    await loadGeneralPanel();
     setGeneralTab(generalTab);
   }
 
@@ -1462,6 +1493,7 @@
             Number(row.group_id) === gid ? { ...row, can_edit: checked } : row
           );
         }
+        void saveShares();
       });
     });
     shareList.querySelectorAll("[data-share-remove]").forEach((btn) => {
@@ -1476,6 +1508,7 @@
         }
         populateShareTargetSelects();
         renderShareDraft();
+        void saveShares();
       });
     });
   }
@@ -1497,7 +1530,7 @@
       renderShareDraft();
       return true;
     } catch (err) {
-      setStatus(err.message || "Could not load users and groups for sharing.");
+      setSharingStatus(err.message || "Could not load users and groups for sharing.");
       return false;
     }
   }
@@ -1520,6 +1553,8 @@
         if (general.can_manage_shares || canManageShares) {
           await loadShareTargets();
         }
+      } else if ((general.can_manage_shares || canManageShares) && (shareTargets.users || []).length + (shareTargets.groups || []).length === 0) {
+        await loadShareTargets();
       }
       if (deletedCountBadge) deletedCountBadge.textContent = String(general.deleted_count || 0);
       if (boardSettingsName) boardSettingsName.value = general.board_name || "";
@@ -1565,12 +1600,20 @@
 
   async function saveShares() {
     if (!canManageShares) return;
+    setSharingStatus("Saving sharing…");
     try {
       const j = await api(boardQuery(apiShares), {
         method: "PUT",
-        body: JSON.stringify(withBoardId(shareDraft)),
+        body: JSON.stringify(
+          withBoardId({
+            users: Array.isArray(shareDraft.users) ? shareDraft.users : [],
+            groups: Array.isArray(shareDraft.groups) ? shareDraft.groups : [],
+          })
+        ),
       });
+      if (!j || !j.general) throw new Error("Unexpected response from server");
       if (j.general && deletedCountBadge) deletedCountBadge.textContent = String(j.general.deleted_count || 0);
+      if (j.general.share_targets) applyShareTargets(j.general.share_targets);
       shareDraft = {
         users: (j.general.shared_users || []).map((row) => ({
           user_id: Number(row.user_id),
@@ -1583,10 +1626,11 @@
       };
       populateShareTargetSelects();
       renderShareDraft();
-      setStatus("Sharing saved.");
+      setSharingStatus("Sharing saved.");
+      window.setTimeout(() => setSharingStatus(""), 2500);
       if (generalTab === "activity") void loadBoardActivity();
     } catch (err) {
-      setStatus(err.message || "Could not save sharing.");
+      setSharingStatus(err.message || "Could not save sharing.");
     }
   }
 
@@ -1724,8 +1768,12 @@
       column_id: statusSelect ? Number(statusSelect.value) : activeColumnId,
       priority: prioritySelect ? prioritySelect.value : "medium",
       assignee_ids: getCardAssigneeIds(),
-      due_at: getDueFormIso(),
     };
+    const dueIso = getDueFormIso();
+    const isCreate = !(dialogMode === "edit" && activeCard && activeCard.id);
+    if (isCreate || dueAtFormChanged(activeCard && activeCard.due_at, dueIso)) {
+      payload.due_at = dueIso;
+    }
     try {
       let j;
       if (dialogMode === "edit" && activeCard && activeCard.id) {
@@ -1975,6 +2023,7 @@
       shareUserSelect.value = "";
       populateShareTargetSelects();
       renderShareDraft();
+      void saveShares();
     });
   }
   if (shareGroupAddBtn && shareGroupSelect) {
@@ -1985,6 +2034,7 @@
       shareGroupSelect.value = "";
       populateShareTargetSelects();
       renderShareDraft();
+      void saveShares();
     });
   }
   if (sharesSaveBtn) sharesSaveBtn.addEventListener("click", () => void saveShares());

@@ -57,6 +57,18 @@
         </span>
         <span class="nc-game-hub-tab-label">Sky Control</span>
       </button>
+      <button type="button" class="nc-game-hub-tab" data-game="space-invaders">
+        <span class="nc-game-hub-tab-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="4" y="4" width="6" height="6" rx="1"/>
+            <rect x="14" y="4" width="6" height="6" rx="1"/>
+            <rect x="9" y="12" width="6" height="6" rx="1"/>
+            <path d="M12 20v2"/>
+            <path d="M8 22h8"/>
+          </svg>
+        </span>
+        <span class="nc-game-hub-tab-label">Space Invaders</span>
+      </button>
     </nav>
 
     <div class="nc-game-hub-main">
@@ -190,6 +202,47 @@
           </div>
         </details>
       </section>
+
+      <section class="nc-game-panel" id="nc-game-panel-space-invaders" hidden aria-labelledby="nc-game-space-invaders-heading">
+        <div class="nc-game-panel-head">
+          <div class="nc-game-panel-title-wrap">
+            <span class="nc-game-panel-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="4" y="4" width="6" height="6" rx="1"/>
+                <rect x="14" y="4" width="6" height="6" rx="1"/>
+                <rect x="9" y="12" width="6" height="6" rx="1"/>
+                <path d="M12 20v2"/>
+                <path d="M8 22h8"/>
+              </svg>
+            </span>
+            <div>
+              <h2 class="nc-game-panel-title" id="nc-game-space-invaders-heading">Space Invaders</h2>
+              <p class="nc-detail-muted nc-game-panel-sub">Classic arcade shooter — clear waves of invaders before they reach Earth.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="nc-space-invaders-toolbar" role="group" aria-label="Game stats">
+          <span class="nc-space-invaders-stat"><strong>Score</strong> <span id="space-invaders-score">0</span></span>
+          <span class="nc-space-invaders-stat"><strong>Wave</strong> <span id="space-invaders-wave">1</span></span>
+          <span class="nc-space-invaders-stat"><strong>Best</strong> <span id="space-invaders-best">0</span></span>
+          <span class="nc-space-invaders-stat nc-space-invaders-lives"><strong>Lives</strong> <span id="space-invaders-lives">♥♥♥</span></span>
+          <button type="button" class="nc-btn nc-btn-secondary" id="space-invaders-restart">Restart</button>
+        </div>
+        <p id="space-invaders-status" class="nc-status nc-space-invaders-status" role="status">← → or A D to move · Space to fire · P pause</p>
+
+        <div class="nc-space-invaders-player">
+          <canvas id="space-invaders-canvas" class="nc-space-invaders-canvas" width="800" height="600" tabindex="0" aria-label="Space Invaders game"></canvas>
+        </div>
+
+        <details class="nc-space-invaders-help">
+          <summary>How to play</summary>
+          <div class="nc-space-invaders-help-body">
+            <p><strong>Move</strong> with arrow keys or A / D. <strong>Fire</strong> with Space. Destroy all invaders to advance — they speed up each wave.</p>
+            <p>Shoot the red UFO for bonus points. <strong>P</strong> pauses · <strong>R</strong> restarts.</p>
+          </div>
+        </details>
+      </section>
     </div>
   </div>
 </div>
@@ -197,7 +250,8 @@
 
 {% block scripts %}
 {{ super() }}
-<script src="{{ url_for('static', filename='intranet_game.js') }}?v=18" defer></script>
+<script src="{{ url_for('static', filename='intranet_game.js') }}?v=19" defer></script>
 <script src="{{ url_for('static', filename='intranet_flight_sim.js') }}?v=3" defer></script>
+<script src="{{ url_for('static', filename='intranet_space_invaders.js') }}?v=1" defer></script>
 <script src="{{ url_for('static', filename='intranet_chess.js') }}?v=25" defer></script>
 {% endblock %}

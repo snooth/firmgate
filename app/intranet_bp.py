@@ -315,9 +315,8 @@ def _nav(active: str) -> dict:
     kanban_sub_items: list[tuple[str, str, str, dict[str, int]]] = []
     if has_kanban and current_user.is_authenticated:
         try:
-            from app.kanban_service import ensure_default_board, list_accessible_boards
+            from app.kanban_service import list_accessible_boards
 
-            ensure_default_board(user_id=int(current_user.id))
             for board in list_accessible_boards(current_user):
                 kanban_sub_items.append(
                     (

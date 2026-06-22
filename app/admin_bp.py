@@ -30,7 +30,7 @@ from werkzeug.utils import secure_filename
 
 from app import rbac
 from app.audit_service import validate_deletion_justification, write_audit
-from app.branding import portal_has_custom_logo, portal_logo_enabled, portal_logo_url as resolve_portal_logo_url
+from app.branding import portal_has_custom_logo, portal_logo_enabled, portal_logo_url as resolve_portal_logo_url, portal_scale_percent
 from app.factory_admin import user_is_factory_bootstrap
 from app.extensions import db
 from app.models import (
@@ -2212,6 +2212,27 @@ def api_kanban_notifications_test():
     return jsonify({"ok": True, "message": msg})
 
 
+@bp.route("/api/settings/kanban/notifications/send-due-reminders", methods=["POST"])
+@login_required
+@admin_required_json
+def api_kanban_notifications_send_due_reminders():
+    from app.kanban_notifications import _settings_from_payload, run_kanban_due_reminders
+
+    payload = request.get_json(force=True, silent=True) or {}
+    settings = _settings_from_payload(payload if isinstance(payload, dict) else None)
+    result = run_kanban_due_reminders(force=True, settings=settings)
+    _audit(
+        "admin.kanban.notifications.send_due_reminders",
+        "setting",
+        "kanban_notifications",
+        bool(result.get("ok")),
+        {"sent": result.get("sent"), "failed": result.get("failed"), "checked": result.get("checked")},
+    )
+    if result.get("skipped"):
+        return jsonify({"ok": False, "error": str(result.get("skipped")), **result}), 400
+    return jsonify({"ok": True, **result})
+
+
 def _branding_dir() -> Path:
     p = Path(current_app.instance_path) / "branding"
     p.mkdir(parents=True, exist_ok=True)
@@ -2250,6 +2271,7 @@ def api_portal_settings_get():
             "footer_text": v.get("footer_text") or "",
             "browser_tab_title": (v.get("browser_tab_title") or "").strip(),
             "theme": theme,
+            "portal_scale": portal_scale_percent(v),
         }
     )
 
@@ -2296,6 +2318,11 @@ def api_portal_settings_put():
     theme = str(raw_theme or "core_team").strip().lower().replace("-", "_")
     if theme not in ("core_team", "non_core_team"):
         theme = "core_team"
+    try:
+        portal_scale = int(round(float(payload.get("portal_scale", 100))))
+    except (TypeError, ValueError):
+        portal_scale = 100
+    portal_scale = max(75, min(150, portal_scale))
     cur = get_setting("portal", default={}) or {}
     nxt = dict(cur)
     nxt["footer_text"] = footer_text
@@ -2303,13 +2330,14 @@ def api_portal_settings_put():
         nxt["browser_tab_title"] = (payload.get("browser_tab_title") or "").strip()[:80]
     nxt["logo_enabled"] = bool(logo_enabled)
     nxt["theme"] = theme
+    nxt["portal_scale"] = portal_scale
     set_setting("portal", nxt)
     _audit(
         "admin.portal.save",
         "setting",
         "portal",
         True,
-        {"logo_enabled": bool(logo_enabled), "theme": theme},
+        {"logo_enabled": bool(logo_enabled), "theme": theme, "portal_scale": portal_scale},
     )
     return jsonify(
         {
@@ -2318,6 +2346,7 @@ def api_portal_settings_put():
             "footer_text": nxt.get("footer_text") or "",
             "logo_enabled": bool(nxt.get("logo_enabled", True)),
             "theme": theme,
+            "portal_scale": portal_scale,
         }
     )
 
@@ -2876,6 +2905,7 @@ def api_modules_settings_put():
         "news",
         "events",
         "wiki",
+        "kanban",
         "team_chat",
         "directory",
         "workforce_dashboard",

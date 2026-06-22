@@ -46,10 +46,12 @@
             <span class="nc-kanban-menu-icon" aria-hidden="true">⚙</span>
             Board settings
           </button>
+          {% if kanban_can_manage_shares %}
           <button type="button" class="nc-kanban-detail-menu-item" data-board-menu="sharing" role="menuitem">
             <span class="nc-kanban-menu-icon" aria-hidden="true">⧉</span>
             Sharing
           </button>
+          {% endif %}
           <button type="button" class="nc-kanban-detail-menu-item" data-board-menu="deleted" role="menuitem">
             <span class="nc-kanban-menu-icon" aria-hidden="true">🗑</span>
             Deleted items
@@ -120,10 +122,12 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
         Settings
       </button>
+      {% if kanban_can_manage_shares %}
       <button type="button" class="nc-kanban-general-tab" data-general-tab="sharing" role="tab" aria-selected="false">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.59 13.51 15.42 17.49"/><path d="M15.41 6.51 8.59 10.49"/></svg>
         Sharing
       </button>
+      {% endif %}
       <button type="button" class="nc-kanban-general-tab" data-general-tab="deleted" role="tab" aria-selected="false">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/></svg>
         Deleted items
@@ -151,6 +155,7 @@
       </section>
 
       <section class="nc-kanban-general-panel" data-general-panel="sharing" role="tabpanel" hidden>
+        <div class="nc-kanban-general-status" id="nc-kanban-sharing-status" role="status" aria-live="polite"></div>
         {% if kanban_can_manage_shares %}
         <label class="nc-detail-label" for="nc-kanban-share-user">Share board with a user</label>
         <div class="nc-kanban-share-add">
@@ -167,7 +172,7 @@
           <button type="button" class="nc-btn nc-btn-secondary" id="nc-kanban-share-group-add">Add group</button>
         </div>
         {% else %}
-        <p class="nc-detail-muted">You have read-only access to sharing settings.</p>
+        <p class="nc-detail-muted">Only the board owner and administrators can change sharing.</p>
         {% endif %}
         <div class="nc-kanban-share-list" id="nc-kanban-share-list"></div>
         {% if kanban_can_manage_shares %}
@@ -383,5 +388,5 @@
 {{ super() }}
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css" crossorigin="anonymous">
 <script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js" crossorigin="anonymous"></script>
-<script src="{{ url_for('static', filename='intranet_kanban.js') }}?v=25" data-turbo-eval="always"></script>
+<script src="{{ url_for('static', filename='intranet_kanban.js') }}?v=28" data-turbo-eval="always"></script>
 {% endblock %}

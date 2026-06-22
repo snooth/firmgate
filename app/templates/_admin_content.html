@@ -785,33 +785,48 @@
             <h3 id="kanban-notify-heading" class="nc-admin-subhead">Email notifications</h3>
             <p class="nc-detail-muted" style="margin:0 0 0.75rem;">Email assignees and card watchers when KanBan cards are updated. Requires SMTP under <strong>Email Settings</strong>.</p>
             <label class="nc-auth-remember" style="display:flex;align-items:flex-start;gap:0.45rem;margin-bottom:0.75rem;">
-              <input type="checkbox" id="kb-notify-enabled" style="margin-top:0.15rem;">
+              <input type="checkbox" id="kb-notify-enabled" checked style="margin-top:0.15rem;">
               <span><strong>Enable KanBan email notifications</strong></span>
             </label>
 
             <fieldset class="nc-kb-notify-events" style="border:0;padding:0;margin:0 0 0.85rem;">
               <legend class="nc-detail-label" style="margin-bottom:0.45rem;">Notify when</legend>
               <label class="nc-auth-remember" style="display:flex;align-items:flex-start;gap:0.45rem;margin-bottom:0.35rem;">
-                <input type="checkbox" id="kb-notify-assigned" style="margin-top:0.15rem;">
+                <input type="checkbox" id="kb-notify-assigned" checked style="margin-top:0.15rem;">
                 <span>Someone is assigned to a card</span>
               </label>
               <label class="nc-auth-remember" style="display:flex;align-items:flex-start;gap:0.45rem;margin-bottom:0.35rem;">
-                <input type="checkbox" id="kb-notify-commented" style="margin-top:0.15rem;">
+                <input type="checkbox" id="kb-notify-commented" checked style="margin-top:0.15rem;">
                 <span>A new comment is posted</span>
               </label>
               <label class="nc-auth-remember" style="display:flex;align-items:flex-start;gap:0.45rem;margin-bottom:0.35rem;">
-                <input type="checkbox" id="kb-notify-moved" style="margin-top:0.15rem;">
+                <input type="checkbox" id="kb-notify-moved" checked style="margin-top:0.15rem;">
                 <span>A card is moved to another column</span>
               </label>
               <label class="nc-auth-remember" style="display:flex;align-items:flex-start;gap:0.45rem;margin-bottom:0.35rem;">
-                <input type="checkbox" id="kb-notify-marked-done" style="margin-top:0.15rem;">
+                <input type="checkbox" id="kb-notify-marked-done" checked style="margin-top:0.15rem;">
                 <span>A card is marked done</span>
               </label>
               <label class="nc-auth-remember" style="display:flex;align-items:flex-start;gap:0.45rem;margin-bottom:0.35rem;">
-                <input type="checkbox" id="kb-notify-due-date" style="margin-top:0.15rem;">
+                <input type="checkbox" id="kb-notify-due-date" checked style="margin-top:0.15rem;">
                 <span>A due date is set or changed</span>
               </label>
             </fieldset>
+
+            <section class="nc-admin-card" style="margin:0 0 0.85rem;padding:1rem 1rem 0.85rem;" aria-labelledby="kb-notify-reminder-heading">
+              <h4 id="kb-notify-reminder-heading" class="nc-admin-subhead" style="margin-top:0;">Due date reminders</h4>
+              <p class="nc-detail-muted" style="margin:0 0 0.75rem;">Email assignees once when a card is approaching its due date. Uses the portal timezone from <strong>Administration → Time</strong>.</p>
+              <label class="nc-auth-remember" style="display:flex;align-items:flex-start;gap:0.45rem;margin-bottom:0.65rem;">
+                <input type="checkbox" id="kb-notify-due-reminder" checked style="margin-top:0.15rem;">
+                <span><strong>Send due date reminder emails</strong></span>
+              </label>
+              <div class="nc-share-add-row" style="flex-wrap:wrap;align-items:flex-end;gap:0.5rem;margin-bottom:0.65rem;">
+                <label class="nc-detail-label" for="kb-notify-due-reminder-days" style="margin:0;">Days before due date</label>
+                <input type="number" id="kb-notify-due-reminder-days" class="nc-detail-input" min="1" max="90" step="1" value="1" style="flex:0 0 5rem;">
+                <span class="nc-detail-muted" style="font-size:0.88rem;">Assignees are emailed when the due date is this many days away (1–90).</span>
+              </div>
+              <button type="button" class="nc-btn nc-btn-secondary" id="kb-notify-due-reminder-now">Send due reminders now</button>
+            </section>
 
             <details class="nc-kb-notify-template" open>
               <summary class="nc-detail-label" style="cursor:pointer;margin-bottom:0.45rem;">Assigned — email template</summary>
@@ -849,10 +864,18 @@
               <textarea id="kb-notify-due-date-body" class="nc-detail-input" rows="6" style="width:100%;max-width:36rem;resize:vertical;font-family:inherit;"></textarea>
             </details>
 
+            <details class="nc-kb-notify-template">
+              <summary class="nc-detail-label" style="cursor:pointer;margin:0.65rem 0 0.45rem;">Due reminder — email template</summary>
+              <label class="nc-detail-label" for="kb-notify-due-reminder-subject">Subject</label>
+              <input type="text" id="kb-notify-due-reminder-subject" class="nc-detail-input" style="width:100%;max-width:36rem;" autocomplete="off">
+              <label class="nc-detail-label" for="kb-notify-due-reminder-body" style="margin-top:0.55rem;">Body</label>
+              <textarea id="kb-notify-due-reminder-body" class="nc-detail-input" rows="6" style="width:100%;max-width:36rem;resize:vertical;font-family:inherit;"></textarea>
+            </details>
+
             <p class="nc-detail-muted" id="kb-notify-placeholders" style="margin:0.65rem 0 0.85rem;font-size:0.82rem;"></p>
 
             <div class="nc-admin-form-actions" style="margin-top:0.85rem;flex-wrap:wrap;gap:0.5rem;">
-              <button type="button" class="nc-btn nc-btn-primary" id="kb-notify-save">Save notification settings</button>
+              <button type="button" class="nc-btn nc-btn-primary" id="kb-notify-save" disabled>Save notification settings</button>
             </div>
 
             <section class="nc-admin-card" style="margin-top:1rem;padding:1rem 1rem 0.85rem;" aria-labelledby="kb-notify-test-heading">
@@ -866,6 +889,7 @@
                   <option value="moved">Moved</option>
                   <option value="marked_done">Marked done</option>
                   <option value="due_date">Due date</option>
+                  <option value="due_reminder">Due reminder</option>
                 </select>
                 <label class="nc-detail-label" for="kb-notify-test-to" style="margin:0;">Test recipient</label>
                 <input type="email" id="kb-notify-test-to" class="nc-detail-input" placeholder="you@example.com" style="flex:1 1 12rem;max-width:16rem;" autocomplete="off">
@@ -883,7 +907,7 @@
         <div class="nc-admin-section-head">
           <div>
             <h2 class="nc-admin-section-title">Portal customisation</h2>
-            <p class="nc-detail-muted">Brand the portal with a logo, footer text, and colour theme.</p>
+            <p class="nc-detail-muted">Brand the portal with a logo, footer text, colour theme, and display scale.</p>
           </div>
         </div>
         <div class="nc-admin-section-body">
@@ -921,6 +945,14 @@
               <span><strong>Extranet</strong> — cool slate and indigo.</span>
             </label>
           </fieldset>
+
+          <h3 class="nc-admin-subhead" style="margin-top:1.25rem;">Portal scale</h3>
+          <p class="nc-detail-muted">Adjust the overall size of the portal interface (text, buttons, and layout). Move the slider, then release to preview on this page. Click <strong>Save</strong> to apply for everyone. 100% is the default.</p>
+          <div class="nc-portal-scale-control">
+            <input type="range" id="portal-scale-range" class="nc-portal-scale-range" min="75" max="150" step="1" value="100" aria-label="Portal scale percentage">
+            <output id="portal-scale-value" class="nc-portal-scale-value" for="portal-scale-range">100%</output>
+            <button type="button" class="nc-btn nc-btn-secondary" id="portal-scale-reset">Reset to 100%</button>
+          </div>
 
           <div class="nc-admin-form-actions" style="margin-top:0.75rem;">
             <button type="button" class="nc-btn nc-btn-primary" id="portal-save">Save</button>

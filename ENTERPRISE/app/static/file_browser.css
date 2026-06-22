@@ -5532,6 +5532,28 @@ body.nc-theme-non-core-team .nc-portal-theme-option {
   flex-shrink: 0;
 }
 
+.nc-portal-scale-control {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-top: 0.35rem;
+}
+
+.nc-portal-scale-range {
+  flex: 1 1 12rem;
+  min-width: 10rem;
+  max-width: 24rem;
+  accent-color: var(--nc-primary);
+}
+
+.nc-portal-scale-value {
+  font-weight: 600;
+  min-width: 3.5rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--nc-text);
+}
+
 /* Hide legacy top header on intranet and auth pages (they have their own chrome). */
 body.nc-page-intranet .nc-header,
 body.nc-page-auth .nc-header {
@@ -7276,9 +7298,8 @@ body.nc-eml-preview-page .nc-intranet-body {
   min-width: 0;
   max-width: none;
   box-sizing: border-box;
-  /* Fallback: ensure thread scroll works even if :has() isn't supported */
-  height: calc(100dvh - 260px);
-  max-height: calc(100dvh - 260px);
+  min-height: 0;
+  overflow: hidden;
 }
 
 /* Details minimised: drop the third column so the conversation pane grows */
@@ -9410,11 +9431,26 @@ body.nc-page-intranet .nc-intranet-app:has(#nc-wiki-root) .nc-wiki {
   height: 100%;
 }
 
-/* Team Chat page: fill viewport under intranet chrome; message column scrolls inside */
+/* Team Chat — viewport-locked; only message list / chat list scroll inside */
+body.nc-page-intranet:has(#nc-team-chat-root) {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  height: 100dvh;
+  max-height: 100dvh;
+}
+
+body.nc-page-intranet:has(#nc-team-chat-root) > .main.nc-intranet-main {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: 100%;
+  overflow: hidden;
+}
+
 body.nc-page-intranet .main.nc-intranet-main:has(#nc-team-chat-root) {
   display: flex;
   flex-direction: column;
-  min-height: calc(100dvh - 50px);
+  min-height: 0;
   box-sizing: border-box;
 }
 
@@ -9423,18 +9459,33 @@ body.nc-page-intranet .main.nc-intranet-main:has(#nc-team-chat-root) > .nc-intra
   display: flex;
   flex-direction: column;
   min-height: 0;
+  max-height: 100%;
+  overflow: hidden;
+}
+
+body.nc-page-intranet .nc-intranet-shell:has(#nc-team-chat-root) {
+  min-height: 0 !important;
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  max-height: 100%;
+  overflow: hidden;
 }
 
 body.nc-page-intranet .nc-intranet-shell:has(#nc-team-chat-root) .nc-intranet-app {
   flex: 1 1 auto;
   min-height: 0;
+  max-height: 100%;
 }
 
 body.nc-page-intranet .nc-intranet-app:has(#nc-team-chat-root) {
   display: flex;
   flex-direction: row;
+  align-items: stretch;
   min-height: 0;
+  max-height: 100%;
   flex: 1 1 auto;
+  overflow: hidden;
   box-sizing: border-box;
 }
 
@@ -9444,6 +9495,10 @@ body.nc-page-intranet .nc-intranet-app:has(#nc-team-chat-root) > .nc-intranet-st
   flex: 1 1 auto;
   min-height: 0;
   min-width: 0;
+  max-height: 100%;
+  overflow: hidden;
+  margin-top: 0;
+  padding-bottom: calc(0.35rem + var(--nc-intranet-footer-h));
 }
 
 body.nc-page-intranet .nc-intranet-app:has(#nc-team-chat-root) > .nc-intranet-sidebar,
@@ -9453,9 +9508,12 @@ body.nc-page-intranet .nc-intranet-shell:has(#nc-team-chat-root) > .nc-intranet-
 
 body.nc-page-intranet .nc-intranet-app:has(#nc-team-chat-root) > .nc-intranet-sidebar {
   align-self: stretch;
-  min-height: calc(100vh - var(--nc-intranet-chrome-h));
-  height: calc(100vh - var(--nc-intranet-chrome-h));
-  max-height: calc(100vh - var(--nc-intranet-chrome-h));
+  min-height: 0;
+  height: auto;
+  max-height: 100%;
+  position: relative;
+  top: auto;
+  overflow: hidden;
 }
 
 body.nc-page-intranet .nc-intranet-app:has(#nc-team-chat-root) .nc-intranet-body {
@@ -9463,24 +9521,25 @@ body.nc-page-intranet .nc-intranet-app:has(#nc-team-chat-root) .nc-intranet-body
   flex-direction: column;
   flex: 1 1 auto;
   min-height: 0;
+  max-height: 100%;
+  overflow: hidden;
+  width: 100%;
+  min-width: 0;
 }
 
 body.nc-page-intranet .nc-intranet-app:has(#nc-team-chat-root) .nc-intranet-body > .nc-intranet-hero {
   flex: 0 0 auto;
+  margin-bottom: 0.65rem;
 }
 
+body.nc-page-intranet .nc-intranet-app:has(#nc-team-chat-root) #nc-team-chat-root.nc-tc,
 body.nc-page-intranet .nc-intranet-app:has(#nc-team-chat-root) .nc-tc {
   flex: 1 1 auto;
   min-height: 0;
+  max-height: 100%;
+  overflow: hidden;
   width: 100%;
-  max-width: none;
   height: auto;
-  max-height: none;
-}
-
-body.nc-page-intranet .nc-intranet-app:has(#nc-team-chat-root) .nc-intranet-body {
-  width: 100%;
-  min-width: 0;
 }
 
 .nc-tc-left {
@@ -9488,6 +9547,8 @@ body.nc-page-intranet .nc-intranet-app:has(#nc-team-chat-root) .nc-intranet-body
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .nc-tc-new {
@@ -9896,9 +9957,8 @@ body.nc-page-intranet .nc-intranet-app:has(#nc-team-chat-root) .nc-intranet-body
 .nc-tc-mid-scroll {
   flex: 1 1 auto;
   min-height: 0;
-  /* scroll (not auto) reserves axes so gutters/tracks appear on more platforms than overlay-only auto */
-  overflow-x: scroll;
-  overflow-y: scroll;
+  overflow-x: auto;
+  overflow-y: auto;
   scrollbar-gutter: stable;
   scrollbar-width: thin;
   scrollbar-color: rgba(148, 163, 184, 0.68) rgba(241, 245, 249, 0.9);
@@ -10924,10 +10984,11 @@ body.nc-page-intranet .nc-intranet-app:has(#nc-team-chat-root) .nc-intranet-body
     flex-direction: column;
     flex: 1 1 auto;
     min-height: 0;
+    max-height: 100%;
+    overflow: hidden;
     width: 100%;
     max-width: 100%;
     height: auto;
-    max-height: none;
     gap: 0;
     margin: 0;
   }
@@ -10935,6 +10996,8 @@ body.nc-page-intranet .nc-intranet-app:has(#nc-team-chat-root) .nc-intranet-body
   body.nc-page-intranet .nc-intranet-app:has(#nc-team-chat-root) .nc-tc {
     flex: 1 1 auto;
     min-height: 0;
+    max-height: 100%;
+    overflow: hidden;
     width: 100%;
   }
 
@@ -10945,16 +11008,19 @@ body.nc-page-intranet .nc-intranet-app:has(#nc-team-chat-root) .nc-intranet-body
     max-width: 100%;
     margin: 0;
     align-self: stretch;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
   }
 
   .nc-tc-left,
   .nc-tc-mid {
     flex: 1 1 auto;
     min-height: 0;
+    overflow: hidden;
     width: 100%;
     max-width: 100%;
     height: auto;
-    max-height: none;
     border-radius: 0;
     border-left: none;
     border-right: none;
@@ -16355,6 +16421,78 @@ textarea.nc-crm2-in {
 }
 
 .nc-flight-sim-help-body p {
+  margin: 0.35rem 0;
+}
+
+.nc-space-invaders-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1.25rem;
+  margin-bottom: 0.5rem;
+}
+
+.nc-space-invaders-stat {
+  font-size: 0.92rem;
+  color: rgba(15, 23, 42, 0.78);
+}
+
+.nc-space-invaders-stat strong {
+  font-weight: 700;
+  margin-right: 0.25rem;
+}
+
+.nc-space-invaders-status {
+  margin: 0 0 0.65rem;
+}
+
+.nc-space-invaders-player {
+  width: 100%;
+  min-width: 0;
+  margin-bottom: 0.75rem;
+}
+
+.nc-space-invaders-canvas {
+  display: block;
+  width: 100%;
+  max-width: 800px;
+  margin: 0 auto;
+  border-radius: 12px;
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  background: #020617;
+  box-shadow: 0 12px 40px rgba(15, 23, 42, 0.18);
+  outline: none;
+}
+
+.nc-space-invaders-canvas:focus-visible {
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.45), 0 12px 40px rgba(15, 23, 42, 0.18);
+}
+
+.nc-space-invaders-lives span {
+  letter-spacing: 0.08em;
+  color: #f87171;
+}
+
+.nc-space-invaders-help {
+  margin-top: 0.5rem;
+  padding: 0.65rem 0.85rem;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  background: rgba(255, 255, 255, 0.65);
+}
+
+.nc-space-invaders-help summary {
+  cursor: pointer;
+  font-weight: 750;
+}
+
+.nc-space-invaders-help-body {
+  margin-top: 0.55rem;
+  font-size: 0.9rem;
+  color: rgba(15, 23, 42, 0.72);
+}
+
+.nc-space-invaders-help-body p {
   margin: 0.35rem 0;
 }
 
