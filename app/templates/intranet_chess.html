@@ -1,0 +1,79 @@
+{% extends "intranet_base.html" %}
+{% block body_class %}nc-page-intranet nc-page-chess{% endblock %}
+{% block title %}{{ portal_tab_title }} — Chess{% endblock %}
+
+{% block intranet_body %}
+<div class="nc-chess-page" id="nc-chess-app" data-game-id="{{ game_public_id }}" data-api-base="/intranet/api/chess" data-me-id="{{ chess_me_id }}" data-me-name="{{ chess_me_name|e }}">
+  <header class="nc-chess-toolbar">
+    <div class="nc-chess-toolbar-left">
+      <a class="nc-btn nc-btn-secondary nc-chess-back" href="{{ url_for('chess.game_lobby_page') }}">← Games</a>
+      <code class="nc-chess-code" id="chess-game-code">{{ game_public_id }}</code>
+    </div>
+    <div id="chess-you-role" class="nc-chess-you-role" hidden>
+      <span class="nc-chess-you-role-piece" id="chess-you-piece" aria-hidden="true">♚</span>
+      <span>You are playing as <strong id="chess-you-color-label">Black</strong></span>
+    </div>
+    <div class="nc-chess-toolbar-right">
+      <span class="nc-chess-game-total-label">Total</span>
+      <span class="nc-chess-game-total-value" id="chess-game-total">0:00</span>
+    </div>
+  </header>
+
+  <div id="chess-status-banner" class="nc-chess-banner" role="status" hidden></div>
+
+  <div class="nc-chess-layout">
+    <aside class="nc-chess-side nc-chess-side--chat" aria-label="Game chat">
+      <section class="nc-game-card nc-chess-side-card nc-chess-chat-card">
+        <h2 class="nc-game-card-title">Chat</h2>
+        <p class="nc-detail-muted nc-chess-side-hint" id="chess-chat-hint">Message your opponent.</p>
+        <div id="chess-chat-messages" class="nc-chess-chat-messages" role="log" aria-live="polite"></div>
+        <form id="chess-chat-form" class="nc-chess-chat-form">
+          <input type="text" id="chess-chat-input" class="nc-detail-input" placeholder="Type a message…" maxlength="2000" autocomplete="off">
+          <button type="submit" class="nc-btn nc-btn-primary nc-chess-chat-send">Send</button>
+        </form>
+      </section>
+    </aside>
+
+    <section class="nc-chess-main">
+      <div class="nc-chess-play-area">
+        <div class="nc-chess-clock-bar" id="chess-clock-opponent" aria-label="Opponent">
+          <span class="nc-chess-clock-chip" id="chess-opponent-chip">White</span>
+          <span class="nc-chess-clock-name" id="chess-opponent-name">—</span>
+          <span class="nc-chess-clock-time" id="chess-opponent-total">0:00</span>
+        </div>
+
+        <div class="nc-chess-board-wrap">
+          <div id="chess-board" class="nc-chess-board" aria-label="Chess board"></div>
+        </div>
+
+        <div class="nc-chess-clock-bar nc-chess-clock-bar--you" id="chess-clock-you" aria-label="You">
+          <span class="nc-chess-you-badge">YOU</span>
+          <span class="nc-chess-clock-chip nc-chess-clock-chip--you" id="chess-you-chip">Black</span>
+          <span class="nc-chess-clock-name" id="chess-you-name">—</span>
+          <span class="nc-chess-clock-time" id="chess-you-total">0:00</span>
+        </div>
+      </div>
+
+      <div class="nc-chess-actions">
+        <button type="button" class="nc-btn nc-btn-primary" id="chess-join-game" hidden>Join this game</button>
+        <button type="button" class="nc-btn nc-btn-secondary" id="chess-resign" hidden>Resign</button>
+        <button type="button" class="nc-btn nc-btn-secondary" id="chess-copy-link">Copy invite link</button>
+      </div>
+      <p id="chess-game-status" class="nc-status" role="status"></p>
+    </section>
+
+    <aside class="nc-chess-side">
+      <section class="nc-game-card nc-chess-side-card">
+        <h2 class="nc-game-card-title">Move history</h2>
+        <p class="nc-detail-muted nc-chess-side-hint">Thinking time before each move.</p>
+        <ol id="chess-moves" class="nc-chess-moves"></ol>
+      </section>
+    </aside>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script src="{{ url_for('static', filename='intranet_chess.js') }}?v=24" defer></script>
+{% endblock %}

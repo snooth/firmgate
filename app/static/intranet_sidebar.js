@@ -1,0 +1,196 @@
+(function () {
+  "use strict";
+
+  const STORAGE_KEY = "firmgate.intranetSidebarCollapsed";
+  const KANBAN_NAV_KEY = "firmgate.kanbanNavExpanded";
+
+  /** Read active section from a document (current or incoming Turbo response). */
+  function readNavActiveKey(doc) {
+    const root = doc || document;
+    const app = root.getElementById("nc-intranet-app");
+    if (app && app.dataset.intranetNavActive) {
+      return app.dataset.intranetNavActive;
+    }
+    const marker = root.querySelector("[data-intranet-nav-active]");
+    return marker ? marker.dataset.intranetNavActive || "" : "";
+  }
+
+  /** Sidebar is turbo-permanent; strip legacy sub-item styling from AI Chatbot only. */
+  function normalizeSidebarNavTabs() {
+    const nav = document.querySelector(".nc-intranet-sidebar-nav");
+    if (!nav) return;
+    nav.querySelectorAll('.nc-intranet-tab[data-nav-key="ai_chatbot"]').forEach((tab) => {
+      tab.classList.remove("nc-intranet-tab--sub");
+    });
+  }
+
+  function syncIntranetNavActive(activeKey) {
+    const key =
+      activeKey !== undefined && activeKey !== null
+        ? String(activeKey)
+        : readNavActiveKey(document);
+    const nav = document.querySelector(".nc-intranet-sidebar-nav");
+    if (!nav) return;
+    normalizeSidebarNavTabs();
+    nav.querySelectorAll(".nc-intranet-tab[data-nav-key]").forEach((tab) => {
+      const navKey = tab.dataset.navKey;
+      let on = navKey === key;
+      if (!on && navKey === "kanban" && (key === "kanban" || key.startsWith("kanban_board_"))) {
+        on = true;
+      }
+      tab.classList.toggle("is-active", on);
+      if (tab.dataset.navKey === key) tab.setAttribute("aria-current", "page");
+      else tab.removeAttribute("aria-current");
+    });
+  }
+
+  function sidebarToggle() {
+    return document.getElementById("nc-intranet-sidebar-toggle");
+  }
+
+  function isCollapsed() {
+    return document.documentElement.classList.contains("nc-intranet-sidebar-collapsed");
+  }
+
+  function syncCollapsedNavLabels(collapsed) {
+    document
+      .querySelectorAll(".nc-intranet-tab-text, .nc-intranet-nav-section-label")
+      .forEach((el) => {
+        el.hidden = collapsed;
+      });
+  }
+
+  function applyCollapsed(collapsed) {
+    const sidebar = document.getElementById("nc-intranet-sidebar");
+    document.documentElement.classList.toggle("nc-intranet-sidebar-collapsed", collapsed);
+    syncCollapsedNavLabels(collapsed);
+    document.documentElement.style.removeProperty("--nc-intranet-sidebar-w");
+    if (sidebar) {
+      sidebar.classList.toggle("is-collapsed", collapsed);
+      sidebar.setAttribute("aria-expanded", collapsed ? "false" : "true");
+    }
+    const btn = sidebarToggle();
+    if (btn) {
+      btn.setAttribute("aria-expanded", collapsed ? "false" : "true");
+      btn.setAttribute("aria-label", collapsed ? "Expand navigation" : "Collapse navigation");
+      btn.title = collapsed ? "Expand navigation" : "Collapse navigation";
+      const label = btn.querySelector(".nc-intranet-sidebar-toggle-label");
+      if (label) label.textContent = collapsed ? "Expand menu" : "Collapse menu";
+    }
+    const syncLayout = () => {
+      if (typeof window.ncSyncViewerOffsetsSoon === "function") {
+        window.ncSyncViewerOffsetsSoon();
+      }
+    };
+    syncLayout();
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(syncLayout);
+    });
+  }
+
+  function readStored() {
+    try {
+      return window.localStorage.getItem(STORAGE_KEY) === "1";
+    } catch (_e) {
+      return false;
+    }
+  }
+
+  function store(collapsed) {
+    try {
+      window.localStorage.setItem(STORAGE_KEY, collapsed ? "1" : "0");
+    } catch (_e) {}
+  }
+
+  function readKanbanNavStored() {
+    try {
+      return window.localStorage.getItem(KANBAN_NAV_KEY);
+    } catch (_e) {
+      return null;
+    }
+  }
+
+  function storeKanbanNavExpanded(expanded) {
+    try {
+      window.localStorage.setItem(KANBAN_NAV_KEY, expanded ? "1" : "0");
+    } catch (_e) {}
+  }
+
+  function setKanbanNavExpanded(group, expanded, persist) {
+    const chevron = group.querySelector(".nc-intranet-nav-group-chevron");
+    const subitems = group.querySelector(".nc-intranet-nav-subitems");
+    if (!chevron || !subitems) return;
+    group.classList.toggle("is-expanded", expanded);
+    subitems.hidden = !expanded;
+    chevron.setAttribute("aria-expanded", expanded ? "true" : "false");
+    chevron.setAttribute("aria-label", expanded ? "Hide KanBan boards" : "Show KanBan boards");
+    chevron.title = expanded ? "Hide boards" : "Show boards";
+    if (persist) storeKanbanNavExpanded(expanded);
+  }
+
+  function initKanbanNavGroup(activeKey) {
+    const group = document.querySelector(".nc-intranet-nav-group--kanban");
+    if (!group) return;
+    const key =
+      activeKey !== undefined && activeKey !== null
+        ? String(activeKey)
+        : readNavActiveKey(document);
+
+    if (group.dataset.kanbanNavWired !== "1") {
+      group.dataset.kanbanNavWired = "1";
+      const chevron = group.querySelector(".nc-intranet-nav-group-chevron");
+      if (chevron) {
+        chevron.addEventListener("click", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          setKanbanNavExpanded(group, !group.classList.contains("is-expanded"), true);
+        });
+      }
+    }
+
+    const stored = readKanbanNavStored();
+    if (stored === "1") {
+      setKanbanNavExpanded(group, true, false);
+      return;
+    }
+    if (stored === "0") {
+      setKanbanNavExpanded(group, false, false);
+      return;
+    }
+
+    if (key.startsWith("kanban_board_")) {
+      setKanbanNavExpanded(group, true, false);
+      return;
+    }
+
+    setKanbanNavExpanded(group, false, false);
+  }
+
+  function init() {
+    syncIntranetNavActive();
+    initKanbanNavGroup();
+    const btn = sidebarToggle();
+    if (!btn) return;
+    applyCollapsed(readStored());
+    if (btn.dataset.wired === "1") return;
+    btn.dataset.wired = "1";
+    btn.addEventListener("click", () => {
+      const next = !isCollapsed();
+      applyCollapsed(next);
+      store(next);
+    });
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init, { once: true });
+  } else {
+    init();
+  }
+  document.addEventListener("turbo:load", init);
+
+  document.addEventListener("turbo:before-render", (event) => {
+    const key = readNavActiveKey(event.detail.newBody);
+    syncIntranetNavActive(key);
+    initKanbanNavGroup(key);
+  });
+})();

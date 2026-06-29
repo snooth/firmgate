@@ -1,0 +1,41 @@
+# Firmgate — Docker Compose (Option 1: recommended install)
+#
+# Quick start:
+#   cp .env.example .env
+#   # edit SECRET_KEY in .env
+#   docker compose up -d --build
+#   open http://127.0.0.1:5001/
+#
+# Data persists in the firmgate_data volume (SQLite + uploads).
+
+services:
+  firmgate:
+    build: .
+    image: firmgate:local
+    container_name: firmgate
+    restart: unless-stopped
+    ports:
+      - "${FIRMGATE_HTTP_PORT:-5001}:5001"
+    environment:
+      SECRET_KEY: ${SECRET_KEY:-dev-change-me-before-production}
+      FLASK_DEBUG: "0"
+      DATABASE_URL: sqlite:////data/instance/secure_browser.db
+      UPLOAD_ROOT: /data/instance/uploads
+      PORT: "5001"
+      PORTAL_PRODUCT_NAME: ${PORTAL_PRODUCT_NAME:-Firmgate}
+      MFA_ISSUER: ${MFA_ISSUER:-Firmgate}
+      MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-4096}
+      GUNICORN_WORKERS: ${GUNICORN_WORKERS:-2}
+      GUNICORN_TIMEOUT: ${GUNICORN_TIMEOUT:-300}
+    volumes:
+      - firmgate_data:/data/instance
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:5001/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+
+volumes:
+  firmgate_data:
+    name: firmgate_data

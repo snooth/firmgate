@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}OnlyOffice{% endblock %}
+{% block body_class %}nc-page-onlyoffice nc-onlyoffice-embed{% endblock %}
+{% block main_class %}main{% endblock %}
+{% block content %}
+<div id="onlyoffice-editor" class="nc-onlyoffice-editor"></div>
+{% endblock %}
+{% block scripts %}
+<script src="{{ onlyoffice_url }}/web-apps/apps/api/documents/api.js"></script>
+<script>
+  (function () {
+    var cfg = {{ doc_config|safe }};
+    var START_SLIDE = {{ "true" if onlyoffice_slideshow_start else "false" }};
+    var docEditor = null;
+    var slideStarted = false;
+
+    function runStartSlideShow() {
+      if (!START_SLIDE || !docEditor || slideStarted) return;
+      try {
+        if (typeof docEditor.createConnector !== "function") return;
+        var connector = docEditor.createConnector();
+        if (!connector || typeof connector.executeMethod !== "function") return;
+        connector.executeMethod("StartSlideShow", [], function () {
+          slideStarted = true;
+        });
+      } catch (e) {
+        /* editions without Automation API */
+      }
+    }
+
+    function scheduleSlideShow() {
+      if (!START_SLIDE) return;
+      [300, 1000, 2200].forEach(function (ms) {
+        window.setTimeout(runStartSlideShow, ms);
+      });
+    }
+
+    if (START_SLIDE) {
+      cfg.events = cfg.events || {};
+      var prevReady = cfg.events.onDocumentReady;
+      cfg.events.onDocumentReady = function () {
+        try {
+          if (typeof prevReady === "function") prevReady();
+        } catch (e1) {}
+        scheduleSlideShow();
+      };
+    }
+    // eslint-disable-next-line no-undef
+    docEditor = new DocsAPI.DocEditor("onlyoffice-editor", cfg);
+  })();
+</script>
+{% endblock %}

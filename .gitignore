@@ -1,0 +1,17 @@
+# Runtime data and secrets
+instance/
+.env
+*.log
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Build artifacts / release output
+dist/
+checksums.sha256.json
+
+# OS junk
+.DS_Store

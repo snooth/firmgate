@@ -1,0 +1,82 @@
+{# Global floating dialpad for click-to-dial from CRM, Workforce, Resource Pool, etc. #}
+<div id="nc-sip-dial-root" data-jssip-src="{{ url_for('static', filename='jssip.min.js') }}" hidden aria-hidden="true"></div>
+
+<div class="nc-sip-dial-popover" id="nc-sip-dial-popover" role="dialog" aria-label="Phone dialpad" hidden>
+  <div class="nc-sip-dial-popover-panel">
+    <header class="nc-sip-dial-popover-head">
+      <div class="nc-sip-dial-popover-title-wrap">
+        <span class="nc-sip-dial-popover-title">Phone</span>
+        <span class="nc-phone-status-dot" id="nc-sip-popover-status-dot" data-state="offline" aria-hidden="true"></span>
+        <span class="nc-sip-dial-popover-status" id="nc-sip-popover-status-text">Offline</span>
+      </div>
+      <div class="nc-sip-dial-popover-head-actions">
+        <button type="button" class="nc-btn nc-btn-secondary nc-btn-sm" id="nc-sip-popover-ext-btn" aria-haspopup="dialog" aria-expanded="false">SIP</button>
+        <a class="nc-btn nc-btn-secondary nc-btn-sm" href="{{ url_for('intranet.phone_page') }}" title="Open full phone page">↗</a>
+        <button type="button" class="nc-sip-dial-popover-close" id="nc-sip-dial-popover-close" aria-label="Close dialpad">×</button>
+      </div>
+    </header>
+
+    <div class="nc-phone-ext-popover nc-sip-popover-ext" id="nc-sip-popover-ext-popover" role="dialog" aria-label="SIP extension" hidden>
+      <p class="nc-detail-muted" style="margin:0 0 0.65rem;">Extension credentials are stored for your account only.</p>
+      <form id="nc-sip-popover-creds-form" class="nc-phone-creds-form" autocomplete="off">
+        <label class="nc-phone-field">
+          <span>Extension</span>
+          <input type="text" id="nc-sip-popover-extension" inputmode="numeric" autocomplete="off" placeholder="e.g. 1001">
+        </label>
+        <label class="nc-phone-field">
+          <span>SIP password</span>
+          <input type="password" id="nc-sip-popover-password" autocomplete="new-password" placeholder="PBX extension password">
+        </label>
+        <label class="nc-phone-field">
+          <span>Display name (optional)</span>
+          <input type="text" id="nc-sip-popover-display-name" autocomplete="name">
+        </label>
+        <div class="nc-phone-creds-actions">
+          <button type="submit" class="nc-btn nc-btn-secondary">Save</button>
+          <button type="button" class="nc-btn nc-btn-primary" id="nc-sip-popover-register-btn">Register</button>
+          <button type="button" class="nc-btn nc-btn-danger" id="nc-sip-popover-unregister-btn" hidden>Unregister</button>
+        </div>
+      </form>
+      <p id="nc-sip-popover-creds-status" class="nc-detail-muted" role="status" style="margin:0.5rem 0 0;"></p>
+    </div>
+
+    <div class="nc-sip-dial-popover-body">
+      <div class="nc-phone-dial-display">
+        <input type="tel" id="nc-sip-popover-dial-input" class="nc-phone-dial-input" placeholder="Number to dial" autocomplete="off" inputmode="tel">
+        <button type="button" class="nc-phone-backspace" id="nc-sip-popover-backspace" title="Backspace" aria-label="Backspace">⌫</button>
+      </div>
+      <div class="nc-phone-keypad nc-sip-popover-keypad">
+        {% set keys = [('1',''),('2','ABC'),('3','DEF'),('4','GHI'),('5','JKL'),('6','MNO'),('7','PQRS'),('8','TUV'),('9','WXYZ'),('*',''),('0','+'),('#','')] %}
+        {% for key, sub in keys %}
+        <button type="button" class="nc-phone-key nc-sip-popover-key" data-key="{{ key }}">
+          <span class="nc-phone-key-num">{{ key }}</span>
+          {% if sub %}<span class="nc-phone-key-sub">{{ sub }}</span>{% endif %}
+        </button>
+        {% endfor %}
+      </div>
+      <div class="nc-phone-call-actions">
+        <button type="button" class="nc-phone-call-main" id="nc-sip-popover-call-btn" disabled>
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M6.62 10.79a15.05 15.05 0 0 0 6.59 6.59l2.2-2.2a1 1 0 0 1 1.05-.24c1.12.37 2.33.57 3.54.57a1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.21.2 2.42.57 3.54a1 1 0 0 1-.24 1.05l-2.21 2.2z"/></svg>
+          <span>Call</span>
+        </button>
+        <button type="button" class="nc-phone-vbtn nc-phone-vbtn--end nc-sip-popover-hangup" id="nc-sip-popover-hangup-btn" title="Hang up" aria-label="Hang up" hidden>
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><path d="M21 15.46l-5.27-.61-2.52 2.52a15.05 15.05 0 0 1-6.59-6.59l2.53-2.53L8.54 3H3.03C2.45 13.18 10.82 21.55 21 20.97v-5.51z" transform="rotate(135 12 12)"/></svg>
+        </button>
+      </div>
+      <p id="nc-sip-popover-call-status" class="nc-detail-muted nc-sip-popover-call-status" role="status"></p>
+    </div>
+  </div>
+</div>
+
+<div class="nc-phone-incoming nc-sip-global-incoming" id="nc-sip-global-incoming" hidden>
+  <div class="nc-phone-incoming-card" role="dialog" aria-labelledby="nc-sip-global-incoming-label">
+    <p class="nc-phone-incoming-label" id="nc-sip-global-incoming-label">Incoming call</p>
+    <p class="nc-phone-incoming-from" id="nc-sip-global-incoming-from"></p>
+    <div class="nc-phone-incoming-actions">
+      <button type="button" class="nc-btn nc-btn-primary" id="nc-sip-global-answer-btn">Answer</button>
+      <button type="button" class="nc-btn nc-btn-danger" id="nc-sip-global-reject-btn">Decline</button>
+    </div>
+  </div>
+</div>
+
+<audio id="nc-sip-global-remote-audio" autoplay playsinline hidden></audio>

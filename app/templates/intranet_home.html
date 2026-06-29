@@ -1,0 +1,85 @@
+{% extends "intranet_base.html" %}
+{% block title %}{{ portal_tab_title }} — Home{% endblock %}
+
+{% block intranet_body %}
+<div class="nc-intranet-hero-banner">
+  <div class="nc-intranet-hero-banner-inner">
+    <div>
+      <h1>Home</h1>
+      <div class="nc-intranet-muted">Main announcements and quick updates.</div>
+    </div>
+    {% if can_manage_home %}
+      <button type="button" class="nc-btn nc-btn-secondary nc-intranet-hero-edit" id="nc-home-edit">Edit</button>
+    {% endif %}
+  </div>
+</div>
+
+<div class="nc-intranet-grid2">
+  <section class="nc-intranet-card">
+    <h2>Announcements</h2>
+    {% for a in announcements or [] %}
+      <div class="nc-intranet-ann{% if a.is_snippet and a.body_html_full %} nc-intranet-ann--expandable{% endif %}" id="ann-{{ loop.index0 }}" data-ann-idx="{{ loop.index0 }}"{% if a.is_snippet and a.body_html_full %} role="button" tabindex="0" aria-label="Open full announcement: {{ a.title|e }}"{% endif %}>
+        <div class="nc-intranet-pill">{{ a.category }}</div>
+        <div class="nc-intranet-ann-main">
+          <div class="nc-intranet-ann-title">{{ a.title }}</div>
+          {% if a.body_html %}
+          <div class="nc-intranet-muted nc-ann-body {% if a.is_snippet %}nc-ann-body--snippet{% else %}nc-ann-body--full{% endif %}">{{ a.body_html|safe }}</div>
+          {% elif a.is_snippet %}
+          <div class="nc-intranet-muted nc-ann-body nc-ann-body--snippet">Preview snippet unavailable.</div>
+          {% endif %}
+          {% if a.is_snippet and a.body_html_full %}
+          <div class="nc-intranet-ann-readmore">Click to read full announcement</div>
+          {% endif %}
+        </div>
+      </div>
+    {% endfor %}
+  </section>
+</div>
+
+<script type="application/json" id="nc-home-announcements-data">{{ announcements | tojson }}</script>
+<div id="nc-home-ann-viewer" class="nc-viewer-shell" hidden aria-label="Announcement">
+  <div class="nc-viewer-topbar">
+    <div class="nc-viewer-topbar-title" id="nc-home-ann-viewer-title">Announcement</div>
+    <button type="button" class="nc-viewer-close" id="nc-home-ann-viewer-close" aria-label="Close">&times;</button>
+  </div>
+  <div class="nc-home-ann-viewer-body">
+    <div class="nc-intranet-pill" id="nc-home-ann-viewer-cat"></div>
+    <h2 class="nc-home-ann-viewer-h" id="nc-home-ann-viewer-h"></h2>
+    <div class="nc-ann-body nc-ann-body--full" id="nc-home-ann-viewer-content"></div>
+  </div>
+</div>
+<script src="{{ url_for('static', filename='home.js') }}?v=1" defer></script>
+
+{% if can_manage_home %}
+<script type="application/json" id="nc-home-data">{{ home_cfg | tojson }}</script>
+<div id="nc-home-dlg" class="nc-viewer-shell" hidden aria-label="Home editor">
+  <div class="nc-viewer-topbar">
+    <div class="nc-viewer-topbar-title">Edit Home</div>
+    <button type="button" class="nc-viewer-close" id="nc-home-x" aria-label="Close editor">&times;</button>
+  </div>
+  <div class="nc-blog-compose-canvas">
+    <form class="nc-home-form nc-home-form--v3 nc-blog-form--v3" id="nc-home-form">
+      <div class="nc-blog-compose-body">
+        <div id="nc-home-tab-ann" class="nc-home-tab">
+          <div id="nc-home-ann-list"></div>
+          <button type="button" class="nc-btn nc-btn-secondary" id="nc-home-ann-add">+ Add announcement</button>
+        </div>
+
+        <p class="nc-detail-muted" id="nc-home-status" style="margin-top:0.9rem;"></p>
+      </div>
+
+      <div class="nc-blog-compose-foot">
+        <div class="nc-blog-foot-left">
+          <button type="button" class="nc-btn nc-btn-secondary" id="nc-home-cancel">Cancel</button>
+        </div>
+        <div class="nc-blog-foot-right">
+          <button type="submit" class="nc-btn nc-btn-primary" id="nc-home-save">Save</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+<script src="{{ url_for('static', filename='home_admin.js') }}?v=10" defer></script>
+{% endif %}
+{% endblock %}
+

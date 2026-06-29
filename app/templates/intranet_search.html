@@ -1,0 +1,109 @@
+{% extends "intranet_base.html" %}
+{% block title %}{{ portal_tab_title }} — Search{% endblock %}
+
+{% block intranet_body %}
+{% macro doc_icon(name, is_folder) -%}
+  {%- if is_folder -%}📁
+  {%- else -%}
+    {%- set n = (name or '')|lower -%}
+    {%- if n.endswith('.pdf') -%}📄
+    {%- elif n.endswith('.png') or n.endswith('.jpg') or n.endswith('.jpeg') or n.endswith('.gif') or n.endswith('.webp') -%}🖼️
+    {%- elif n.endswith('.eml') or n.endswith('.msg') -%}✉️
+    {%- elif n.endswith('.doc') or n.endswith('.docx') -%}📝
+    {%- elif n.endswith('.xls') or n.endswith('.xlsx') or n.endswith('.csv') -%}📊
+    {%- elif n.endswith('.ppt') or n.endswith('.pptx') or n.endswith('.pps') or n.endswith('.ppsx') -%}📽️
+    {%- elif n.endswith('.zip') or n.endswith('.7z') or n.endswith('.rar') -%}🗜️
+    {%- else -%}📄
+    {%- endif -%}
+  {%- endif -%}
+{%- endmacro %}
+
+<div class="nc-intranet-hero nc-intranet-hero--search">
+  <div>
+    <h1>Search</h1>
+    {% if q %}
+    <p class="nc-intranet-muted">
+      Results for <strong>{{ q }}</strong>
+      {% if search_scope == 'documents' %} in Documents{% else %} across {{ portal_shell_name }}{% endif %}
+    </p>
+    {% else %}
+    <p class="nc-intranet-muted">Enter a search term in the bar above.</p>
+    {% endif %}
+  </div>
+  {% if q %}
+  <div class="nc-intranet-hero-actions">
+    {% if search_scope == 'all' %}
+    <a class="nc-btn nc-btn-secondary" href="{{ url_for('intranet.intranet_search', q=q) }}">Documents only</a>
+    {% else %}
+    <a class="nc-btn nc-btn-secondary" href="{{ url_for('intranet.intranet_search', q=q, scope='all') }}">Search everywhere</a>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+
+<div class="nc-intranet-grid{% if search_scope == 'documents' %} nc-intranet-grid--search-docs{% endif %}">
+  <section class="nc-intranet-card">
+    <h2>Documents</h2>
+    {% for d in results.documents %}
+      <div class="nc-search-docrow">
+        <div class="nc-search-docic" aria-hidden="true">{{ doc_icon(d.name, d.is_folder) }}</div>
+        <div class="nc-search-docmain">
+          <div class="nc-search-docname">
+            <a href="{{ d.url }}">{{ d.name }}</a>
+            <span class="nc-intranet-muted">{% if d.is_folder %} (folder){% else %} (file){% endif %}</span>
+          </div>
+        </div>
+      </div>
+    {% else %}
+      <div class="nc-intranet-muted">No matching documents.</div>
+    {% endfor %}
+  </section>
+
+  {% if search_scope == 'all' %}
+  <section class="nc-intranet-card">
+    <h2>Blogs</h2>
+    {% for p in results.news %}
+      <a class="nc-intranet-newsitem" href="{{ p.url or url_for('intranet.news_page') }}" style="display:block; padding:0.6rem 0; border-bottom:1px solid var(--nc-border); text-decoration:none; color:inherit;">
+        <div class="nc-intranet-newsdate">{{ p.date }}</div>
+        <div class="nc-intranet-newstitle">{{ p.title }}</div>
+        <div class="nc-intranet-muted">{{ p.excerpt }}</div>
+      </a>
+    {% else %}
+      <div class="nc-intranet-muted">No matching blogs.</div>
+    {% endfor %}
+  </section>
+
+  <section class="nc-intranet-card">
+    <h2>Wiki</h2>
+    {% for w in results.wiki %}
+      <div class="nc-search-docrow">
+        <div class="nc-search-docic" aria-hidden="true">📖</div>
+        <div class="nc-search-docmain">
+          <div class="nc-search-docname">
+            <a href="{{ w.url }}">{{ w.title }}</a>
+            <span class="nc-intranet-muted">{{ w.slug }}</span>
+          </div>
+        </div>
+      </div>
+    {% else %}
+      <div class="nc-intranet-muted">No matching wiki pages.</div>
+    {% endfor %}
+  </section>
+
+  <section class="nc-intranet-card">
+    <h2>People</h2>
+    {% for p in results.people %}
+      <a class="nc-intranet-person" href="{{ p.url }}" aria-label="View workforce profile for {{ p.name }}" style="display:block; border:1px solid var(--nc-border); border-radius:12px; margin-bottom:0.6rem; text-decoration:none; color:inherit; cursor:pointer;">
+        <div class="nc-intranet-person-body">
+          <div class="nc-intranet-person-name">{{ p.name }}</div>
+          <div class="nc-intranet-muted">{{ p.email }}</div>
+          {% if p.phone %}<div class="nc-intranet-muted">{{ p.phone }}</div>{% endif %}
+        </div>
+      </a>
+    {% else %}
+      <div class="nc-intranet-muted">No matching people.</div>
+    {% endfor %}
+  </section>
+  {% endif %}
+</div>
+{% endblock %}

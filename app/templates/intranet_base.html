@@ -1,0 +1,242 @@
+{% extends "base.html" %}
+{% block body_class %}nc-page-intranet{% endblock %}
+{% block main_class %}main nc-intranet-main{% endblock %}
+
+{% block extrahead %}
+{{ super() }}
+{% if sip_configured %}<script>document.documentElement.dataset.sipConfigured="1";</script>{% endif %}
+<script>
+  try {
+    if (window.localStorage.getItem("firmgate.intranetSidebarCollapsed") === "1") {
+      document.documentElement.classList.add("nc-intranet-sidebar-collapsed");
+    }
+  } catch (_e) {}
+</script>
+{# Turbo Drive: intranet navigations without full document unload (keeps in-page XHR alive). #}
+<script src="https://cdn.jsdelivr.net/npm/@hotwired/turbo@8.0.13/dist/turbo.es2017-umd.min.js" defer></script>
+{% endblock %}
+
+{% block content %}
+{% set _embed = (request.args.get('embed') == '1') %}
+{% if not _embed %}
+<div class="nc-intranet-shell">
+  <header class="nc-intranet-top nc-intranet-topbar" data-turbo-permanent id="nc-intranet-top-permanent">
+    <a
+      class="nc-intranet-topbar-brand{% if portal_has_custom_logo %} nc-intranet-topbar-brand--custom{% endif %}"
+      href="{{ url_for('intranet.intranet_page') }}"
+      aria-label="{{ portal_shell_name }} home"
+    >
+      {% if portal_logo_url %}
+        {% with brand_variant='header' %}{% include "_portal_brand_mark.html" %}{% endwith %}
+      {% else %}
+        <span class="nc-intranet-topbar-logo-fallback" aria-hidden="true">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M3 6h8l2 3h8v12H3V6z" fill="currentColor" opacity=".9"/></svg>
+        </span>
+      {% endif %}
+      {% if not portal_has_custom_logo %}
+      <span class="nc-intranet-topbar-brand-text">
+        <span class="nc-intranet-brand-name">{{ portal_shell_name }}</span>
+      </span>
+      {% endif %}
+    </a>
+
+    <div class="nc-intranet-top-mid">
+      <form class="nc-intranet-search" action="{{ url_for('intranet.intranet_search') }}" method="get" role="search">
+        <input type="search" name="q" value="{{ q|default('') }}" placeholder="Search {{ portal_shell_name }}" aria-label="Search {{ portal_shell_name }}">
+        <button type="submit" aria-label="Search">⌕</button>
+      </form>
+      {% set upload_progress_class_modifier = "nc-upload-progress--intranet-bar" %}
+      {% include "_upload_progress.html" %}
+    </div>
+
+    <div class="nc-intranet-top-right">
+      <button type="button" class="nc-intranet-user" id="intranet-user-btn" aria-haspopup="menu" aria-expanded="false">
+        <span class="nc-intranet-user-avatar">{{ (current_user.username or '?')[:2]|upper }}</span>
+        <span class="nc-intranet-user-meta">
+          <span class="nc-intranet-user-name">{{ current_user.full_name or current_user.username }}</span>
+          {% if current_user.roles %}
+          <span class="nc-intranet-user-role">{{ current_user.roles[0].name }}</span>
+          {% endif %}
+        </span>
+      </button>
+      <div class="nc-intranet-usermenu" id="intranet-user-menu" role="menu" hidden>
+        <div class="nc-intranet-usermenu-head">
+          <div class="nc-intranet-usermenu-title">{{ current_user.full_name or current_user.username }}</div>
+          <div class="nc-intranet-usermenu-sub">{{ current_user.email or current_user.username }}</div>
+        </div>
+        <div class="nc-intranet-usermenu-items">
+          <a class="nc-intranet-usermenu-item" role="menuitem" href="{{ url_for('intranet.profile_page') }}">My profile</a>
+          {% if not intranet_profile_modal and can_access_users_admin %}
+          <a class="nc-intranet-usermenu-item" role="menuitem" href="{{ url_for('intranet.admin_page') }}?edit_user_id={{ current_user.id }}">Manage account</a>
+          {% endif %}
+        </div>
+        <div class="nc-intranet-usermenu-foot">
+          <a class="nc-btn nc-btn-primary" role="menuitem" href="{{ url_for('auth.logout') }}" data-turbo="false">Log out</a>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <div
+    class="nc-intranet-app"
+    id="nc-intranet-app"
+    data-intranet-nav-active="{{ nav.get('active', '') if nav else '' }}"
+  >
+    <aside class="nc-intranet-sidebar" id="nc-intranet-sidebar" data-turbo-permanent aria-label="{{ portal_shell_name }} navigation">
+      <nav class="nc-intranet-sidebar-nav nc-intranet-tabs" aria-label="{{ portal_shell_name }} sections">
+        {% macro intranet_sidebar_tab(key, label, endpoint, sub=false, endpoint_kwargs=None) %}
+        {% set tab_active = nav.get('active') == key %}
+        {% if key == 'kanban' and (nav.get('active') == 'kanban' or nav.get('active', '').startswith('kanban_board_')) %}
+          {% set tab_active = true %}
+        {% endif %}
+        <a
+          class="nc-intranet-tab{% if sub %} nc-intranet-tab--sub{% endif %}{% if tab_active %} is-active{% endif %}"
+          href="{{ url_for(endpoint, **(endpoint_kwargs or {})) }}"
+          data-nav-key="{{ key }}"
+          title="{{ label }}"
+          {% if nav.get('active') == key %}aria-current="page"{% endif %}
+        >
+          <span class="nc-intranet-tab-ic" aria-hidden="true">{% include "_intranet_nav_icon.html" %}</span>
+          <span class="nc-intranet-tab-label">{{ label }}</span>
+          {% if key == 'team_chat' %}
+          <span class="nc-intranet-tab-badge" id="nc-intranet-tab-badge-team-chat" hidden aria-label="">0</span>
+          {% elif key == 'game' %}
+          <span class="nc-intranet-tab-badge" id="nc-intranet-tab-badge-game" hidden aria-label="">0</span>
+          {% endif %}
+        </a>
+        {% endmacro %}
+
+        {% macro intranet_sidebar_tab_with_subitems(key, label, endpoint) %}
+          {% if key == 'kanban' and nav.get('kanban_sub_items') %}
+            {% set kanban_on_board = nav.get('active', '').startswith('kanban_board_') %}
+            <div
+              class="nc-intranet-nav-group nc-intranet-nav-group--kanban{% if kanban_on_board %} is-expanded{% endif %}"
+              data-nav-group="kanban"
+              data-nav-default-expanded="{{ '1' if kanban_on_board else '0' }}"
+            >
+              <div class="nc-intranet-nav-group-row">
+                {{ intranet_sidebar_tab(key, label, endpoint) }}
+                <button
+                  type="button"
+                  class="nc-intranet-nav-group-chevron"
+                  aria-expanded="{{ 'true' if kanban_on_board else 'false' }}"
+                  aria-controls="nc-kanban-nav-subitems"
+                  aria-label="Show KanBan boards"
+                  title="Show boards"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg>
+                </button>
+              </div>
+              <div class="nc-intranet-nav-subitems" id="nc-kanban-nav-subitems">
+                {% for sub_key, sub_label, sub_endpoint, sub_kwargs in nav.kanban_sub_items %}
+                  {{ intranet_sidebar_tab(sub_key, sub_label, sub_endpoint, sub=true, endpoint_kwargs=sub_kwargs) }}
+                {% endfor %}
+              </div>
+            </div>
+          {% else %}
+            {{ intranet_sidebar_tab(key, label, endpoint) }}
+          {% endif %}
+          {% if key == 'about' and nav.get('about_sub_items') %}
+            {% for sub_key, sub_label, sub_endpoint in nav.about_sub_items %}
+              {{ intranet_sidebar_tab(sub_key, sub_label, sub_endpoint, sub=true) }}
+            {% endfor %}
+          {% endif %}
+        {% endmacro %}
+
+        {% for key, label, endpoint in (nav['items'] if nav and nav.get('items') else []) %}
+          {{ intranet_sidebar_tab_with_subitems(key, label, endpoint) }}
+        {% endfor %}
+
+        {% for key, label, endpoint in (nav.get('admin_items') or []) %}
+          {% if can_view_admin %}
+            {{ intranet_sidebar_tab(key, label, endpoint) }}
+          {% endif %}
+        {% endfor %}
+      </nav>
+
+      <div class="nc-intranet-sidebar-foot">
+        <button
+          type="button"
+          class="nc-intranet-sidebar-toggle"
+          id="nc-intranet-sidebar-toggle"
+          aria-expanded="true"
+          aria-controls="nc-intranet-sidebar"
+          title="Collapse navigation"
+        >
+          <span class="nc-intranet-sidebar-toggle-ic" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+          </span>
+          <span class="nc-intranet-sidebar-toggle-label">Collapse menu</span>
+        </button>
+      </div>
+    </aside>
+
+    <div class="nc-intranet-stage">
+      <div class="nc-intranet-body">
+        {{ self.intranet_body() }}
+      </div>
+    </div>
+  </div>
+
+  {% include "_upload_conflict_dialog.html" %}
+  {% if sip_configured %}
+  {% include "_sip_dialpad_popover.html" %}
+  {% endif %}
+</div>
+{% else %}
+  {{ self.intranet_body() }}
+{% endif %}
+{% endblock %}
+
+{% block intranet_body %}{% endblock %}
+
+{% block body_persistent %}{% endblock %}
+
+{% block scripts %}
+<script>
+  (function () {
+    const btn = document.getElementById("intranet-user-btn");
+    const menu = document.getElementById("intranet-user-menu");
+    if (!btn || !menu) return;
+
+    function close() {
+      menu.hidden = true;
+      btn.setAttribute("aria-expanded", "false");
+    }
+
+    function open() {
+      menu.hidden = false;
+      btn.setAttribute("aria-expanded", "true");
+    }
+
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (menu.hidden) open();
+      else close();
+    });
+
+    document.addEventListener("click", (e) => {
+      if (menu.hidden) return;
+      if (menu.contains(e.target) || btn.contains(e.target)) return;
+      close();
+    });
+
+    window.addEventListener("keydown", (e) => {
+      if (e.key !== "Escape") return;
+      close();
+    });
+  })();
+</script>
+<script src="{{ url_for('static', filename='ai_stream_client.js') }}?v=5"></script>
+<script src="{{ url_for('static', filename='intranet_sidebar.js') }}?v=10" defer></script>
+<script src="{{ url_for('static', filename='intranet_chat_badge.js') }}?v=1" defer></script>
+<script src="{{ url_for('static', filename='intranet_chess_badge.js') }}?v=2" defer></script>
+<script src="{{ url_for('static', filename='upload_summary.js') }}?v=2" defer></script>
+<script src="{{ url_for('static', filename='intranet_upload_manager.js') }}?v=2" defer></script>
+<script src="{{ url_for('static', filename='intranet_upload_progress_bridge.js') }}?v=8" defer></script>
+{% if sip_configured %}
+<script src="{{ url_for('static', filename='jssip.min.js') }}" defer></script>
+<script src="{{ url_for('static', filename='sip_client.js') }}?v=11" defer data-turbo-eval="always"></script>
+<script src="{{ url_for('static', filename='sip_click_to_dial.js') }}?v=1" defer data-turbo-eval="always"></script>
+{% endif %}
+{% endblock %}

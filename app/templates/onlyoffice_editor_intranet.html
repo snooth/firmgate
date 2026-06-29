@@ -1,0 +1,51 @@
+{% extends "intranet_base.html" %}
+{% block body_class %}nc-page-intranet nc-intranet-onlyoffice-page{% endblock %}
+{% block title %}{{ doc_title }} — {{ portal_tab_title }}{% endblock %}
+
+{% block extrahead %}
+{{ super() }}
+<meta name="turbo-visit-control" content="reload">
+{% endblock %}
+
+{% block intranet_body %}
+<div class="nc-intranet-documents nc-intranet-onlyoffice">
+<div id="onlyoffice-shell" class="nc-onlyoffice-shell{% if onlyoffice_version_review %} is-version-review{% endif %}">
+  <div class="nc-onlyoffice-topbar" role="toolbar" aria-label="Document actions">
+    <div class="nc-onlyoffice-topbar-title">{{ doc_title }}</div>
+    <a class="nc-onlyoffice-close" href="{{ close_url }}" data-turbo="false" aria-label="Close editor" title="Close">
+      &times;
+    </a>
+  </div>
+  {% if onlyoffice_locked_by_other and onlyoffice_lock_holder %}
+  <div class="nc-onlyoffice-lock-banner" role="status">View only — locked by {{ onlyoffice_lock_holder }}</div>
+  {% endif %}
+  {% if onlyoffice_version_review %}
+  <div class="nc-onlyoffice-version-banner" role="status">
+    <strong>Previous version v{{ onlyoffice_version_number }}</strong> — read-only preview. This is not the current file.
+  </div>
+  {% endif %}
+  <div class="nc-onlyoffice-editor-wrap{% if onlyoffice_version_review %} nc-onlyoffice-editor-wrap--review{% endif %}">
+    {% if onlyoffice_version_review %}
+    <div class="nc-onlyoffice-version-watermark" data-label="PREVIOUS VERSION v{{ onlyoffice_version_number }}" aria-hidden="true"></div>
+    {% endif %}
+    <div id="onlyoffice-editor" class="nc-onlyoffice-editor"></div>
+  </div>
+</div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script src="{{ onlyoffice_url }}/web-apps/apps/api/documents/api.js"></script>
+<script>
+  window.__ncOnlyOfficeConfig = {{ doc_config|safe }};
+  {% if onlyoffice_track_edit_session %}
+  window.__ncEditSession = {
+    nodeId: {{ onlyoffice_node_id }},
+    track: true,
+    apiBase: {{ files_api_base|tojson }}
+  };
+  {% endif %}
+</script>
+<script src="{{ url_for('static', filename='onlyoffice_editor_boot.js') }}?v=4"></script>
+{% endblock %}

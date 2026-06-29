@@ -1,0 +1,400 @@
+{% extends "intranet_base.html" %}
+{% block title %}{{ portal_tab_title }} — {{ board.name or 'KanBan' }}{% endblock %}
+
+{% block intranet_body %}
+<div class="nc-intranet-hero">
+  <div>
+    <h1><a class="nc-kanban-board-back" href="{{ url_for('intranet.kanban_page') }}">KanBan</a> / <span id="nc-kanban-hero-board-name">{{ board.name or 'Board' }}</span></h1>
+    <p class="nc-intranet-muted" id="nc-kanban-hero-board-sub">{{ board.subtitle or 'Drag cards between columns to update status.' }}</p>
+  </div>
+</div>
+
+<div
+  class="nc-intranet-card nc-intranet-card--kanban nc-kanban"
+  id="nc-kanban-root"
+  data-board-id="{{ board.id }}"
+  data-can-edit="{{ '1' if kanban_can_edit else '0' }}"
+  data-can-edit-kanban="{{ '1' if kanban_can_edit_kanban else '0' }}"
+  data-can-delete="{{ '1' if kanban_can_delete else '0' }}"
+  data-current-user-id="{{ current_user.id }}"
+  data-api-board="{{ url_for('intranet.api_kanban_board_mutate', board_id=board.id) }}"
+  data-api-board-delete="{{ url_for('intranet.api_kanban_board_mutate', board_id=board.id) }}"
+  data-can-delete-board="{{ '1' if kanban_can_delete_board else '0' }}"
+  data-can-admin-notes="{{ '1' if kanban_can_delete_board else '0' }}"
+  data-api-columns="{{ url_for('intranet.api_kanban_column_create') }}"
+  data-api-cards="{{ url_for('intranet.api_kanban_card_create') }}"
+  data-api-assignees="{{ url_for('intranet.api_kanban_assignees') }}"
+  data-api-general="{{ url_for('intranet.api_kanban_general_get') }}"
+  data-api-shares="{{ url_for('intranet.api_kanban_shares_put') }}"
+  data-api-share-targets="{{ url_for('intranet.api_kanban_share_targets') }}"
+  data-api-deleted="{{ url_for('intranet.api_kanban_deleted_cards') }}"
+  data-api-activity="{{ url_for('intranet.api_kanban_board_activity') }}"
+  data-can-manage-shares="{{ '1' if kanban_can_manage_shares else '0' }}"
+  data-kanban-home-url="{{ url_for('intranet.kanban_page') }}"
+  data-time-zone="{{ app_time_zone|default('Australia/Melbourne') }}"
+  data-time-offset-ms="{{ app_time_offset_ms|default(0) }}"
+>
+  <div class="nc-kanban-layout">
+  <div class="nc-kanban-main">
+  <div class="nc-intranet-card-head nc-kanban-head">
+    <div>
+      <h2 id="nc-kanban-board-title">{{ board.name or 'Board' }}</h2>
+      <p class="nc-intranet-muted nc-kanban-lead">{{ board.subtitle or 'Drag cards between columns to update status.' }}</p>
+    </div>
+    <div class="nc-kanban-head-actions">
+      <div class="nc-kanban-board-menu-wrap">
+        <button type="button" class="nc-kanban-detail-icon-btn nc-kanban-board-menu-btn" id="nc-kanban-board-menu" aria-label="Board settings menu" aria-expanded="false" aria-haspopup="menu" aria-controls="nc-kanban-general-panel" title="Board settings">⋯</button>
+        <div class="nc-kanban-detail-menu nc-kanban-board-menu" id="nc-kanban-board-menu-pop" role="menu" hidden>
+          <button type="button" class="nc-kanban-detail-menu-item" data-board-menu="settings" role="menuitem">
+            <span class="nc-kanban-menu-icon" aria-hidden="true">⚙</span>
+            Board settings
+          </button>
+          {% if kanban_can_manage_shares %}
+          <button type="button" class="nc-kanban-detail-menu-item" data-board-menu="sharing" role="menuitem">
+            <span class="nc-kanban-menu-icon" aria-hidden="true">⧉</span>
+            Sharing
+          </button>
+          {% endif %}
+          <button type="button" class="nc-kanban-detail-menu-item" data-board-menu="deleted" role="menuitem">
+            <span class="nc-kanban-menu-icon" aria-hidden="true">🗑</span>
+            Deleted items
+          </button>
+          <button type="button" class="nc-kanban-detail-menu-item" data-board-menu="activity" role="menuitem">
+            <span class="nc-kanban-menu-icon" aria-hidden="true">⚡</span>
+            Activity
+          </button>
+          {% if kanban_can_delete_board %}
+          <button type="button" class="nc-kanban-detail-menu-item nc-kanban-detail-menu-item--danger" data-board-menu="delete" role="menuitem">
+            <span class="nc-kanban-menu-icon" aria-hidden="true">🗑</span>
+            Delete board
+          </button>
+          {% endif %}
+        </div>
+      </div>
+      {% if kanban_can_edit_kanban %}
+      <button type="button" class="nc-btn nc-btn-secondary nc-kanban-add-column-btn" id="nc-kanban-add-column">+ Column</button>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="nc-kanban-filters" id="nc-kanban-filters" aria-label="Board filters">
+    <div class="nc-kanban-filters-row">
+      <div class="nc-kanban-filter-wrap">
+        <button type="button" class="nc-kanban-filter-btn" id="nc-kanban-filter-progress-btn" aria-expanded="false" aria-haspopup="true" aria-controls="nc-kanban-filter-progress-pop">Progress</button>
+        <div class="nc-kanban-filter-pop" id="nc-kanban-filter-progress-pop" role="group" aria-label="Filter by progress" hidden>
+          <div class="nc-kanban-filter-pop-head">Progress</div>
+          <div class="nc-kanban-filter-options" id="nc-kanban-filter-progress-options"></div>
+        </div>
+      </div>
+      <div class="nc-kanban-filter-wrap">
+        <button type="button" class="nc-kanban-filter-btn" id="nc-kanban-filter-priority-btn" aria-expanded="false" aria-haspopup="true" aria-controls="nc-kanban-filter-priority-pop">Priority</button>
+        <div class="nc-kanban-filter-pop" id="nc-kanban-filter-priority-pop" role="group" aria-label="Filter by priority" hidden>
+          <div class="nc-kanban-filter-pop-head">Priority</div>
+          <div class="nc-kanban-filter-options" id="nc-kanban-filter-priority-options"></div>
+        </div>
+      </div>
+      <div class="nc-kanban-filter-wrap">
+        <button type="button" class="nc-kanban-filter-btn" id="nc-kanban-filter-assignee-btn" aria-expanded="false" aria-haspopup="true" aria-controls="nc-kanban-filter-assignee-pop">Assignee</button>
+        <div class="nc-kanban-filter-pop" id="nc-kanban-filter-assignee-pop" role="group" aria-label="Filter by assignee" hidden>
+          <div class="nc-kanban-filter-pop-head">Assignee</div>
+          <div class="nc-kanban-filter-options" id="nc-kanban-filter-assignee-options"></div>
+        </div>
+      </div>
+      <button type="button" class="nc-kanban-filter-clear" id="nc-kanban-filter-clear" hidden>Clear filters</button>
+    </div>
+    <p class="nc-kanban-filter-summary nc-intranet-muted" id="nc-kanban-filter-summary" hidden></p>
+  </div>
+
+  <div class="nc-kanban-status" id="nc-kanban-status" role="status" aria-live="polite"></div>
+  <div class="nc-kanban-board nc-crm2-pipe" id="nc-kanban-board" aria-label="KanBan board"></div>
+  </div>
+  </div>
+
+  <div class="nc-kanban-general-backdrop" id="nc-kanban-general-backdrop" hidden aria-hidden="true"></div>
+  <aside id="nc-kanban-general-panel" class="nc-kanban-general" hidden aria-label="KanBan general settings">
+    <header class="nc-kanban-general-head">
+      <div>
+        <div class="nc-kanban-general-kicker">Board settings</div>
+        <h2 class="nc-kanban-general-title"><span id="nc-kanban-general-board-name">{{ board.name or 'Board' }}</span> · <span id="nc-kanban-general-tab-label">Settings</span></h2>
+      </div>
+      <button type="button" class="nc-kanban-detail-icon-btn" id="nc-kanban-general-close" aria-label="Close general panel">&times;</button>
+    </header>
+
+    <nav class="nc-kanban-general-tabs" role="tablist" aria-label="General sections">
+      <button type="button" class="nc-kanban-general-tab is-active" data-general-tab="settings" role="tab" aria-selected="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+        Settings
+      </button>
+      {% if kanban_can_manage_shares %}
+      <button type="button" class="nc-kanban-general-tab" data-general-tab="sharing" role="tab" aria-selected="false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.59 13.51 15.42 17.49"/><path d="M15.41 6.51 8.59 10.49"/></svg>
+        Sharing
+      </button>
+      {% endif %}
+      <button type="button" class="nc-kanban-general-tab" data-general-tab="deleted" role="tab" aria-selected="false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/></svg>
+        Deleted items
+        <span class="nc-kanban-tab-count" id="nc-kanban-general-deleted-count">0</span>
+      </button>
+      <button type="button" class="nc-kanban-general-tab" data-general-tab="activity" role="tab" aria-selected="false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+        Activity
+      </button>
+    </nav>
+
+    <div class="nc-kanban-general-panels">
+      <section class="nc-kanban-general-panel is-active" data-general-panel="settings" role="tabpanel">
+        <label class="nc-detail-label" for="nc-kanban-board-settings-name">Board name</label>
+        <input class="nc-detail-input" type="text" id="nc-kanban-board-settings-name" maxlength="120" value="{{ board.name or 'Board' }}" {% if not kanban_can_edit %}readonly{% endif %}>
+        <label class="nc-detail-label" for="nc-kanban-board-settings-subtitle" style="margin-top:0.75rem;">Subtitle</label>
+        <input class="nc-detail-input" type="text" id="nc-kanban-board-settings-subtitle" maxlength="240" value="{{ board.subtitle or '' }}" placeholder="Drag cards between columns to update status." {% if not kanban_can_edit %}readonly{% endif %}>
+        {% if kanban_can_edit %}
+        <div class="nc-kanban-general-save-row">
+          <button type="button" class="nc-btn nc-btn-primary" id="nc-kanban-board-settings-save">Save settings</button>
+        </div>
+        {% else %}
+        <p class="nc-detail-muted" style="margin-top:0.75rem;">You have read-only access to board settings.</p>
+        {% endif %}
+      </section>
+
+      <section class="nc-kanban-general-panel" data-general-panel="sharing" role="tabpanel" hidden>
+        <div class="nc-kanban-general-status" id="nc-kanban-sharing-status" role="status" aria-live="polite"></div>
+        {% if kanban_can_manage_shares %}
+        <label class="nc-detail-label" for="nc-kanban-share-user">Share board with a user</label>
+        <div class="nc-kanban-share-add">
+          <select id="nc-kanban-share-user" class="nc-detail-input nc-detail-select">
+            <option value="">Select a user…</option>
+          </select>
+          <button type="button" class="nc-btn nc-btn-secondary" id="nc-kanban-share-user-add">Add user</button>
+        </div>
+        <label class="nc-detail-label" for="nc-kanban-share-group" style="margin-top:0.75rem;">Share with a group</label>
+        <div class="nc-kanban-share-add">
+          <select id="nc-kanban-share-group" class="nc-detail-input nc-detail-select">
+            <option value="">Select a group…</option>
+          </select>
+          <button type="button" class="nc-btn nc-btn-secondary" id="nc-kanban-share-group-add">Add group</button>
+        </div>
+        {% else %}
+        <p class="nc-detail-muted">Only the board owner and administrators can change sharing.</p>
+        {% endif %}
+        <div class="nc-kanban-share-list" id="nc-kanban-share-list"></div>
+        {% if kanban_can_manage_shares %}
+        <div class="nc-kanban-general-save-row">
+          <button type="button" class="nc-btn nc-btn-primary" id="nc-kanban-shares-save">Save sharing</button>
+        </div>
+        {% endif %}
+      </section>
+
+      <section class="nc-kanban-general-panel" data-general-panel="deleted" role="tabpanel" hidden>
+        <p class="nc-detail-muted" id="nc-kanban-deleted-intro">Deleted cards can be restored or permanently removed.</p>
+        <ul class="nc-kanban-deleted-list" id="nc-kanban-deleted-list"></ul>
+        <p class="nc-crm2-empty nc-kanban-panel-empty" id="nc-kanban-deleted-empty" hidden>No deleted cards.</p>
+      </section>
+
+      <section class="nc-kanban-general-panel" data-general-panel="activity" role="tabpanel" hidden>
+        <ul class="nc-kanban-activity-list" id="nc-kanban-board-activity-list"></ul>
+        <p class="nc-crm2-empty nc-kanban-panel-empty" id="nc-kanban-board-activity-empty" hidden>No activity yet.</p>
+      </section>
+    </div>
+  </aside>
+</div>
+
+<dialog id="nc-kanban-card-dialog" class="nc-modal nc-modal-wide nc-kanban-detail-modal" aria-labelledby="nc-kanban-detail-title">
+  <div class="nc-kanban-detail">
+    <div id="nc-kanban-detail-rag" class="nc-kanban-card-rag nc-kanban-rag--neutral" aria-hidden="true" hidden></div>
+    <header class="nc-kanban-detail-head">
+      <input
+        type="text"
+        class="nc-kanban-detail-title-input"
+        id="nc-kanban-detail-title"
+        maxlength="255"
+        placeholder="Card title"
+        {% if not kanban_can_edit %}readonly{% endif %}
+      >
+      <div class="nc-kanban-detail-head-actions">
+        {% if kanban_can_edit %}
+        <div class="nc-kanban-detail-menu-wrap">
+          <button type="button" class="nc-kanban-detail-icon-btn" id="nc-kanban-card-menu" aria-label="More actions" title="More">⋯</button>
+          <div class="nc-kanban-detail-menu" id="nc-kanban-card-menu-pop" hidden>
+            <button type="button" class="nc-kanban-detail-menu-item" id="nc-kanban-menu-mark-done">
+              <span class="nc-kanban-menu-icon" aria-hidden="true">✓</span>
+              Mark as done
+            </button>
+            <button type="button" class="nc-kanban-detail-menu-item" id="nc-kanban-menu-unassign" hidden>
+              <span class="nc-kanban-menu-icon" aria-hidden="true">↩</span>
+              Unassign myself
+            </button>
+            <button type="button" class="nc-kanban-detail-menu-item" id="nc-kanban-menu-activity">
+              <span class="nc-kanban-menu-icon" aria-hidden="true">⚡</span>
+              View activity
+            </button>
+            <button type="button" class="nc-kanban-detail-menu-item nc-kanban-detail-menu-item--danger" id="nc-kanban-card-delete">
+              <span class="nc-kanban-menu-icon" aria-hidden="true">🗑</span>
+              Delete card
+            </button>
+          </div>
+        </div>
+        {% endif %}
+        <button type="button" class="nc-kanban-detail-icon-btn" data-kanban-close aria-label="Close">&times;</button>
+      </div>
+    </header>
+
+    <nav class="nc-kanban-detail-tabs" role="tablist" aria-label="Card sections">
+      <button type="button" class="nc-kanban-detail-tab is-active" data-kanban-tab="details" role="tab" aria-selected="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 11l9-8 9 8"/><path d="M9 22V12h6v10"/></svg>
+        Details
+      </button>
+      <button type="button" class="nc-kanban-detail-tab" data-kanban-tab="attachments" role="tab" aria-selected="false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+        Attachments
+        <span class="nc-kanban-tab-count" id="nc-kanban-tab-count-attachments">0</span>
+      </button>
+      <button type="button" class="nc-kanban-detail-tab" data-kanban-tab="comments" role="tab" aria-selected="false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.25-7.07 8.38 8.38 0 0 1 3.75-.93h.5a8.48 8.48 0 0 1 8 8z"/></svg>
+        Comments
+        <span class="nc-kanban-tab-count" id="nc-kanban-tab-count-comments">0</span>
+      </button>
+    </nav>
+
+    <div class="nc-kanban-detail-panels">
+      <section class="nc-kanban-detail-panel is-active" data-kanban-panel="details" role="tabpanel">
+        <div class="nc-kanban-field-row">
+          <span class="nc-kanban-field-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><path d="M7 7h.01"/></svg>
+          </span>
+          <div class="nc-kanban-field-body">
+            <div class="nc-kanban-chip-field">
+              <div class="nc-kanban-chip-field-main nc-kanban-chip-field-main--dual">
+                <div class="nc-kanban-chip-slot">
+                  <span class="nc-kanban-pill" id="nc-kanban-status-pill">Status</span>
+                  <select class="nc-kanban-chip-native" id="nc-kanban-status-select" aria-label="Status" {% if not kanban_can_edit %}disabled{% endif %}></select>
+                </div>
+                <div class="nc-kanban-chip-slot">
+                  <span class="nc-kanban-pill nc-kanban-pill--neutral" id="nc-kanban-priority-pill">Priority</span>
+                  <select class="nc-kanban-chip-native" id="nc-kanban-priority-select" aria-label="Priority" {% if not kanban_can_edit %}disabled{% endif %}></select>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="nc-kanban-field-row">
+          <span class="nc-kanban-field-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          </span>
+          <div class="nc-kanban-field-body">
+            <div class="nc-kanban-chip-field" id="nc-kanban-assignee-field">
+              <div class="nc-kanban-chip-field-main nc-kanban-chip-field-main--assignees">
+                <div class="nc-kanban-assignee-pills" id="nc-kanban-assignee-pills"></div>
+                <div class="nc-kanban-chip-slot nc-kanban-assignee-add">
+                  <span class="nc-kanban-chip-placeholder" id="nc-kanban-assignee-placeholder">Add assignee…</span>
+                  <select class="nc-kanban-chip-native" id="nc-kanban-assignee-select" aria-label="Add assignee" {% if not kanban_can_edit %}disabled{% endif %}>
+                    <option value="">Add assignee…</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="nc-kanban-field-row nc-kanban-field-row--due">
+          <span class="nc-kanban-field-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4"/><path d="M3 10h18"/></svg>
+          </span>
+          <div class="nc-kanban-field-body">
+            <div class="nc-kanban-due-row">
+              <input class="nc-detail-input nc-kanban-due-date" type="date" id="nc-kanban-due-date" aria-label="Due date" {% if not kanban_can_edit %}disabled{% endif %}>
+              <input class="nc-detail-input nc-kanban-due-time" type="time" id="nc-kanban-due-time" aria-label="Due time" step="900" value="17:00" {% if not kanban_can_edit %}disabled{% endif %}>
+              {% if kanban_can_edit %}
+              <div class="nc-kanban-detail-menu-wrap">
+                <button type="button" class="nc-kanban-detail-icon-btn nc-kanban-due-more" id="nc-kanban-due-more" aria-label="Due date options" aria-expanded="false" aria-haspopup="menu" aria-controls="nc-kanban-due-menu">⋯</button>
+                <div class="nc-kanban-detail-menu nc-kanban-due-menu" id="nc-kanban-due-menu" role="menu" hidden>
+                  <button type="button" class="nc-kanban-detail-menu-item" data-due-time="08:00" role="menuitem">8:00 AM</button>
+                  <button type="button" class="nc-kanban-detail-menu-item" data-due-time="09:00" role="menuitem">9:00 AM</button>
+                  <button type="button" class="nc-kanban-detail-menu-item" data-due-time="12:00" role="menuitem">12:00 PM</button>
+                  <button type="button" class="nc-kanban-detail-menu-item" data-due-time="17:00" role="menuitem">5:00 PM</button>
+                  <button type="button" class="nc-kanban-detail-menu-item nc-kanban-detail-menu-item--divider" id="nc-kanban-due-clear" role="menuitem">Clear due date</button>
+                </div>
+              </div>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+
+        <div class="nc-kanban-description-block">
+          <div class="nc-kanban-section-label">Description</div>
+          <div id="nc-kanban-quill-editor" class="nc-kanban-quill-editor"></div>
+        </div>
+
+        <p class="nc-kanban-created-by" id="nc-kanban-created-by" hidden></p>
+
+        <div class="nc-kanban-notes-block">
+          <div class="nc-kanban-section-label">Notes</div>
+          <ul class="nc-kanban-note-list" id="nc-kanban-note-list"></ul>
+          <p class="nc-crm2-empty nc-kanban-notes-empty" id="nc-kanban-notes-empty" hidden>No notes yet.</p>
+          <div class="nc-kanban-note-compose">
+            <label class="nc-detail-label" for="nc-kanban-note-input">Add note or action</label>
+            <textarea id="nc-kanban-note-input" class="nc-detail-input nc-kanban-note-input" rows="3" placeholder="What happened today? Next steps…"></textarea>
+            <div class="nc-kanban-note-compose-actions">
+              <button type="button" class="nc-btn nc-btn-primary nc-kanban-note-submit" id="nc-kanban-note-submit">
+                <span class="nc-kanban-note-submit-ic" aria-hidden="true">✦</span>
+                <span>Post note</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {% if kanban_can_edit %}
+        <div class="nc-kanban-detail-save-row">
+          <button type="button" class="nc-btn nc-btn-primary" id="nc-kanban-save-details">Save changes</button>
+        </div>
+        {% endif %}
+      </section>
+
+      <section
+        class="nc-kanban-detail-panel nc-kanban-attachment-dropzone"
+        data-kanban-panel="attachments"
+        id="nc-kanban-attachment-dropzone"
+        role="tabpanel"
+        hidden
+      >
+        {% if kanban_can_edit %}
+        <div class="nc-kanban-upload-row">
+          <label class="nc-btn nc-btn-secondary nc-kanban-upload-btn">
+            Upload file
+            <input type="file" id="nc-kanban-attachment-input" hidden>
+          </label>
+          <p class="nc-kanban-attachment-drop-hint">or drag files here</p>
+        </div>
+        {% endif %}
+        <ul class="nc-kanban-attachment-list" id="nc-kanban-attachment-list"></ul>
+        <p class="nc-crm2-empty nc-kanban-panel-empty" id="nc-kanban-attachments-empty" hidden>No attachments yet.</p>
+      </section>
+
+      <section class="nc-kanban-detail-panel nc-kanban-comments-panel" data-kanban-panel="comments" role="tabpanel" hidden>
+        <ul class="nc-kanban-comment-list" id="nc-kanban-comment-list"></ul>
+        <p class="nc-crm2-empty nc-kanban-panel-empty" id="nc-kanban-comments-empty" hidden>No comments yet.</p>
+        <div class="nc-kanban-comment-compose">
+          <label class="nc-detail-label" for="nc-kanban-comment-quill">Add comment</label>
+          <div id="nc-kanban-comment-quill" class="nc-kanban-quill-editor nc-kanban-comment-quill"></div>
+          <div class="nc-kanban-comment-compose-actions">
+            <button type="button" class="nc-btn nc-btn-primary" id="nc-kanban-comment-submit">Post comment</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="nc-kanban-detail-panel" data-kanban-panel="activity" role="tabpanel" hidden>
+        <ul class="nc-kanban-activity-list" id="nc-kanban-activity-list"></ul>
+        <p class="nc-crm2-empty nc-kanban-panel-empty" id="nc-kanban-activity-empty" hidden>No activity yet.</p>
+      </section>
+    </div>
+  </div>
+</dialog>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css" crossorigin="anonymous">
+<script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js" crossorigin="anonymous"></script>
+<script src="{{ url_for('static', filename='intranet_kanban.js') }}?v=34" data-turbo-eval="always"></script>
+{% endblock %}

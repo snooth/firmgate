@@ -1,0 +1,299 @@
+{% extends "base.html" %}
+{% block title %}Activity — {{ portal_tab_title }}{% endblock %}
+{% block body_class %}nc-page-activity{% endblock %}
+{% block main_class %}main main--files{% endblock %}
+{% block content %}
+<div class="nc-files-layout">
+  <div class="nc-files-app">
+    <div class="nc-files-inner">
+      <div class="nc-activity-head">
+        <div>
+          <h1 class="nc-admin-title" style="margin-bottom:0.2rem;">Activity</h1>
+          <p class="hint">Immutable append log of auth + file operations.</p>
+        </div>
+      </div>
+
+  <div class="nc-activity-filters nc-activity-filters--stack" role="region" aria-label="Search and filters">
+    <input id="audit-q" type="search" class="nc-detail-input" placeholder="Search action, resource, user, IP…">
+    <input id="audit-user" type="text" class="nc-detail-input" placeholder="User…">
+    <select id="audit-action" class="nc-detail-select" aria-label="Action">
+      <option value="">All actions</option>
+    </select>
+    <select id="audit-sort" class="nc-detail-select" aria-label="Sort">
+      <option value="newest" selected>Newest first</option>
+      <option value="oldest">Oldest first</option>
+    </select>
+    <div class="nc-activity-filter-actions">
+      <button type="button" id="audit-apply" class="nc-btn nc-btn-secondary">Apply</button>
+      <button type="button" id="audit-clear" class="nc-btn nc-btn-secondary">Clear</button>
+    </div>
+  </div>
+
+  <div class="nc-activity-tablecard">
+  <div class="nc-table-wrap">
+  <table class="audit-table nc-table--modern nc-activity-table">
+    <thead>
+      <tr>
+        <th class="th-time">TIME</th>
+        <th class="th-user">USER</th>
+        <th class="th-action">ACTION</th>
+        <th class="th-resource">RESOURCE</th>
+        <th class="th-ip">IP</th>
+      </tr>
+    </thead>
+    <tbody id="audit-rows"></tbody>
+  </table>
+  </div>
+  </div>
+  <div class="pager nc-pager">
+    <button type="button" id="audit-prev" class="nc-btn nc-btn-secondary nc-btn-icontext" aria-label="Previous page">
+      <span aria-hidden="true">←</span> Previous
+    </button>
+    <div class="nc-pager-mid">
+      <span id="audit-page"></span>
+      <label class="nc-pager-jump" aria-label="Rows per page">
+        <span class="nc-detail-muted">Show</span>
+        <select id="audit-perpage" class="nc-detail-select" aria-label="Rows per page">
+          <option value="10" selected>10</option>
+          <option value="25">25</option>
+          <option value="50">50</option>
+          <option value="100">100</option>
+        </select>
+        <span class="nc-detail-muted">per page</span>
+      </label>
+      <label class="nc-pager-jump" aria-label="Jump to page">
+        <span class="nc-detail-muted">Jump to</span>
+        <input id="audit-jump" type="number" min="1" step="1" class="nc-detail-input nc-pager-input" placeholder="Page">
+        <button type="button" id="audit-go" class="nc-btn nc-btn-secondary">Go</button>
+      </label>
+    </div>
+    <button type="button" id="audit-next" class="nc-btn nc-btn-secondary nc-btn-icontext" aria-label="Next page">
+      Next <span aria-hidden="true">→</span>
+    </button>
+  </div>
+    </div>
+  </div>
+</div>
+<script>
+(async function () {
+  const tbody = document.getElementById('audit-rows');
+  const pageLabel = document.getElementById('audit-page');
+  const perPageSel = document.getElementById('audit-perpage');
+  let page = 1;
+  let perPage = 10;
+  const APP_TIME_ZONE = '{{ app_time_zone|default("Australia/Melbourne") }}';
+  const APP_TIME_OFFSET_MS = {{ app_time_offset_ms|default(0) }};
+  const APP_LOCALE = 'en-AU';
+  const DT_DISPLAY = {
+    timeZone: APP_TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  };
+
+  function normalizeIso(iso) {
+    // If no timezone offset is present, treat as UTC.
+    const s = String(iso || '');
+    if (!s) return s;
+    if (/[zZ]$/.test(s)) return s;
+    if (/[+-]\d\d:\d\d$/.test(s)) return s;
+    return s + 'Z';
+  }
+
+  function fmtAuditTime(iso) {
+    if (!iso) return '';
+    try {
+      const ms = new Date(normalizeIso(iso)).getTime() + APP_TIME_OFFSET_MS;
+      return new Date(ms).toLocaleString(APP_LOCALE, DT_DISPLAY);
+    } catch {
+      return iso;
+    }
+  }
+
+  function esc(s) {
+    const d = document.createElement('div');
+    d.textContent = s == null ? '' : String(s);
+    return d.innerHTML;
+  }
+
+  function fmtResource(row) {
+    const t = row.resource_type || '';
+    const id = row.resource_id || '';
+    const path = row.details && row.details.path ? row.details.path : null;
+    if (path) return `${esc(t)} <span class="nc-audit-muted">${esc(path)}</span>`;
+    return `${esc(t)} ${esc(id)}`.trim();
+  }
+
+  function initialsFromUser(row) {
+    const raw = (row.username || '').trim();
+    if (!raw) return '?';
+    const base = raw.includes('@') ? raw.split('@')[0] : raw;
+    const parts = base.split(/[.\s_+-]+/).filter(Boolean);
+    const a = (parts[0] || base)[0] || '?';
+    const b = parts.length > 1 ? (parts[parts.length - 1][0] || '') : (base[1] || '');
+    return (a + b).toUpperCase();
+  }
+
+  function fmtUser(row) {
+    const u = row.username || row.user_id || '';
+    const ini = initialsFromUser(row);
+    return `<div class="nc-audit-user">
+      <div class="nc-audit-avatar">${esc(ini)}</div>
+      <div class="nc-audit-username">${esc(u)}</div>
+    </div>`;
+  }
+
+  function fmtAction(row) {
+    const a = row.action || '';
+    const d = row.details || {};
+    const who = row.username || row.user_id || '—';
+
+    const line = (title, meta) =>
+      `<div class="nc-audit-action-title">${esc(title)}</div>` +
+      (meta ? `<div class="nc-audit-action-meta">${esc(meta)}</div>` : '');
+
+    const res = (row.details && row.details.path) ? String(row.details.path) : `${row.resource_type || ''} ${row.resource_id || ''}`.trim();
+    const countMeta = d.count != null ? `${d.count} item(s)` : '';
+
+    if (a === 'files.open') return line(`Opened folder: ${res}`, countMeta);
+    if (a === 'files.list') return line(`Viewed folder listing: ${res}`, countMeta);
+    if (a === 'files.versions.list') return line(`Viewed version history: ${res}`, d.count != null ? `${d.count} version(s)` : '');
+    if (a === 'files.mkdir') return line(`Created folder: ${d.path || res}`, '');
+    if (a === 'files.upload') return line(`Uploaded file: ${d.path || res}`, '');
+    if (a === 'files.upload.version') {
+      const fromV = d.from_version != null ? `v${d.from_version}` : '';
+      const toV = d.new_version != null ? `v${d.new_version}` : (d.version != null ? `v${d.version}` : '');
+      const delta = fromV && toV ? `${fromV} → ${toV}` : (toV || fromV);
+      return line(`Uploaded new version: ${d.path || res}`, delta);
+    }
+    if (a === 'files.download') return line(`Downloaded file: ${d.path || res}`, d.version != null ? `version v${d.version}` : '');
+    if (a === 'files.rename') return line(`Renamed: ${res}`, d.from && d.to ? `${d.from} → ${d.to}` : '');
+    if (a === 'files.move') return line(`Moved: ${res}`, d.from && d.to ? `${d.from} → ${d.to}` : (d.path ? `to ${d.path}` : ''));
+    if (a === 'files.delete') return line(`Deleted: ${d.path || res}`, '');
+    if (a === 'files.version.restore') {
+      const fromV = d.from_version != null ? `v${d.from_version}` : '';
+      const toV = d.new_version != null ? `v${d.new_version}` : '';
+      const delta = fromV && toV ? `${fromV} → ${toV}` : (fromV || toV);
+      return line(`Restored file version: ${d.path || res}`, delta);
+    }
+    if (a === 'files.share.user.grant') return line(`Shared: ${res}`, d.shared_with_username ? `granted ${d.permission || ''} to ${d.shared_with_username}`.trim() : '');
+    if (a === 'files.share.user.revoke') return line(`Unshared: ${res}`, d.shared_with_username ? `revoked ${d.shared_with_username}` : (d.share_id ? `share ${d.share_id}` : ''));
+    if (a === 'files.comment.post') return line(`Comment posted: ${res}`, d.comment_id ? `comment ${d.comment_id}` : '');
+    if (a === 'files.office.create') return line(`Created Office document: ${d.path || res}`, d.kind ? d.kind.toUpperCase() : '');
+    if (a === 'admin.onlyoffice.save') return line('Updated OnlyOffice settings', d.enabled === false ? 'disabled' : 'enabled');
+    if (a === 'admin.document_editor.save') return line('Updated document editor provider', d.provider ? String(d.provider) : '');
+    if (a === 'admin.ad_ldap.save') return line('Updated Active Directory / LDAP integration settings', d.configured ? 'configured' : 'saved');
+    if (a === 'admin.time.save') return line('Updated date & time settings', d.timezone ? `timezone ${d.timezone}` : '');
+    if (a === 'admin.time.manual.save') return line('Updated manual time override', d.manual_enabled ? `enabled (offset ${d.manual_offset_ms} ms)` : 'disabled');
+    if (a === 'auth.login') return line('Signed in', row.success ? '' : 'failed');
+    if (a === 'auth.logout') return line('Signed out', '');
+    if (a === 'intranet.profile.self_update') return line('Updated own intranet profile', row.resource_id ? `user ${row.resource_id}` : '');
+    if (a === 'share.create') {
+      const bits = [];
+      if (d.file_node_id != null) bits.push(`node ${d.file_node_id}`);
+      if (d.permission) bits.push(`permission ${d.permission}`);
+      return line(`Created public share link: ${res}`, bits.join(' · '));
+    }
+    if (a === 'share.create.denied') return line('Create share link denied', d.reason || '');
+    if (a === 'share.access') return line('Accessed public share', d.token ? `token ${d.token}` : '');
+
+    // Fallback: show action + compact JSON details for audit completeness.
+    let meta = '';
+    try {
+      const keys = Object.keys(d || {});
+      if (keys.length) meta = JSON.stringify(d);
+    } catch {}
+    return line(`${a}: ${res}`.trim(), meta);
+  }
+
+  async function load() {
+    const params = new URLSearchParams({ page: String(page), per_page: String(perPage) });
+    const qv = (document.getElementById('audit-q').value || '').trim();
+    const uv = (document.getElementById('audit-user').value || '').trim();
+    const av = document.getElementById('audit-action').value;
+    const sv = document.getElementById('audit-sort').value || 'newest';
+    if (qv) params.set('q', qv);
+    if (uv) params.set('user', uv);
+    if (av) params.set('action', av);
+    if (sv) params.set('sort', sv);
+    const r = await fetch(`{{ url_for('audit.audit_api') }}?${params.toString()}`);
+    if (!r.ok) { tbody.innerHTML = '<tr><td colspan="6">Forbidden or error</td></tr>'; return; }
+    const data = await r.json();
+    const effectivePerPage = data.per_page || perPage;
+    const totalPages = Math.max(1, Math.ceil((data.total || 0) / effectivePerPage));
+    pageLabel.textContent = `Page ${data.page} / ${totalPages} — ${data.total} events`;
+    const prevBtn = document.getElementById('audit-prev');
+    const nextBtn = document.getElementById('audit-next');
+    if (prevBtn) prevBtn.disabled = data.page <= 1;
+    if (nextBtn) nextBtn.disabled = data.page >= totalPages;
+    tbody.innerHTML = '';
+    // Populate action dropdown from returned data (best-effort).
+    const actSel = document.getElementById('audit-action');
+    if (actSel && !actSel.dataset.loaded) {
+      const uniq = new Set((data.items || []).map((x) => x.action).filter(Boolean));
+      const opts = [''].concat([...uniq].sort());
+      actSel.innerHTML = opts
+        .map((v) => (v ? `<option value="${esc(v)}">${esc(v)}</option>` : '<option value="">All actions</option>'))
+        .join('');
+      actSel.dataset.loaded = '1';
+    }
+    for (const row of data.items) {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td class="col-time">${esc(fmtAuditTime(row.timestamp))}</td>
+        <td class="col-user">${fmtUser(row)}</td>
+        <td class="col-action">${fmtAction(row)}</td>
+        <td class="col-resource">${fmtResource(row)}</td>
+        <td class="col-ip">${esc(row.ip_address || '')}</td>`;
+      tbody.appendChild(tr);
+    }
+  }
+  document.getElementById('audit-prev').onclick = () => { if (page > 1) { page--; load(); } };
+  document.getElementById('audit-next').onclick = () => { page++; load(); };
+  document.getElementById('audit-apply').onclick = () => { page = 1; load(); };
+  document.getElementById('audit-clear').onclick = () => {
+    document.getElementById('audit-q').value = '';
+    document.getElementById('audit-user').value = '';
+    document.getElementById('audit-action').value = '';
+    document.getElementById('audit-sort').value = 'newest';
+    page = 1;
+    load();
+  };
+  if (perPageSel) {
+    // Persist page size for this browser.
+    const saved = Number(window.localStorage.getItem('audit_per_page') || '10');
+    if ([10, 25, 50, 100].includes(saved)) {
+      perPage = saved;
+      perPageSel.value = String(saved);
+    } else {
+      perPageSel.value = String(perPage);
+    }
+    perPageSel.addEventListener('change', () => {
+      const v = Number(perPageSel.value || '10');
+      perPage = [10, 25, 50, 100].includes(v) ? v : 10;
+      window.localStorage.setItem('audit_per_page', String(perPage));
+      page = 1;
+      load();
+    });
+  }
+
+  document.getElementById('audit-prev').onclick = () => { if (page > 1) { page -= 1; load(); } };
+  document.getElementById('audit-next').onclick = () => { page += 1; load(); };
+  document.getElementById('audit-go').onclick = () => {
+    const v = Number(document.getElementById('audit-jump').value || '1');
+    if (!Number.isFinite(v) || v < 1) return;
+    page = Math.floor(v);
+    load();
+  };
+  document.getElementById('audit-jump').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') document.getElementById('audit-go').click();
+  });
+  document.getElementById('audit-q').addEventListener('keydown', (e) => { if (e.key === 'Enter') { page = 1; load(); }});
+  document.getElementById('audit-user').addEventListener('keydown', (e) => { if (e.key === 'Enter') { page = 1; load(); }});
+  await load();
+})();
+</script>
+{% endblock %}

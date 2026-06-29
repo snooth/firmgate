@@ -1,0 +1,135 @@
+{% extends "intranet_base.html" %}
+{% block title %}{{ portal_tab_title }} — Phone{% endblock %}
+
+{% block intranet_body %}
+<section class="nc-phone-hero" aria-label="Phone">
+  <div>
+    <h1 class="nc-phone-h1">Phone</h1>
+    <p class="nc-intranet-muted">Softphone connected to your organisation's SIP server.</p>
+  </div>
+  {% if sip_configured %}
+  <div class="nc-phone-hero-actions">
+    <div class="nc-phone-ext-anchor">
+      <button type="button" class="nc-btn nc-btn-secondary nc-phone-ext-btn" id="nc-phone-ext-btn" aria-haspopup="dialog" aria-expanded="false" aria-controls="nc-phone-ext-popover">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        <span>SIP Extension</span>
+      </button>
+
+      <div class="nc-phone-ext-popover" id="nc-phone-ext-popover" role="dialog" aria-label="SIP extension" aria-modal="false" hidden>
+        <div class="nc-phone-ext-popover-head">
+          <h2 class="nc-phone-panel-title" style="margin:0;">Your extension</h2>
+          <button type="button" class="nc-phone-ext-close" id="nc-phone-ext-close" aria-label="Close">×</button>
+        </div>
+        <p class="nc-detail-muted" style="margin:0.35rem 0 0.75rem;">Enter the extension and password from your PBX. Credentials are stored for your account only.</p>
+        <form id="nc-phone-creds-form" class="nc-phone-creds-form" autocomplete="off">
+          <label class="nc-phone-field">
+            <span>Extension</span>
+            <input type="text" id="nc-phone-extension" inputmode="numeric" autocomplete="off" placeholder="e.g. 1001">
+          </label>
+          <label class="nc-phone-field">
+            <span>SIP password</span>
+            <input type="password" id="nc-phone-password" autocomplete="new-password" placeholder="PBX extension password">
+          </label>
+          <label class="nc-phone-field">
+            <span>Display name (optional)</span>
+            <input type="text" id="nc-phone-display-name" autocomplete="name" placeholder="Shown on outbound calls">
+          </label>
+          <div class="nc-phone-creds-actions">
+            <button type="submit" class="nc-btn nc-btn-secondary" id="nc-phone-save-creds">Save credentials</button>
+            <button type="button" class="nc-btn nc-btn-primary" id="nc-phone-register-btn">Register</button>
+            <button type="button" class="nc-btn nc-btn-danger" id="nc-phone-unregister-btn" hidden>Unregister</button>
+          </div>
+        </form>
+        <p id="nc-phone-creds-status" class="nc-detail-muted" role="status" style="margin:0.65rem 0 0;"></p>
+      </div>
+    </div>
+
+    <div class="nc-phone-status-wrap" aria-live="polite">
+      <span class="nc-phone-status-dot" id="nc-phone-status-dot" data-state="offline"></span>
+      <span class="nc-phone-status-text" id="nc-phone-status-text">Offline</span>
+    </div>
+  </div>
+  {% endif %}
+</section>
+
+{% if not sip_configured %}
+<div class="nc-intranet-card nc-phone-card">
+  <p class="nc-detail-muted" style="margin:0;">The SIP phone is not enabled. Ask an administrator to configure it under <strong>Administration → SIP Client</strong>.</p>
+</div>
+{% else %}
+
+<div class="nc-phone-stage" id="nc-phone-app" data-jssip-src="{{ url_for('static', filename='jssip.min.js') }}">
+  <section class="nc-intranet-card nc-phone-card nc-phone-video" aria-label="Video">
+    <div class="nc-phone-video-screen" id="nc-phone-video-screen" data-active="false">
+      <video id="nc-phone-remote-video" class="nc-phone-video-remote" autoplay playsinline></video>
+      <video id="nc-phone-local-video" class="nc-phone-video-local" autoplay playsinline muted></video>
+      <div class="nc-phone-video-placeholder" id="nc-phone-video-placeholder">
+        <svg viewBox="0 0 24 24" width="46" height="46" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
+        <p>No active video call</p>
+        <span>Start a video call from the keypad</span>
+      </div>
+    </div>
+    <div class="nc-phone-video-bar" id="nc-phone-video-bar" hidden>
+      <button type="button" class="nc-phone-vbtn" id="nc-phone-cam-btn" title="Turn camera off" aria-label="Toggle camera">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
+      </button>
+      <button type="button" class="nc-phone-vbtn" id="nc-phone-mute-btn" title="Mute" aria-label="Mute" hidden>
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><path d="M12 19v4"/></svg>
+      </button>
+      <button type="button" class="nc-phone-vbtn" id="nc-phone-fullscreen-btn" title="Full screen" aria-label="Full screen" hidden>
+        <svg class="nc-phone-fs-icon-open" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
+        <svg class="nc-phone-fs-icon-close" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" hidden><path d="M8 3v3a2 2 0 0 1-2 2H3"/><path d="M21 8h-3a2 2 0 0 1-2-2V3"/><path d="M3 16h3a2 2 0 0 1 2 2v3"/><path d="M16 21v-3a2 2 0 0 1 2-2h3"/></svg>
+      </button>
+      <button type="button" class="nc-phone-vbtn nc-phone-vbtn--end" id="nc-phone-hangup-btn" title="Hang up" aria-label="Hang up" hidden>
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><path d="M21 15.46l-5.27-.61-2.52 2.52a15.05 15.05 0 0 1-6.59-6.59l2.53-2.53L8.54 3H3.03C2.45 13.18 10.82 21.55 21 20.97v-5.51z" transform="rotate(135 12 12)"/></svg>
+      </button>
+    </div>
+  </section>
+
+  <section class="nc-intranet-card nc-phone-card nc-phone-card--dialer" aria-label="Dialer">
+    <div class="nc-phone-dial-head">
+      <span class="nc-phone-dial-title">Calls</span>
+    </div>
+    <div class="nc-phone-dial-display">
+      <input type="tel" id="nc-phone-dial-input" class="nc-phone-dial-input" placeholder="Type a name or number" autocomplete="off" inputmode="tel">
+      <button type="button" class="nc-phone-backspace" id="nc-phone-backspace" title="Backspace" aria-label="Backspace">⌫</button>
+    </div>
+    <div class="nc-phone-keypad" id="nc-phone-keypad">
+      {% set keys = [('1',''),('2','ABC'),('3','DEF'),('4','GHI'),('5','JKL'),('6','MNO'),('7','PQRS'),('8','TUV'),('9','WXYZ'),('*',''),('0','+'),('#','')] %}
+      {% for key, sub in keys %}
+      <button type="button" class="nc-phone-key" data-key="{{ key }}">
+        <span class="nc-phone-key-num">{{ key }}</span>
+        {% if sub %}<span class="nc-phone-key-sub">{{ sub }}</span>{% endif %}
+      </button>
+      {% endfor %}
+    </div>
+    <div class="nc-phone-call-actions">
+      <button type="button" class="nc-phone-call-main" id="nc-phone-call-btn" disabled>
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M6.62 10.79a15.05 15.05 0 0 0 6.59 6.59l2.2-2.2a1 1 0 0 1 1.05-.24c1.12.37 2.33.57 3.54.57a1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.21.2 2.42.57 3.54a1 1 0 0 1-.24 1.05l-2.21 2.2z"/></svg>
+        <span>Call</span>
+      </button>
+      <button type="button" class="nc-phone-call-video" id="nc-phone-video-btn" disabled title="Video call">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
+        <span>Video</span>
+      </button>
+    </div>
+    <p id="nc-phone-call-status" class="nc-detail-muted" role="status" style="margin:0.65rem 0 0;text-align:center;"></p>
+  </section>
+</div>
+
+<div class="nc-phone-incoming" id="nc-phone-incoming" hidden>
+  <div class="nc-phone-incoming-card" role="dialog" aria-labelledby="nc-phone-incoming-label">
+    <p class="nc-phone-incoming-label" id="nc-phone-incoming-label">Incoming call</p>
+    <p class="nc-phone-incoming-from" id="nc-phone-incoming-from"></p>
+    <div class="nc-phone-incoming-actions">
+      <button type="button" class="nc-btn nc-btn-primary" id="nc-phone-answer-btn">Answer</button>
+      <button type="button" class="nc-btn nc-btn-danger" id="nc-phone-reject-btn">Decline</button>
+    </div>
+  </div>
+</div>
+
+<audio id="nc-phone-remote-audio" autoplay playsinline hidden></audio>
+<audio id="nc-phone-ringtone" loop hidden></audio>
+
+{% endif %}
+{% endblock %}

@@ -1,0 +1,108 @@
+{% extends "intranet_base.html" %}
+{% block title %}{{ portal_tab_title }} — Events{% endblock %}
+
+{% block intranet_body %}
+<div class="nc-intranet-hero">
+  <div>
+    <h1>Events</h1>
+    <p class="nc-intranet-muted">Company calendar — events are shared with everyone by default. Use <strong>Make private</strong> on your events to hide them from others (admins can still see all events).</p>
+  </div>
+</div>
+
+<div
+  class="nc-intranet-card nc-intranet-card--calendar"
+  id="intranet-calendar-app"
+  data-cal-year="{{ cal_year }}"
+  data-cal-month="{{ cal_month }}"
+  data-can-edit="{{ '1' if can_manage_events else '0' }}"
+  data-is-admin="{{ '1' if admin_full_access else '0' }}"
+>
+  <div class="nc-intranet-card-head">
+    <h2>Calendar</h2>
+  </div>
+
+  <div class="nc-cal-toolbar" role="toolbar" aria-label="Calendar controls">
+    <div class="nc-cal-views" role="tablist" aria-label="Calendar range">
+      <button type="button" class="nc-cal-view-btn" data-view="day" role="tab" aria-selected="false">Day</button>
+      <button type="button" class="nc-cal-view-btn is-active" data-view="month" role="tab" aria-selected="true">Month</button>
+      <button type="button" class="nc-cal-view-btn" data-view="year" role="tab" aria-selected="false">Year</button>
+    </div>
+    <div class="nc-cal-toolbar-nav">
+      {% if can_manage_events %}
+      <button type="button" class="nc-btn nc-btn-primary nc-cal-add" id="cal-add-event">+ Add event</button>
+      {% endif %}
+      <button type="button" class="nc-btn nc-btn-secondary nc-cal-arrow" id="cal-prev" aria-label="Previous">‹</button>
+      <div class="nc-cal-range" id="cal-range-label" aria-live="polite">{{ cal_month_label }}</div>
+      <button type="button" class="nc-btn nc-btn-secondary nc-cal-arrow" id="cal-next" aria-label="Next">›</button>
+      <button type="button" class="nc-btn nc-btn-primary nc-cal-today" id="cal-today">Today</button>
+    </div>
+  </div>
+
+  <div class="nc-intranet-cal-scroll" tabindex="0">
+    <div id="cal-render" class="nc-cal-render-mount">
+      {% include "_events_cal_month_ssr.html" %}
+    </div>
+  </div>
+</div>
+
+<script type="application/json" id="intranet-cal-events">{{ calendar_events | tojson }}</script>
+
+<dialog id="cal-event-dlg" class="nc-modal nc-cal-event-modal">
+  <form method="dialog" class="nc-modal-form" id="cal-event-form">
+    <input type="hidden" id="cal-ev-id" value="">
+    <h3 class="nc-modal-title" id="cal-ev-heading">Add event</h3>
+    <div class="nc-modal-body">
+      <label class="nc-detail-label">Title</label>
+      <input class="nc-detail-input" type="text" id="cal-ev-title" autocomplete="off" required>
+
+      <div style="height:0.6rem;"></div>
+      <label class="nc-detail-label">Date</label>
+      <input class="nc-detail-input" type="date" id="cal-ev-date" required>
+
+      <div style="height:0.6rem;"></div>
+      <label style="display:flex; gap:0.5rem; align-items:center; font-weight:800;">
+        <input type="checkbox" id="cal-ev-allday"> All day
+      </label>
+
+      <div style="height:0.6rem;"></div>
+      <div class="nc-modal-grid2">
+        <div>
+          <label class="nc-detail-label">Start</label>
+          <input class="nc-detail-input" type="time" id="cal-ev-start">
+        </div>
+        <div>
+          <label class="nc-detail-label">End</label>
+          <input class="nc-detail-input" type="time" id="cal-ev-end">
+        </div>
+      </div>
+
+      <div style="height:0.6rem;"></div>
+      <label class="nc-detail-label">Location (optional)</label>
+      <input class="nc-detail-input" type="text" id="cal-ev-loc" autocomplete="off">
+
+      <div style="height:0.6rem;"></div>
+      <label class="nc-detail-label">Notes (optional)</label>
+      <textarea class="nc-detail-input" id="cal-ev-notes" rows="4" placeholder="Details…"></textarea>
+
+      <div id="cal-ev-visibility-row" hidden style="margin-top:0.8rem;">
+        <label class="nc-detail-label">Visibility</label>
+        <p class="nc-detail-muted" id="cal-ev-visibility-text" style="margin:0.25rem 0 0;"></p>
+      </div>
+
+      <p class="nc-detail-muted" id="cal-ev-status" style="margin-top:0.75rem;"></p>
+    </div>
+    <div class="nc-modal-actions">
+      <button value="cancel" class="nc-btn nc-btn-secondary" type="button" id="cal-ev-cancel">Cancel</button>
+      <button value="delete" class="nc-btn nc-btn-secondary" type="button" id="cal-ev-delete" hidden>Delete</button>
+      <button value="private" class="nc-btn nc-btn-secondary" type="button" id="cal-ev-private" hidden>Make private</button>
+      <button value="ok" class="nc-btn nc-btn-primary" type="submit" id="cal-ev-save">Save</button>
+    </div>
+  </form>
+</dialog>
+{# Load synchronously here (inside main, after markup) so the calendar always initializes even if the footer scripts block differs by template #}
+<script src="{{ url_for('static', filename='events_calendar.js') }}?v=15"></script>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+{% endblock %}

@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Background uploads — {{ portal_shell_name }}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='file_browser.css') }}">
+</head>
+<body
+  class="nc-upload-worker-page"
+  data-time-zone="{{ app_time_zone|default('Australia/Melbourne') }}"
+  data-time-offset-ms="{{ app_time_offset_ms|default(0) }}"
+>
+  <main class="nc-upload-worker-main" {% if upload_worker_embed|default(false) %}hidden aria-hidden="true"{% endif %}>
+    {% if not upload_worker_embed|default(false) %}
+    <h1 class="nc-upload-worker-title">Background uploads</h1>
+    <p class="nc-detail-muted">Large transfers run in this window so you can switch menus in the main intranet. Keep it open until uploads finish.</p>
+    {% endif %}
+    <p id="nc-upload-worker-line" class="nc-detail-muted" aria-live="polite"></p>
+  </main>
+  {% include "_upload_conflict_dialog.html" %}
+  <script src="{{ url_for('static', filename='intranet_upload_worker.js') }}?v=7"></script>
+</body>
+</html>

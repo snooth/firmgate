@@ -1,0 +1,406 @@
+<div class="nc-files-layout">
+<div class="nc-files-mobile-nav">
+  <label class="nc-files-mobile-nav-label" for="nc-files-nav-select">Location</label>
+  <select id="nc-files-nav-select" class="nc-detail-select nc-files-nav-select" aria-label="File location"></select>
+</div>
+<aside class="nc-leftnav" aria-label="Primary">
+  <div class="nc-leftnav-search" role="search">
+    <div class="nc-searchbox">
+      <svg class="nc-search-ic" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+      <input type="search" class="nc-search-input" placeholder="Search here…" aria-label="Search">
+      <button type="button" class="nc-search-clear" aria-label="Clear search" hidden>&times;</button>
+    </div>
+  </div>
+
+  <div class="nc-leftnav-section">
+    <button type="button" class="nc-leftnav-item is-active" id="nav-all" data-nav="all">
+      <span class="nc-leftnav-ic" aria-hidden="true">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M10 4H4c-1.11 0-2 .89-2 2v12c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2h-8l-2-2z"/></svg>
+      </span>
+      All files
+    </button>
+    <button type="button" class="nc-leftnav-item" id="nav-personal" data-nav="personal">
+      <span class="nc-leftnav-ic" aria-hidden="true">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>
+      </span>
+      Personal files
+    </button>
+    <button type="button" class="nc-leftnav-item" id="nav-favorites" data-nav="favorites">
+      <span class="nc-leftnav-ic" aria-hidden="true">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
+      </span>
+      Favorites
+      <span class="nc-leftnav-chevron" aria-hidden="true">›</span>
+    </button>
+    <button type="button" class="nc-leftnav-item" id="nav-shares" data-nav="shares">
+      <span class="nc-leftnav-ic" aria-hidden="true">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 8a4 4 0 0 1 0 8H8a4 4 0 0 1 0-8"/><path d="M8 12h8"/></svg>
+      </span>
+      Shares
+      <span class="nc-leftnav-chevron" aria-hidden="true">›</span>
+    </button>
+    <button type="button" class="nc-leftnav-item" id="nav-recycle" data-nav="recycle">
+      <span class="nc-leftnav-ic" aria-hidden="true">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M6 6l1 16h10l1-16"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
+      </span>
+      Recycle bin
+    </button>
+    {% if files_tree_admin|default(false) %}
+    <button type="button" class="nc-leftnav-item" id="nav-admin-files" data-nav="admin">
+      <span class="nc-leftnav-ic" aria-hidden="true">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l8 4v6c0 5-3.5 8.5-8 9-4.5-.5-8-4-8-9V7l8-4z"/><path d="M9 12l2 2 4-4"/></svg>
+      </span>
+      All users
+    </button>
+    {% endif %}
+  </div>
+</aside>
+<div class="nc-files-app" id="file-browser"
+     data-list-url="{{ url_for('files.api_list') }}"
+     data-search-url="{{ url_for('files.api_search') }}"
+     data-mkdir-url="{{ url_for('files.api_mkdir') }}"
+     data-upload-url="{{ url_for('files.api_upload') }}"
+     data-move-url="{{ url_for('files.api_move') }}"
+     data-copy-url="{{ url_for('files.api_copy') }}"
+     data-share-url="{{ url_for('shares.create_share') }}"
+     data-onlyoffice-url="{{ onlyoffice_url or '' }}"
+     data-document-editor-provider="{{ document_editor_provider|default('onlyoffice') }}"
+     data-document-editor-enabled="{{ document_editor_enabled|default('0') }}"
+     data-time-zone="{{ app_time_zone|default('Australia/Melbourne') }}"
+     data-time-offset-ms="{{ app_time_offset_ms|default(0) }}"
+     data-files-tree-admin="{{ '1' if files_tree_admin else '0' }}"
+     data-portal-admin="{{ '1' if portal_admin|default(false) else '0' }}"
+     data-current-user-id="{{ current_user.id if current_user.is_authenticated else '' }}"
+     data-upload-worker-url="{{ upload_worker_url|default('', true) }}">
+  <div class="nc-files-inner">
+    <div class="nc-controls">
+      <nav id="breadcrumb" class="nc-breadcrumb" aria-label="Breadcrumb"></nav>
+      <div class="nc-toolbar">
+        <div class="nc-toolbar-left">
+          <button type="button" class="nc-btn nc-btn-icon" id="btn-share-folder" title="Share this folder" aria-label="Share">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.59 13.51l6.83 3.98M15.41 6.51l-6.82 4.02"/></svg>
+          </button>
+          <div class="nc-dropdown">
+            <button type="button" class="nc-btn nc-btn-primary" id="btn-new-menu" aria-expanded="false" aria-haspopup="true">
+              + New
+            </button>
+            <div class="nc-dropdown-panel" id="new-menu-panel" hidden role="menu">
+              <button type="button" class="nc-dropdown-item" id="menu-upload" role="menuitem">Upload files</button>
+              <button type="button" class="nc-dropdown-item" id="menu-upload-folder" role="menuitem">Upload folder</button>
+              <button type="button" class="nc-dropdown-item" id="menu-new-folder" role="menuitem">New folder</button>
+              <div class="nc-dropdown-sep" role="separator" aria-hidden="true"></div>
+              <button type="button" class="nc-dropdown-item" id="menu-new-docx" role="menuitem">New Word document (docx)</button>
+              <button type="button" class="nc-dropdown-item" id="menu-new-xlsx" role="menuitem">New Excel document (xlsx)</button>
+              <button type="button" class="nc-dropdown-item" id="menu-new-pptx" role="menuitem">New PowerPoint document (pptx)</button>
+              <button type="button" class="nc-dropdown-item" id="menu-new-vsdx" role="menuitem">New Visio Document (.vsdx)</button>
+            </div>
+          </div>
+          <input type="file" id="file-upload-input" multiple class="visually-hidden" tabindex="-1" aria-hidden="true">
+          <input type="file" id="folder-upload-input" webkitdirectory directory multiple class="visually-hidden" tabindex="-1" aria-hidden="true">
+        </div>
+        <div class="nc-toolbar-right">
+          <button type="button" class="nc-btn nc-btn-icon" id="btn-view-list" title="List view" aria-pressed="true">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M3 5h18v2H3V5zm0 6h18v2H3v-2zm0 6h18v2H3v-2z"/></svg>
+          </button>
+          <button type="button" class="nc-btn nc-btn-icon" id="btn-view-grid" title="Grid view" aria-pressed="false">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M3 3h7v7H3V3zm11 0h7v7h-7V3zM3 14h7v7H3v-7zm11 0h7v7h-7v-7z"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <div id="selection-bar" class="nc-selection-bar" hidden role="region" aria-label="Bulk actions for selected items">
+        <button type="button" class="nc-sel-clear" id="sel-clear" title="Clear selection" aria-label="Clear selection">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M8 12h8"/></svg>
+        </button>
+        <span id="sel-count" class="nc-sel-count"></span>
+        <div class="nc-sel-actions">
+          <button type="button" class="nc-sel-pill" id="sel-favorites" title="Saved in this browser only">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
+            Add to favorites
+          </button>
+          <button type="button" class="nc-sel-pill" id="sel-personal" title="Make these files private to you unless shared">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 12a5 5 0 1 0-5-5 5 5 0 0 0 5 5z"/><path d="M3 21a9 9 0 0 1 18 0"/></svg>
+            Add to personal files
+          </button>
+          <button type="button" class="nc-sel-pill" id="sel-move" title="Then click a folder row">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 7V5a2 2 0 012-2h2l2 2h12a2 2 0 012 2v12a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/><path d="M12 11v6m0 0l-2-2m2 2l2-2"/></svg>
+            Move or copy
+          </button>
+          <button type="button" class="nc-sel-pill" id="sel-rename" hidden>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>
+            Rename
+          </button>
+          <button type="button" class="nc-sel-pill" id="sel-lock" hidden title="Prevent others from editing this file">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
+            Lock for editing
+          </button>
+          <button type="button" class="nc-sel-pill" id="sel-unlock" hidden title="Release the edit lock">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 7.5-1"/></svg>
+            Release lock
+          </button>
+          <button type="button" class="nc-sel-pill" id="sel-download">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 3v12m0 0l4-4m-4 4l-4-4M4 21h16"/></svg>
+            Download
+          </button>
+          <button type="button" class="nc-sel-pill nc-sel-pill-danger" id="sel-delete">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2m-1 0v14a2 2 0 01-2 2H9a2 2 0 01-2-2V6h8z"/></svg>
+            Delete
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div id="dropzone" class="nc-dropzone">
+      <div class="nc-table-wrap" id="view-list">
+        <table class="nc-table">
+          <thead>
+            <tr>
+              <th class="col-check"><input type="checkbox" id="select-all" aria-label="Select all"></th>
+              <th class="col-icon" aria-hidden="true"><span class="visually-hidden">Icon</span></th>
+              <th class="col-name">
+                <button type="button" class="nc-th-sort" id="th-sort-name" aria-label="Sort by name" aria-sort="ascending">
+                  Name <span class="nc-sort-caret" aria-hidden="true">▲</span>
+                </button>
+              </th>
+              <th class="col-share"><span class="visually-hidden">Share</span></th>
+              <th class="col-more"><span class="visually-hidden">More</span></th>
+              <th class="col-size">Size</th>
+              <th class="col-type">Type</th>
+              <th class="col-modified">Modified</th>
+            </tr>
+          </thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+      <div class="nc-grid" id="view-grid" hidden></div>
+    </div>
+
+    <footer class="nc-footer">
+      <span id="footer-summary">0 folders, 0 files</span>
+      <span id="footer-size"></span>
+    </footer>
+    <p id="status" class="nc-status" role="status"></p>
+    {% if not upload_progress_in_header|default(false) %}
+      {% include "_upload_progress.html" %}
+    {% endif %}
+    <div id="share-result" class="nc-share-toast" hidden></div>
+  </div>
+
+  <div id="pdf-viewer" class="nc-viewer-shell" hidden aria-label="PDF viewer">
+    <div class="nc-viewer-topbar">
+      <div class="nc-viewer-topbar-title" id="pdf-title">PDF</div>
+      <button type="button" class="nc-viewer-close" id="pdf-close" aria-label="Close PDF viewer">&times;</button>
+    </div>
+    <iframe id="pdf-frame" class="nc-viewer-frame" title="PDF viewer" loading="lazy"></iframe>
+  </div>
+
+  <div id="eml-viewer" class="nc-viewer-shell" hidden aria-label="Email viewer">
+    <div class="nc-viewer-topbar">
+      <div class="nc-viewer-topbar-title" id="eml-title">Email</div>
+      <button type="button" class="nc-viewer-close" id="eml-close" aria-label="Close email viewer">&times;</button>
+    </div>
+    <iframe id="eml-frame" class="nc-viewer-frame" title="Email viewer" loading="lazy"></iframe>
+  </div>
+
+  <div id="drawio-viewer" class="nc-viewer-shell" hidden aria-label="draw.io editor">
+    <div class="nc-viewer-topbar">
+      <div class="nc-viewer-topbar-title" id="drawio-title">Diagram</div>
+      <button type="button" class="nc-viewer-close" id="drawio-close" aria-label="Close draw.io editor">&times;</button>
+    </div>
+    <iframe id="drawio-frame" class="nc-viewer-frame" title="draw.io editor" loading="lazy" allow="clipboard-read; clipboard-write"></iframe>
+  </div>
+
+  <div id="img-viewer" class="nc-viewer-shell" hidden aria-label="Image viewer">
+    <div class="nc-viewer-topbar">
+      <div class="nc-viewer-topbar-title" id="img-title">Image</div>
+      <button type="button" class="nc-viewer-close" id="img-close" aria-label="Close image viewer">&times;</button>
+    </div>
+    <div class="nc-img-viewer-body">
+      <img id="img-el" class="nc-img-viewer-img" alt="Preview">
+    </div>
+  </div>
+
+  <div id="vid-viewer" class="nc-viewer-shell" hidden aria-label="Video viewer">
+    <div class="nc-viewer-topbar">
+      <div class="nc-viewer-topbar-title" id="vid-title">Video</div>
+      <button type="button" class="nc-viewer-close" id="vid-close" aria-label="Close video viewer">&times;</button>
+    </div>
+    <div class="nc-vid-viewer-body">
+      <video id="vid-el" class="nc-vid-viewer" controls playsinline></video>
+    </div>
+  </div>
+
+  <div id="model3d-viewer" class="nc-viewer-shell" hidden aria-label="3D model viewer">
+    <div class="nc-viewer-topbar">
+      <div class="nc-viewer-topbar-title" id="model3d-title">3D model</div>
+      <button type="button" class="nc-viewer-close" id="model3d-close" aria-label="Close 3D model viewer">&times;</button>
+    </div>
+    <div class="nc-3d-viewer-body">
+      <canvas id="model3d-canvas" class="nc-3d-viewer-canvas"></canvas>
+      <div id="model3d-status" class="nc-3d-viewer-status" role="status"></div>
+    </div>
+  </div>
+
+  <div id="text-viewer" class="nc-viewer-shell" hidden aria-label="Text viewer">
+    <div class="nc-viewer-topbar">
+      <div class="nc-viewer-topbar-title" id="text-title">Text</div>
+      <button type="button" class="nc-viewer-close" id="text-close" aria-label="Close text viewer">&times;</button>
+    </div>
+    <div class="nc-text-viewer-body">
+      <textarea id="text-area" class="nc-text-viewer-area" spellcheck="false" wrap="off" readonly></textarea>
+      <div class="nc-text-viewer-foot">
+        <div class="nc-text-viewer-hint">Read-only preview · large/binary files won’t render</div>
+        <div id="text-status" class="nc-text-viewer-status" role="status"></div>
+      </div>
+    </div>
+  </div>
+
+  <dialog id="dlg-movecopy" class="nc-modal nc-modal-wide nc-movecopy-dialog">
+    <div class="nc-modal-form">
+      <div class="nc-movecopy-topbar">
+        <h3 class="nc-modal-title" id="movecopy-title">
+          <span class="nc-movecopy-title-ic" aria-hidden="true">⇅</span>
+          Move or copy
+        </h3>
+        <button type="button" class="nc-btn nc-btn-secondary nc-movecopy-close" id="movecopy-close" aria-label="Close">&times;</button>
+      </div>
+      <div class="nc-modal-body nc-movecopy-body">
+        <div class="nc-movecopy-crumbbar">
+          <button type="button" class="nc-btn nc-btn-secondary" id="movecopy-up">‹ Up</button>
+          <div class="nc-movecopy-path" id="movecopy-path"></div>
+        </div>
+        <ul id="movecopy-folders" class="nc-movecopy-list"></ul>
+        <p id="movecopy-empty" class="nc-detail-muted" hidden>No folders here.</p>
+        <p id="movecopy-status" class="nc-detail-muted"></p>
+      </div>
+      <div class="nc-modal-actions nc-movecopy-actions">
+        <div class="nc-movecopy-actions-left">
+          <button type="button" class="nc-btn nc-btn-secondary" id="movecopy-copy" disabled>Copy to</button>
+          <button type="button" class="nc-btn nc-btn-primary" id="movecopy-move" disabled>Move to</button>
+        </div>
+        <button type="button" class="nc-btn nc-btn-secondary" id="movecopy-cancel">Close</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="dlg-versions" class="nc-modal">
+    <form method="dialog" class="nc-modal-form">
+      <h3 class="nc-modal-title">Version history</h3>
+      <div id="versions-body" class="nc-modal-body"></div>
+      <div class="nc-modal-actions">
+        <button value="cancel" class="nc-btn nc-btn-secondary">Close</button>
+      </div>
+    </form>
+  </dialog>
+
+{% if not upload_conflict_in_shell|default(false) %}
+{% include "_upload_conflict_dialog.html" %}
+{% endif %}
+
+  <dialog id="dlg-share" class="nc-modal nc-modal-wide">
+    <div class="nc-modal-form">
+      <div class="nc-share-head">
+        <div>
+          <h3 class="nc-modal-title" id="share-title">Sharing</h3>
+          <p class="nc-detail-muted" id="share-sub"></p>
+        </div>
+      </div>
+
+      <div id="share-readonly" class="nc-detail-block" hidden>
+        <p id="share-your-text" class="nc-detail-muted"></p>
+      </div>
+
+      <div id="share-manage" class="nc-detail-block" hidden>
+        <label class="nc-detail-label">Share with user, group, or role</label>
+        <div class="nc-share-add-row">
+          <input type="text" id="share-username" class="nc-detail-input" placeholder="Email, group, or role name" autocomplete="off" list="share-user-suggestions">
+          <datalist id="share-user-suggestions"></datalist>
+          <select id="share-perm" class="nc-detail-select" aria-label="Permission">
+            <option value="read">Can view</option>
+            <option value="write">Can edit</option>
+          </select>
+          <button type="button" class="nc-btn nc-btn-primary" id="share-add">Add</button>
+        </div>
+        <p class="nc-detail-hint">Pick a user, organizational group (e.g. <strong>Group: Training Group</strong>), or role (e.g. <strong>Role: power</strong>). Groups and roles share with every active member.</p>
+        <ul id="share-internal-list" class="nc-internal-share-list"></ul>
+        <div class="nc-detail-divider"></div>
+        <label class="nc-detail-label">Public link</label>
+        <p class="nc-detail-hint">Create a link anyone can use (subject to link settings).</p>
+        <div class="nc-share-add-row" style="margin-top:0.35rem;">
+          <button type="button" class="nc-btn nc-btn-secondary" id="share-public-link">Create link</button>
+          <button type="button" class="nc-btn nc-btn-secondary" id="share-public-link-remove" hidden>Remove link(s)</button>
+          <span id="share-public-link-count" class="nc-detail-muted" hidden></span>
+        </div>
+        <div id="share-public-link-box" class="nc-share-linkbox" hidden>
+          <input type="text" id="share-public-link-result" class="nc-detail-input" readonly value="">
+          <button type="button" class="nc-btn nc-btn-secondary" id="share-public-link-copy">Copy</button>
+        </div>
+      </div>
+      <p id="share-status" class="nc-status" role="status"></p>
+      <div class="nc-modal-actions" style="justify-content:flex-end;">
+        <button type="button" class="nc-btn nc-btn-secondary" id="share-close">Close</button>
+      </div>
+    </div>
+  </dialog>
+
+  <div id="row-menu-backdrop" class="nc-menu-backdrop" hidden></div>
+  <div id="row-menu" class="nc-row-menu" hidden role="menu"></div>
+</div>
+
+<aside id="detail-panel" class="nc-detail-panel" aria-label="Details" hidden>
+  <div class="nc-detail-header">
+    <div class="nc-detail-header-text">
+      <h2 id="detail-title" class="nc-detail-title">Details</h2>
+      <p id="detail-sub" class="nc-detail-sub"></p>
+    </div>
+    <button type="button" class="nc-icon-btn" id="detail-close" aria-label="Close details">&times;</button>
+  </div>
+  <div class="nc-detail-tabs" role="tablist">
+    <button type="button" class="nc-detail-tab is-active" data-tab="comments" role="tab" aria-selected="true">Comments</button>
+    <button type="button" class="nc-detail-tab" data-tab="sharing" role="tab" aria-selected="false">Sharing</button>
+    <button type="button" class="nc-detail-tab" data-tab="activity" role="tab" aria-selected="false">Activity</button>
+    <button type="button" class="nc-detail-tab" data-tab="versions" role="tab" aria-selected="false">Version control</button>
+  </div>
+  <div id="detail-tab-comments" class="nc-detail-tab-panel" hidden role="tabpanel">
+    <div class="nc-comments-compose">
+      <input type="text" id="detail-comment-input" class="nc-detail-input" placeholder="New comment" autocomplete="off">
+      <button type="button" class="nc-btn nc-btn-primary" id="detail-comment-send">Post</button>
+    </div>
+    <ul id="detail-comments-list" class="nc-comments-list"></ul>
+    <p id="detail-comments-empty" class="nc-detail-muted" hidden>No comments yet.</p>
+  </div>
+  <div id="detail-tab-sharing" class="nc-detail-tab-panel" hidden role="tabpanel">
+    <div id="detail-sharing-readonly" class="nc-detail-block" hidden>
+      <p id="detail-your-share-text" class="nc-detail-muted"></p>
+    </div>
+    <div id="detail-sharing-manage" class="nc-detail-block" hidden>
+      <label class="nc-detail-label">Share with user, group, or role</label>
+      <div class="nc-share-add-row">
+        <input type="text" id="detail-share-username" class="nc-detail-input" placeholder="Email, group, or role name" autocomplete="off" list="detail-user-suggestions">
+        <datalist id="detail-user-suggestions"></datalist>
+        <select id="detail-share-perm" class="nc-detail-select" aria-label="Permission">
+          <option value="read">Can view</option>
+          <option value="write">Can edit</option>
+        </select>
+        <button type="button" class="nc-btn nc-btn-primary" id="detail-share-add">Add</button>
+      </div>
+      <p class="nc-detail-hint">Pick a user, group, or role — groups and roles share with every active member.</p>
+      <ul id="detail-internal-list" class="nc-internal-share-list"></ul>
+      <div class="nc-detail-divider"></div>
+      <label class="nc-detail-label">Public link</label>
+      <p class="nc-detail-hint">Create a link anyone can use (subject to link settings).</p>
+      <button type="button" class="nc-btn nc-btn-secondary" id="detail-public-link">Create link</button>
+      <p id="detail-public-link-result" class="nc-share-toast" hidden></p>
+    </div>
+  </div>
+  <div id="detail-tab-activity" class="nc-detail-tab-panel" hidden role="tabpanel">
+    <ul id="detail-activity-list" class="nc-activity-list"></ul>
+    <p id="detail-activity-empty" class="nc-detail-muted" hidden>No activity recorded for this item yet.</p>
+  </div>
+  <div id="detail-tab-versions" class="nc-detail-tab-panel" hidden role="tabpanel">
+    <ul id="detail-versions-list" class="nc-internal-share-list"></ul>
+    <p id="detail-versions-empty" class="nc-detail-muted" hidden>No versions yet.</p>
+  </div>
+</aside>
+</div>
+

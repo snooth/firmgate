@@ -1,0 +1,105 @@
+{% extends "intranet_base.html" %}
+{% block title %}{{ portal_tab_title }} — My profile{% endblock %}
+
+{% block intranet_body %}
+<div class="nc-intranet-hero-banner nc-profile-page">
+  <div class="nc-intranet-hero-banner-inner">
+    <div class="nc-profile-hero-main">
+      <div class="nc-profile-avatar nc-dir-avatar" id="nc-profile-hero-avatar" data-tone="{{ (profile_user.id % 6) }}" aria-hidden="true">{{ ((profile_user.full_name or profile_user.username or '?')[:2])|upper }}</div>
+      <div>
+        <h1>My profile</h1>
+        <div class="nc-intranet-muted">{{ profile_user.full_name or profile_user.username }}</div>
+        <div class="nc-intranet-muted nc-profile-hero-email">{{ profile_user.email or profile_user.username }}</div>
+      </div>
+    </div>
+    {% if admin_edit_url %}
+    <a class="nc-btn nc-btn-secondary nc-intranet-hero-edit" href="{{ admin_edit_url }}">Manage in Administration</a>
+    {% endif %}
+  </div>
+</div>
+
+<div class="nc-intranet-grid2 nc-profile-grid">
+  <section class="nc-intranet-card" aria-label="Identity">
+    <h2>Identity</h2>
+    <p id="nc-profile-status" class="nc-status" role="status" hidden></p>
+    {% if can_edit_self %}
+    <form id="nc-profile-form" class="nc-profile-form" novalidate>
+      <div class="nc-profile-field">
+        <label class="nc-detail-label" for="nc-profile-email">Email address <span class="nc-req">*</span></label>
+        <input type="email" id="nc-profile-email" class="nc-detail-input" autocomplete="email" required value="{{ profile_user.email or '' }}">
+      </div>
+      <div class="nc-profile-field">
+        <label class="nc-detail-label" for="nc-profile-full-name">Display name</label>
+        <input type="text" id="nc-profile-full-name" class="nc-detail-input" autocomplete="name" value="{{ profile_user.full_name or '' }}">
+      </div>
+      <div class="nc-profile-field">
+        <label class="nc-detail-label" for="nc-profile-username">Username <span class="nc-req">*</span></label>
+        <input type="text" id="nc-profile-username" class="nc-detail-input" autocomplete="username" required value="{{ profile_user.username or '' }}">
+        <p class="nc-detail-muted nc-profile-help">Use your email or letters, numbers, dots, underscores, and hyphens.</p>
+      </div>
+      <div class="nc-profile-field">
+        <label class="nc-detail-label" for="nc-profile-phone">Phone number</label>
+        <input type="tel" id="nc-profile-phone" class="nc-detail-input" autocomplete="tel" value="{{ profile_user.phone or '' }}">
+      </div>
+      <div class="nc-profile-actions">
+        <button type="submit" class="nc-btn nc-btn-primary" id="nc-profile-save">Save changes</button>
+      </div>
+    </form>
+    {% else %}
+    <dl class="nc-profile-dl">
+      <div><dt>Email</dt><dd>{{ profile_user.email or '—' }}</dd></div>
+      <div><dt>Display name</dt><dd>{{ profile_user.full_name or '—' }}</dd></div>
+      <div><dt>Username</dt><dd>{{ profile_user.username or '—' }}</dd></div>
+      <div><dt>Phone</dt><dd>{{ profile_user.phone or '—' }}</dd></div>
+    </dl>
+    {% endif %}
+  </section>
+
+  {% if can_edit_self %}
+  <section class="nc-intranet-card" aria-label="Security">
+    <h2>Security</h2>
+    <div class="nc-profile-field">
+      <label class="nc-detail-label" for="nc-profile-password">New password</label>
+      <input type="password" id="nc-profile-password" class="nc-detail-input" placeholder="Min 8 characters" autocomplete="new-password">
+    </div>
+    <div class="nc-profile-field">
+      <label class="nc-detail-label" for="nc-profile-password2">Confirm new password</label>
+      <input type="password" id="nc-profile-password2" class="nc-detail-input" placeholder="Repeat password" autocomplete="new-password">
+    </div>
+    <p class="nc-detail-muted">Leave blank to keep your current password.</p>
+  </section>
+  {% endif %}
+
+  {% if workforce_entry %}
+  <section class="nc-intranet-card nc-profile-workforce-card" aria-label="Workforce details">
+    <h2>Workforce details</h2>
+    <p class="nc-detail-muted" style="margin-top:0;">Shown on the Workforce directory. Contact your administrator to change these fields.</p>
+    <dl class="nc-profile-dl">
+      <div><dt>Department</dt><dd>{{ workforce_entry.department or '—' }}</dd></div>
+      <div><dt>Job title</dt><dd>{{ workforce_entry.job_title or '—' }}</dd></div>
+      <div><dt>Location</dt><dd>{{ workforce_entry.location or '—' }}</dd></div>
+      <div><dt>Reports to</dt><dd>{{ workforce_entry.reports_to or '—' }}</dd></div>
+      <div><dt>Start date</dt><dd>{{ workforce_entry.start_date or '—' }}</dd></div>
+      <div><dt>Timezone</dt><dd>{{ workforce_entry.timezone or '—' }}</dd></div>
+      {% if workforce_entry.edit and workforce_entry.edit.workforce_project %}
+      <div><dt>Project</dt><dd>{{ workforce_entry.edit.workforce_project }}</dd></div>
+      {% endif %}
+    </dl>
+    <div class="nc-profile-actions">
+      <a class="nc-btn nc-btn-secondary" href="{{ url_for('intranet.user_page', user_id=profile_user.id) }}">View public profile</a>
+    </div>
+  </section>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+  window.__NC_PROFILE_PAGE__ = {
+    userId: {{ profile_user.id|tojson }},
+    api: {{ (url_api_me_profile if can_edit_self else '')|tojson }}
+  };
+</script>
+<script src="{{ url_for('static', filename='intranet_profile_page.js') }}?v=1" defer></script>
+{% endblock %}

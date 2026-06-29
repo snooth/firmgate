@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en"{% if portal_scale and portal_scale != 100 %} style="zoom: {{ portal_scale / 100.0 }};"{% endif %}>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}{{ portal_tab_title }}{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='file_browser.css') }}">
+  <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='branding/firmgate-logo.svg') }}">
+  {% block extrahead %}{% endblock %}
+</head>
+<body class="{% block body_class %}{% endblock %}{% if portal_theme_class %} {{ portal_theme_class }}{% endif %}">
+  {% set _embed = (request.args.get('embed') == '1') %}
+  {% if not _embed %}
+  <header class="nc-header">
+    <div class="nc-header-inner">
+      <div class="nc-header-left">
+        <a class="nc-logo" href="{{ url_for('intranet.intranet_page') if current_user.is_authenticated else url_for('auth.login') }}" title="{{ portal_shell_name }}">
+          {% if portal_logo_url %}
+            {% with brand_variant='header' %}{% include "_portal_brand_mark.html" %}{% endwith %}
+          {% else %}
+          <span class="nc-logo-icon" aria-hidden="true">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M3 6h8l2 3h8v12H3V6z" fill="currentColor" opacity=".9"/><path d="M3 8h7.5L12 11h9v9H3V8z" fill="currentColor" opacity=".35"/></svg>
+          </span>
+          {% endif %}
+          <span class="nc-logo-text">{{ portal_shell_name }}</span>
+        </a>
+        {% if current_user.is_authenticated %}
+        <nav class="nc-header-nav" aria-label="Apps">
+          <a class="nc-nav-item {% if request.endpoint == 'files.browser' %}is-active{% endif %}" href="{{ url_for('files.browser') }}" title="All files">Files</a>
+          {% if can_view_admin %}<a class="nc-nav-item {% if request.endpoint == 'admin.admin_page' %}is-active{% endif %}" href="{{ url_for('admin.admin_page') }}">Administration</a>{% endif %}
+        </nav>
+        {% endif %}
+      </div>
+      <div class="nc-header-right">
+        {% if current_user.is_authenticated %}
+        <span class="nc-user" title="{{ current_user.username }}">
+          <span class="nc-user-avatar">{{ (current_user.username or '?')[:2]|upper }}</span>
+        </span>
+        <a class="nc-header-link" href="{{ url_for('auth.logout') }}">Log out</a>
+        {% endif %}
+      </div>
+    </div>
+  </header>
+  {% endif %}
+  <main class="{% block main_class %}main{% endblock %}">
+    {% block content %}{% endblock %}
+  </main>
+  {% if portal_footer_text and not _embed %}
+    <footer class="nc-footer">
+      <div class="nc-footer-inner">{{ portal_footer_text }}</div>
+    </footer>
+  {% endif %}
+  {% block body_persistent %}{% endblock %}
+  <script src="{{ url_for('static', filename='viewer_offsets.js') }}"></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

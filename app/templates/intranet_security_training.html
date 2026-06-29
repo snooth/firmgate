@@ -1,0 +1,82 @@
+{% extends "intranet_base.html" %}
+{% block title %}{{ portal_tab_title }} — Security Training{% endblock %}
+{% block intranet_body %}
+<div class="nc-intranet-hero nc-intranet-hero--st">
+  <div>
+    <h1>Security Training</h1>
+    <div class="nc-intranet-muted nc-st-page-intro">{{ page_intro_html }}</div>
+    <div id="st-progress" class="nc-st-progress" hidden aria-live="polite"></div>
+  </div>
+</div>
+<section class="nc-st">
+  <aside class="nc-st-left" aria-label="Training files">
+    <div class="nc-st-left-head">
+      <div class="nc-st-left-headrow">
+        <div>
+          <div class="nc-st-left-title">Training files</div>
+          <div class="nc-detail-muted" id="st-count"></div>
+        </div>
+        <div class="nc-st-left-actions" id="st-admin-actions" hidden>
+          <input id="st-upload-input" type="file" class="visually-hidden" multiple accept=".mp4,.webm,.mov,.pdf,.doc,.docx,.odt,.rtf,.txt,.xls,.xlsx,.ods,.csv,.ppt,.pptx,.pps,.ppsx,.ppsm,.pptm,.odp,.pot,.potx,.potm" />
+          <button type="button" class="nc-btn nc-btn-primary nc-btn-sm" id="st-upload-btn">Upload</button>
+        </div>
+      </div>
+    </div>
+    <div class="nc-st-left-list" id="st-list" role="list"></div>
+  </aside>
+
+  <div class="nc-st-view" aria-label="Viewer">
+    <div class="nc-st-view-shell">
+      <div class="nc-st-view-head">
+        <div class="nc-st-view-head-main">
+          <div class="nc-st-view-title" id="st-title"></div>
+          <div id="st-view-actions" class="nc-st-view-actions" hidden></div>
+        </div>
+      </div>
+      <div class="nc-st-view-body" id="st-body">
+        <div class="nc-st-empty">
+          <div class="nc-st-empty-title">Click on your training materials to start your training.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script src="{{ url_for('static', filename='security_training.js') }}?v=6" defer></script>
+<style>
+  .nc-intranet-hero--st > div {
+    width: 100%;
+    max-width: 100%;
+  }
+  .nc-intranet-hero--st .nc-st-page-intro {
+    line-height: 1.5;
+    width: 100%;
+    max-width: none;
+  }
+  .nc-intranet-hero--st .nc-st-page-intro p {
+    margin: 0 0 0.5rem;
+    max-width: none;
+  }
+  .nc-intranet-hero--st .nc-st-page-intro p:last-child {
+    margin-bottom: 0;
+  }
+  .nc-intranet-hero--st .nc-st-page-intro a {
+    color: var(--nc-accent, #2563eb);
+    text-decoration: underline;
+  }
+  .nc-intranet-hero--st .nc-st-page-intro img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 8px;
+    margin: 0.35rem 0;
+  }
+  .nc-intranet-hero--st .nc-st-progress {
+    width: 100%;
+    box-sizing: border-box;
+  }
+</style>
+{% endblock %}
+

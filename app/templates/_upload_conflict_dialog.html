@@ -1,0 +1,31 @@
+  <dialog id="dlg-upload-conflict" class="nc-modal nc-modal-wide">
+    <div class="nc-modal-form">
+      <h3 class="nc-modal-title" id="uconflict-title">Replace file?</h3>
+      <p class="nc-detail-muted" id="uconflict-intro">A file with this name already exists in this folder.</p>
+      <div class="nc-uconflict-grid">
+        <div class="nc-uconflict-card">
+          <h4 class="nc-uconflict-card-title">Current file</h4>
+          <dl class="nc-uconflict-dl">
+            <dt>Name</dt><dd id="uconflict-existing-name"></dd>
+            <dt>Size</dt><dd id="uconflict-existing-size"></dd>
+            <dt>Modified</dt><dd id="uconflict-existing-date"></dd>
+          </dl>
+        </div>
+        <div class="nc-uconflict-card nc-uconflict-card-new">
+          <h4 class="nc-uconflict-card-title">New upload</h4>
+          <dl class="nc-uconflict-dl">
+            <dt>Name</dt><dd id="uconflict-new-name"></dd>
+            <dt>Size</dt><dd id="uconflict-new-size"></dd>
+            <dt>Date</dt><dd id="uconflict-new-date"></dd>
+          </dl>
+        </div>
+      </div>
+      <p id="uconflict-readonly-hint" class="nc-detail-hint" hidden>You do not have permission to replace this file. You can keep the existing file or cancel.</p>
+      <div class="nc-modal-actions nc-uconflict-actions">
+        <button type="button" class="nc-btn nc-btn-secondary" id="btn-uconflict-cancel">Cancel upload</button>
+        <button type="button" class="nc-btn nc-btn-secondary" id="btn-uconflict-keep">Keep existing</button>
+        <button type="button" class="nc-btn nc-btn-secondary" id="btn-uconflict-replace-all" hidden>Replace all</button>
+        <button type="button" class="nc-btn nc-btn-primary" id="btn-uconflict-replace">Replace with new</button>
+      </div>
+    </div>
+  </dialog>

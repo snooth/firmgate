@@ -1,0 +1,284 @@
+{% extends "intranet_base.html" %}
+{% block title %}{{ portal_tab_title }} — Games{% endblock %}
+
+{% block intranet_body %}
+<div
+  class="nc-game-page"
+  id="nc-game-lobby"
+  data-api-base="/intranet/api/chess"
+  data-lemmings-url="{{ lemmings_game_url|e }}"
+  data-sky-control-api="/intranet/api/sky-control"
+>
+  <header class="nc-intranet-hero nc-game-hero">
+    <div class="nc-game-hero-row">
+      <div class="nc-game-hero-copy">
+        <div class="nc-game-hero-title">
+          <span class="nc-game-hero-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="3" width="18" height="18" rx="1.5"/>
+              <path d="M3 9h18M3 15h18M9 3v18M15 3v18"/>
+            </svg>
+          </span>
+          <h1>Games</h1>
+        </div>
+        <p class="nc-intranet-muted">Play games with colleagues.</p>
+      </div>
+    </div>
+  </header>
+
+  <div class="nc-game-hub">
+    <nav class="nc-game-hub-nav" aria-label="Game types">
+      <button type="button" class="nc-game-hub-tab is-active" data-game="chess" aria-current="page">
+        <span class="nc-game-hub-tab-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="18" height="18" rx="1.5"/>
+            <path d="M3 9h18M3 15h18M9 3v18M15 3v18"/>
+          </svg>
+        </span>
+        <span class="nc-game-hub-tab-label">Chess</span>
+      </button>
+      <button type="button" class="nc-game-hub-tab" data-game="lemmings">
+        <span class="nc-game-hub-tab-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="8" cy="14" r="2.5"/>
+            <circle cx="16" cy="14" r="2.5"/>
+            <path d="M6 10c1.5-2 4-3 6-3s4.5 1 6 3"/>
+            <path d="M12 7V4"/>
+          </svg>
+        </span>
+        <span class="nc-game-hub-tab-label">Lemmings</span>
+      </button>
+      <button type="button" class="nc-game-hub-tab" data-game="flight-sim">
+        <span class="nc-game-hub-tab-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M2 16l20-6-8 2-4 8-2-4-6 2z"/>
+            <path d="M12 12v4"/>
+          </svg>
+        </span>
+        <span class="nc-game-hub-tab-label">Sky Control</span>
+      </button>
+      <button type="button" class="nc-game-hub-tab" data-game="space-invaders">
+        <span class="nc-game-hub-tab-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="4" y="4" width="6" height="6" rx="1"/>
+            <rect x="14" y="4" width="6" height="6" rx="1"/>
+            <rect x="9" y="12" width="6" height="6" rx="1"/>
+            <path d="M12 20v2"/>
+            <path d="M8 22h8"/>
+          </svg>
+        </span>
+        <span class="nc-game-hub-tab-label">Space Invaders</span>
+      </button>
+    </nav>
+
+    <div class="nc-game-hub-main">
+      <section class="nc-game-panel" id="nc-game-panel-chess" aria-labelledby="nc-game-chess-heading">
+        <div class="nc-game-panel-head">
+          <div class="nc-game-panel-title-wrap">
+            <span class="nc-game-panel-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="1.5"/>
+                <path d="M3 9h18M3 15h18M9 3v18M15 3v18"/>
+              </svg>
+            </span>
+            <div>
+              <h2 class="nc-game-panel-title" id="nc-game-chess-heading">Chess</h2>
+              <p class="nc-detail-muted nc-game-panel-sub">Correspondence chess — take as long as you need between moves.</p>
+            </div>
+          </div>
+          <div class="nc-game-panel-actions">
+            <button type="button" class="nc-btn nc-btn-primary" id="chess-new-game">New game</button>
+          </div>
+        </div>
+
+        <div class="nc-game-lobby-grid">
+          <section class="nc-game-card">
+            <h3 class="nc-game-card-title">Join a game</h3>
+            <p class="nc-detail-muted">Enter the game code shared by your opponent.</p>
+            <div class="nc-game-join-row">
+              <input type="text" id="chess-join-code" class="nc-detail-input" placeholder="Game code" autocomplete="off" spellcheck="false">
+              <button type="button" class="nc-btn nc-btn-primary" id="chess-join-btn">Join</button>
+            </div>
+            <p id="chess-lobby-status" class="nc-status" role="status"></p>
+          </section>
+
+          <section class="nc-game-card nc-game-card--grow">
+            <h3 class="nc-game-card-title">Your games</h3>
+            <div id="chess-games-list" class="nc-game-list">
+              <p class="nc-detail-muted">Loading…</p>
+            </div>
+          </section>
+        </div>
+      </section>
+
+
+      <section class="nc-game-panel" id="nc-game-panel-lemmings" hidden aria-labelledby="nc-game-lemmings-heading">
+        <div class="nc-game-panel-head">
+          <div class="nc-game-panel-title-wrap">
+            <span class="nc-game-panel-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="8" cy="14" r="2.5"/><circle cx="16" cy="14" r="2.5"/>
+                <path d="M6 10c1.5-2 4-3 6-3s4.5 1 6 3"/><path d="M12 7V4"/>
+              </svg>
+            </span>
+            <div>
+              <h2 class="nc-game-panel-title" id="nc-game-lemmings-heading">Lemmings</h2>
+              <p class="nc-detail-muted nc-game-panel-sub">Guide your lemmings to the exit — assign skills before they march off the edge.</p>
+            </div>
+          </div>
+        </div>
+
+        <p class="nc-detail-muted nc-lemmings-hint">Click inside the game to play. Use the in-game menu to pick a level pack.</p>
+
+        <div class="nc-lemmings-player">
+          <iframe
+            id="lemmings-frame"
+            class="nc-lemmings-embed"
+            title="Lemmings"
+            loading="lazy"
+            allow="fullscreen"
+            referrerpolicy="no-referrer"
+          ></iframe>
+        </div>
+
+        <p class="nc-lemmings-fallback">
+          If the game does not load,
+          <a href="{{ lemmings_game_url or 'https://oklemenz.github.io/LemmingsJS/' }}" target="_blank" rel="noopener noreferrer">open Lemmings in a new tab</a>.
+        </p>
+
+        <details class="nc-lemmings-help">
+          <summary>Controls</summary>
+          <div class="nc-lemmings-help-body">
+            <p><strong>Typical controls:</strong> click a skill on the toolbar, then click a lemming to assign it. Pause and speed controls are in the game UI.</p>
+            <p class="nc-detail-muted">HTML5 fan remake (LemmingsJS). Use only if you have rights to play this title.</p>
+          </div>
+        </details>
+      </section>
+
+      <section class="nc-game-panel" id="nc-game-panel-flight-sim" hidden aria-labelledby="nc-game-flight-sim-heading">
+        <div class="nc-game-panel-head">
+          <div class="nc-game-panel-title-wrap">
+            <span class="nc-game-panel-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M2 16l20-6-8 2-4 8-2-4-6 2z"/>
+              </svg>
+            </span>
+            <div>
+              <h2 class="nc-game-panel-title" id="nc-game-flight-sim-heading">Sky Control</h2>
+              <p class="nc-detail-muted nc-game-panel-sub">Radar air-traffic puzzle — drag routes from each blip to a runway before traffic collides.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="nc-flight-sim-toolbar" role="group" aria-label="Game stats">
+          <span class="nc-flight-sim-stat"><strong>Score</strong> <span id="flight-sim-score">0</span></span>
+          <span class="nc-flight-sim-stat"><strong>Landed</strong> <span id="flight-sim-landed">0</span></span>
+          <span class="nc-flight-sim-stat"><strong>Combo</strong> <span id="flight-sim-combo">—</span></span>
+          <span class="nc-flight-sim-stat"><strong>Wave</strong> <span id="flight-sim-wave">1</span></span>
+          <span class="nc-flight-sim-stat nc-flight-sim-lives"><strong>Lives</strong> <span id="flight-sim-lives">♥♥♥</span></span>
+          <button type="button" class="nc-btn nc-btn-secondary" id="flight-sim-restart">Restart</button>
+        </div>
+        <p id="flight-sim-status" class="nc-status nc-flight-sim-status" role="status">Drag from an aircraft to a runway. Avoid other traffic.</p>
+
+        <div class="nc-flight-sim-layout">
+          <div class="nc-flight-sim-player">
+            <canvas id="flight-sim-canvas" class="nc-flight-sim-canvas" width="1024" height="640" aria-label="Sky Control radar"></canvas>
+          </div>
+          <aside class="nc-flight-sim-leaderboard" aria-labelledby="flight-sim-leaderboard-title">
+            <h3 class="nc-flight-sim-leaderboard-title" id="flight-sim-leaderboard-title">Top scores</h3>
+            <ol id="flight-sim-leaderboard-list" class="nc-flight-sim-leaderboard-list">
+              <li class="nc-flight-sim-leaderboard-empty">Loading…</li>
+            </ol>
+            <p id="flight-sim-leaderboard-you" class="nc-flight-sim-leaderboard-you" hidden></p>
+          </aside>
+        </div>
+
+        <details class="nc-flight-sim-help">
+          <summary>How to play</summary>
+          <div class="nc-flight-sim-help-body">
+            <p><strong>Drag</strong> from a callsign blip to a glowing runway. Unrouted traffic speeds up (amber); near-misses pulse red.</p>
+            <p><strong>Combo</strong> landings for higher scores. <strong>Lives:</strong> traffic leaving the sector costs a life; any collision ends the run.</p>
+            <p><strong>Keys:</strong> P pause · R restart.</p>
+          </div>
+        </details>
+      </section>
+
+      <section class="nc-game-panel" id="nc-game-panel-space-invaders" hidden aria-labelledby="nc-game-space-invaders-heading">
+        <div class="nc-game-panel-head">
+          <div class="nc-game-panel-title-wrap">
+            <span class="nc-game-panel-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="4" y="4" width="6" height="6" rx="1"/>
+                <rect x="14" y="4" width="6" height="6" rx="1"/>
+                <rect x="9" y="12" width="6" height="6" rx="1"/>
+                <path d="M12 20v2"/>
+                <path d="M8 22h8"/>
+              </svg>
+            </span>
+            <div>
+              <h2 class="nc-game-panel-title" id="nc-game-space-invaders-heading">Space Invaders</h2>
+              <p class="nc-detail-muted nc-game-panel-sub">Classic arcade shooter — clear waves of invaders before they reach Earth.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="nc-space-invaders-toolbar" role="group" aria-label="Game stats">
+          <span class="nc-space-invaders-stat"><strong>Score</strong> <span id="space-invaders-score">0</span></span>
+          <span class="nc-space-invaders-stat"><strong>Wave</strong> <span id="space-invaders-wave">1</span></span>
+          <span class="nc-space-invaders-stat"><strong>Best</strong> <span id="space-invaders-best">0</span></span>
+          <span class="nc-space-invaders-stat nc-space-invaders-lives"><strong>Lives</strong> <span id="space-invaders-lives">♥♥♥</span></span>
+          <div class="nc-space-invaders-speed" role="group" aria-label="Game speed">
+            <span class="nc-space-invaders-speed-label">Speed</span>
+            <button type="button" class="nc-space-invaders-speed-btn is-active" data-speed="1" aria-pressed="true">1×</button>
+            <button type="button" class="nc-space-invaders-speed-btn" data-speed="2" aria-pressed="false">2×</button>
+            <button type="button" class="nc-space-invaders-speed-btn" data-speed="3" aria-pressed="false">3×</button>
+          </div>
+          <button
+            type="button"
+            class="nc-space-invaders-mute-btn"
+            id="space-invaders-mute"
+            aria-pressed="false"
+            aria-label="Mute sound"
+            title="Mute sound"
+          >
+            <svg class="nc-space-invaders-mute-icon nc-space-invaders-mute-icon--on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M11 5 6 9H3v6h3l5 4V5z"/>
+              <path d="M15.5 8.5a5 5 0 0 1 0 7"/>
+              <path d="M18 6a8.5 8.5 0 0 1 0 12"/>
+            </svg>
+            <svg class="nc-space-invaders-mute-icon nc-space-invaders-mute-icon--off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" hidden>
+              <path d="M11 5 6 9H3v6h3l5 4V5z"/>
+              <path d="m22 9-6 6"/>
+              <path d="m16 9 6 6"/>
+            </svg>
+          </button>
+          <button type="button" class="nc-btn nc-btn-secondary" id="space-invaders-restart">Restart</button>
+        </div>
+        <p id="space-invaders-status" class="nc-status nc-space-invaders-status" role="status">← → or A D to move · Space to fire · P pause</p>
+
+        <div class="nc-space-invaders-player">
+          <canvas id="space-invaders-canvas" class="nc-space-invaders-canvas" width="800" height="600" tabindex="0" aria-label="Space Invaders game"></canvas>
+        </div>
+
+        <details class="nc-space-invaders-help">
+          <summary>How to play</summary>
+          <div class="nc-space-invaders-help-body">
+            <p><strong>Move</strong> with arrow keys or A / D. <strong>Fire</strong> with Space. Destroy all invaders to advance — each wave adds more invaders, faster movement, and heavier fire.</p>
+            <p>Use the <strong>Speed</strong> buttons (1×, 2×, 3×) to run the game faster without changing difficulty.</p>
+            <p>Retro sound effects play during gameplay — use the speaker button to mute.</p>
+            <p>Shoot the red UFO for bonus points. <strong>P</strong> pauses · <strong>R</strong> restarts.</p>
+          </div>
+        </details>
+      </section>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script src="{{ url_for('static', filename='intranet_game.js') }}?v=19" defer></script>
+<script src="{{ url_for('static', filename='intranet_flight_sim.js') }}?v=3" defer></script>
+<script src="{{ url_for('static', filename='intranet_space_invaders.js') }}?v=3" defer></script>
+<script src="{{ url_for('static', filename='intranet_chess.js') }}?v=25" defer></script>
+{% endblock %}
